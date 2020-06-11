@@ -46,6 +46,7 @@ def raw_data_path(stage, catalog_type, z_bin, survey=None):
         else:
             z_min = '{:.1f}'.format(z_bins[z_bin + 2]).replace('.', 'pt')
             z_max = '{:.1f}'.format(z_bins[z_bin + 3]).replace('.', 'pt')
-            fname = 'stage0mock_cal_sources_zp{}_{}.dat'.format(z_min, z_max)
+            fname = 'stage0mock_{}_sources_zp{}_{}.dat'.format(
+                'reg1' if catalog_type == 'source' else 'cal', z_min, z_max)
 
     return os.path.join(path, fname)
