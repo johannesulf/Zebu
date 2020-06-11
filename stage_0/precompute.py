@@ -59,7 +59,7 @@ for catalog_type in ['lens', 'random']:
 
     table_l = precompute_catalog(
         table_l, table_s, zebu.rp_bins, cosmology=zebu.cosmo,
-        table_c=table_c, n_jobs=multiprocessing.cpu_count())
+        table_c=table_c, n_jobs=multiprocessing.cpu_count() // 2)
 
     output = os.path.join('precompute', 'l{}_s{}_{}'.format(
         args.lens_bin, args.source_bin, catalog_type[0]))
