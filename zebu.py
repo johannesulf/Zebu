@@ -1,9 +1,17 @@
 import os
+import socket
 import numpy as np
 from astropy.cosmology import FlatLambdaCDM
 
 cosmo = FlatLambdaCDM(Om0=0.286, H0=100)
 rp_bins = 0.05 * np.logspace(0, 3, 31)
+
+host = socket.gethostname()
+
+if 'lux' in host:
+    host = 'lux'
+elif 'cori' in host:
+    host = 'cori'
 
 
 def check_stage(stage):
@@ -31,8 +39,14 @@ def raw_data_path(stage, catalog_type, z_bin, survey=None):
     if catalog_type not in ['source', 'lens', 'calibration', 'random']:
         raise RuntimeError('Unkown catalog type: {}.'.format(catalog_type))
 
-    path = os.path.join(os.sep, 'project', 'projectdirs', 'desi', 'users',
-                        'cblake', 'lensing', 'stage{}mocks'.format(stage))
+    if host == 'lux':
+        path = os.path.join(os.sep, 'data', 'groups', 'leauthaud', 'jolange',
+                            'Zebu', 'raw', 'stage{}mocks'.format(stage))
+    elif host == 'cori':
+        path = os.path.join(os.sep, 'project', 'projectdirs', 'desi', 'users',
+                            'cblake', 'lensing', 'stage{}mocks'.format(stage))
+    else:
+        RuntimeError('Unkown host! Cannot get raw data path.')
 
     if stage == 0:
         z_bins = [0.1, 0.3, 0.5, 0.7, 0.9, 1.1, 1.5]
