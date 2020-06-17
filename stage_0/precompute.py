@@ -57,10 +57,6 @@ for catalog_type in ['lens', 'random']:
     table_l = Table.read(zebu.raw_data_path(0, catalog_type, args.lens_bin),
                          format='ascii', data_start=1, names=cols_l)
 
-    table_l = precompute_catalog(
-        table_l, table_s, zebu.rp_bins, cosmology=zebu.cosmo,
-        table_c=table_c, n_jobs=multiprocessing.cpu_count() // 2)
-
     output = os.path.join('precompute', 'l{}_s{}_{}'.format(
         args.lens_bin, args.source_bin, catalog_type[0]))
 
@@ -69,6 +65,15 @@ for catalog_type in ['lens', 'random']:
     if args.zspec:
         output = output + '_zspec'
 
-    output = output + '.hdf5'
+    d_i = 100000
 
-    table_l.write(output, path='data', overwrite=True)
+    for i in range(len(table_l) // d_i + 1):
+
+        output_i = output + '_{}.hdf5'.format(i)
+
+        if not os.path.isfile(output_i):
+            table_l_i = precompute_catalog(
+                table_l[i*d_i:(i+1)*d_i], table_s, zebu.rp_bins,
+                cosmology=zebu.cosmo, table_c=table_c,
+                n_jobs=multiprocessing.cpu_count(logical=False))
+            table_l_i.write(output_i, path='data', overwrite=True)

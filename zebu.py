@@ -1,17 +1,16 @@
 import os
-import socket
 import numpy as np
 from astropy.cosmology import FlatLambdaCDM
 
 cosmo = FlatLambdaCDM(Om0=0.286, H0=100)
 rp_bins = 0.05 * np.logspace(0, 3, 31)
 
-host = socket.gethostname()
-
-if 'lux' in host:
+if '/data/groups/leauthaud/' in os.getcwd():
     host = 'lux'
-elif 'cori' in host:
+elif '/project/projectdirs/desi/' in os.getcwd():
     host = 'cori'
+else:
+    host = 'personal'
 
 
 def check_stage(stage):
@@ -46,7 +45,7 @@ def raw_data_path(stage, catalog_type, z_bin, survey=None):
         path = os.path.join(os.sep, 'project', 'projectdirs', 'desi', 'users',
                             'cblake', 'lensing', 'stage{}mocks'.format(stage))
     else:
-        RuntimeError('Unkown host! Cannot get raw data path.')
+        raise RuntimeError('Unkown host! Cannot get raw data path.')
 
     if stage == 0:
         z_bins = [0.1, 0.3, 0.5, 0.7, 0.9, 1.1, 1.5]
