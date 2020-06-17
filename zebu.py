@@ -120,4 +120,8 @@ def read_raw_data(stage, catalog_type, z_bin, survey=None):
                            data_start=1, names=cols_s if
                            catalog_type == 'source' else cols_c)
 
+        if catalog_type == 'calibration':
+            table['w'] = np.ones(len(table))
+            table['w_sys'] = np.ones(len(table))
+
     return table

@@ -61,6 +61,6 @@ for catalog_type in ['lens', 'random']:
             table_l_i = precompute_catalog(
                 table_l[i*d_i:(i+1)*d_i], table_s, zebu.rp_bins,
                 cosmology=zebu.cosmo, table_c=table_c,
-                n_jobs=multiprocessing.cpu_count(logical=False))
+                n_jobs=multiprocessing.cpu_count())
             table_l_i.write(output_i, path='data', overwrite=True,
                             serialize_meta=True)
