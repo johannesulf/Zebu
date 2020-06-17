@@ -1,5 +1,6 @@
 import os
 import numpy as np
+from astropy.table import Table
 from astropy.cosmology import FlatLambdaCDM
 
 cosmo = FlatLambdaCDM(Om0=0.286, H0=100)
@@ -33,7 +34,7 @@ def check_z_bin(z_bin):
             'z_bin must be between 0 and 3 but received {}.'.format(z_bin))
 
 
-def raw_data_path(stage, catalog_type, z_bin, survey=None):
+def read_raw_data(stage, catalog_type, z_bin, survey=None):
 
     if catalog_type not in ['source', 'lens', 'calibration', 'random']:
         raise RuntimeError('Unkown catalog type: {}.'.format(catalog_type))
@@ -45,21 +46,78 @@ def raw_data_path(stage, catalog_type, z_bin, survey=None):
         path = os.path.join(os.sep, 'project', 'projectdirs', 'desi', 'users',
                             'cblake', 'lensing', 'stage{}mocks'.format(stage))
     else:
-        raise RuntimeError('Unkown host! Cannot get raw data path.')
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'raw',
+                            'stage{}mocks'.format(stage))
 
-    if stage == 0:
-        z_bins = [0.1, 0.3, 0.5, 0.7, 0.9, 1.1, 1.5]
+    if (stage == 0 or stage == 1) and catalog_type in ['lens', 'random']:
+        z_bins = [0.1, 0.3, 0.5, 0.7, 0.9]
 
-        if catalog_type in ['lens', 'random']:
-            z_min = '{:.1f}'.format(z_bins[z_bin]).replace('.', 'pt')
-            z_max = '{:.1f}'.format(z_bins[z_bin + 1]).replace('.', 'pt')
-            fname = 'stage0mock_reg1_{}_{}_zs{}_{}.dat'.format(
-                'lenses' if catalog_type == 'lens' else 'randlenses',
-                'BGS' if z_bin <= 1 else 'LRG', z_min, z_max)
+        cols_l = ['ra', 'dec', 'z', 'w_sys']
+
+        z_min = '{:.1f}'.format(z_bins[z_bin]).replace('.', 'pt')
+        z_max = '{:.1f}'.format(z_bins[z_bin + 1]).replace('.', 'pt')
+
+        fname = 'stage0mock_reg1_{}_{}_zs{}_{}.dat'.format(
+            'lenses' if catalog_type == 'lens' else 'randlenses',
+            'BGS' if z_bin <= 1 else 'LRG', z_min, z_max)
+
+        table = Table.read(os.path.join(path, fname), format='ascii',
+                           data_start=1, names=cols_l if
+                           catalog_type == 'source' else cols_l)
+
+    elif stage == 0 and catalog_type in ['source', 'calibration']:
+
+        z_bins = [0.5, 0.7, 0.9, 1.1, 1.5]
+
+        cols_s = ['ra', 'dec', 'z_true', 'z', 'gamma_1', 'gamma_2', 'e_1',
+                  'e_2', 'w']
+        cols_c = ['z_true', 'z']
+
+        z_min = '{:.1f}'.format(z_bins[z_bin]).replace('.', 'pt')
+        z_max = '{:.1f}'.format(z_bins[z_bin + 1]).replace('.', 'pt')
+
+        fname = 'stage0mock_{}_sources_zp{}_{}.dat'.format(
+            'reg1' if catalog_type == 'source' else 'cal', z_min, z_max)
+
+        table = Table.read(os.path.join(path, fname), format='ascii',
+                           data_start=1, names=cols_s if
+                           catalog_type == 'source' else cols_c)
+
+        table['z_err'] = 0.1 * (1 + table['z_true'])
+
+        if catalog_type == 'calibration':
+            table['w'] = np.ones(len(table))
+            table['w_sys'] = np.ones(len(table))
+
+    elif stage == 1 and catalog_type in ['source', 'calibration']:
+
+        cols_s = ['ra', 'dec', 'z_true', 'z', 'gamma_1', 'gamma_2', 'e_1',
+                  'e_2', 'w']
+        cols_c = ['z_true', 'z', 'w']
+
+        if survey not in ['des', 'hsc', 'kids']:
+            raise RuntimeError('Unkown catalog type: {}.'.format(survey))
+
+        if survey == 'des':
+            z_bins = [0.20, 0.43, 0.63, 0.90, 1.30]
+        elif survey == 'hsc':
+            z_bins = [0.3, 0.6, 0.9, 1.2, 1.5]
         else:
-            z_min = '{:.1f}'.format(z_bins[z_bin + 2]).replace('.', 'pt')
-            z_max = '{:.1f}'.format(z_bins[z_bin + 3]).replace('.', 'pt')
-            fname = 'stage0mock_{}_sources_zp{}_{}.dat'.format(
-                'reg1' if catalog_type == 'source' else 'cal', z_min, z_max)
+            z_bins = [0.1, 0.3, 0.5, 0.7, 0.9, 1.2]
 
-    return os.path.join(path, fname)
+        if survey == 'hsc':
+            cols_s += ['m', 'sigma_rms']
+            cols_c += ['m', 'sigma_rms']
+
+        z_min = '{:.2f}'.format(z_bins[z_bin]).replace('.', 'pt')
+        z_max = '{:.2f}'.format(z_bins[z_bin + 1]).replace('.', 'pt')
+
+        fname = 'stage1mock_{}_sources_{}_zp{}_{}.dat'.format(
+            'reg6' if catalog_type == 'source' else 'cal', survey, z_min,
+            z_max)
+
+        table = Table.read(os.path.join(path, fname), format='ascii',
+                           data_start=1, names=cols_s if
+                           catalog_type == 'source' else cols_c)
+
+    return table

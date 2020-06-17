@@ -1,5 +1,4 @@
 import os
-import sys
 import zebu
 import argparse
 import multiprocessing
@@ -14,19 +13,18 @@ parser.add_argument('--lens_bin', type=int, help='the tomographic lens bin',
                     required=True)
 parser.add_argument('--source_bin', type=int,
                     help='the tomographic source bin', required=True)
+parser.add_argument('--survey', help='the lens survey', required=True)
 parser.add_argument('--zspec', action='store_true',
                     help='use spectroscopic instead of photometric redshfits')
 parser.add_argument('--gamma', action='store_true',
                     help='use noise-free shapes')
 args = parser.parse_args()
 
-if args.lens_bin == 3 and args.source_bin == 0:
-    sys.exit(0)
-
 # %%
 
-table_c = zebu.read_raw_data(0, 'calibration', args.source_bin)
-table_s = zebu.read_raw_data(0, 'source', args.source_bin)
+table_c = zebu.read_raw_data(1, 'calibration', args.source_bin,
+                             survey=args.survey)
+table_s = zebu.read_raw_data(1, 'source', args.source_bin, survey=args.survey)
 
 if args.gamma:
     table_s['e_1'] = table_s['gamma_1']
@@ -43,8 +41,8 @@ for catalog_type in ['lens', 'random']:
 
     table_l = zebu.read_raw_data(0, catalog_type, args.lens_bin)
 
-    output = os.path.join('precompute', 'l{}_s{}_{}'.format(
-        args.lens_bin, args.source_bin, catalog_type[0]))
+    output = os.path.join('precompute', 'l{}_s{}_{}_{}'.format(
+        args.lens_bin, args.source_bin, args.survey, catalog_type[0]))
 
     if args.gamma:
         output = output + '_gamma'

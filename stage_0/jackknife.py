@@ -1,8 +1,9 @@
 import os
+import glob
 import zebu
 import numpy as np
 import argparse
-from astropy.table import Table
+from astropy.table import Table, vstack
 from astropy.cosmology import FlatLambdaCDM
 from scipy.interpolate import interp1d
 from dsigma.jackknife import add_jackknife_fields, compress_jackknife_fields
@@ -58,33 +59,46 @@ def zspec_systematic_weights(lens_bin, source_bin):
 centers = np.genfromtxt(os.path.join('jackknife', 'centers.csv'))
 
 for lens in ['l', 'r']:
-    for lens_bin in range(3,4):
-        for source_bin in range(3,4):
+    for lens_bin in range(4):
+        for source_bin in range(4):
             print('{}: Lens-Bin {}, Source-Bin {}'.format(
                 'Lenses' if lens == 'l' else 'Randoms', lens_bin, source_bin))
 
             if lens_bin == 3 and source_bin == 0:
                 continue
 
-            fname = 'l{}_s{}_{}'.format(lens_bin, source_bin, lens[0])
+            fname_base = 'l{}_s{}_{}'.format(lens_bin, source_bin, lens[0])
 
             if args.gamma:
-                fname = fname + '_gamma'
+                fname_base = fname_base + '_gamma'
             if args.zspec:
-                fname = fname + '_zspec'
+                fname_base = fname_base + '_zspec'
 
-            fname = fname + '.hdf5'
-            table_l = Table.read(os.path.join('precompute', fname),
-                                 path='data')
+            if len(glob.glob(os.path.join('precompute',
+                                          fname_base + '*'))) == 0:
+                continue
 
-            if args.zspec_zphot_sys_weights:
-                fname = fname[:-5] + '_w_sys' + '.hdf5'
+            table_l = []
+
+            for fname in glob.glob(
+                    os.path.join('precompute', fname_base + '*')):
+
+                print(fname)
+
+                table_l_i = Table.read(fname, path='data')
+
+                if args.zspec and args.zspec_zphot_sys_weights:
+                    table_l_i['w_sys'] = zspec_systematic_weights(
+                        lens_bin, source_bin)(table_l_i['z'])
+
+                add_jackknife_fields(table_l_i, centers)
+                table_l_i = compress_jackknife_fields(table_l_i)
+                table_l.append(table_l_i)
+
+            table_l = compress_jackknife_fields(vstack(table_l))
 
             if args.zspec and args.zspec_zphot_sys_weights:
-                table_l['w_sys'] = zspec_systematic_weights(
-                    lens_bin, source_bin)(table_l['z'])
+                fname_base = fname_base + '_w_sys'
 
-            add_jackknife_fields(table_l, centers)
-            table_l = compress_jackknife_fields(table_l)
-            table_l.write(os.path.join('jackknife', fname), path='data',
-                          overwrite=True)
+            table_l.write(os.path.join('jackknife', fname_base + '.hdf5'),
+                          path='data', overwrite=True, serialize_meta=True)
