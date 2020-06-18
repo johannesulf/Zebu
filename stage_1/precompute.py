@@ -39,7 +39,7 @@ for table in [table_s, table_c]:
 
 for catalog_type in ['lens', 'random']:
 
-    table_l = zebu.read_raw_data(0, catalog_type, args.lens_bin)
+    table_l = zebu.read_raw_data(1, catalog_type, args.lens_bin)
 
     output = os.path.join('precompute', 'l{}_s{}_{}_{}'.format(
         args.lens_bin, args.source_bin, args.survey, catalog_type[0]))
