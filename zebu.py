@@ -57,9 +57,9 @@ def read_raw_data(stage, catalog_type, z_bin, survey=None):
         z_min = '{:.1f}'.format(z_bins[z_bin]).replace('.', 'pt')
         z_max = '{:.1f}'.format(z_bins[z_bin + 1]).replace('.', 'pt')
 
-        fname = 'stage0mock_reg1_{}_{}_zs{}_{}.dat'.format(
-            'lenses' if catalog_type == 'lens' else 'randlenses',
-            'BGS' if z_bin <= 1 else 'LRG', z_min, z_max)
+        fname = 'stage{}mock_reg{}_{}_{}_zs{}_{}.dat'.format(
+            stage, 1 if stage == 0 else 6,  'lenses' if catalog_type == 'lens'
+            else 'randlenses', 'BGS' if z_bin <= 1 else 'LRG', z_min, z_max)
 
         table = Table.read(os.path.join(path, fname), format='ascii',
                            data_start=1, names=cols_l if

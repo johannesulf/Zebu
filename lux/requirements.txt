@@ -1,0 +1,14 @@
+astropy==4.0.1.post1
+cycler==0.10.0
+dsigma==0.2.0
+h5py==2.10.0
+joblib==0.15.1
+kiwisolver==1.2.0
+matplotlib==3.2.1
+numpy==1.17.0
+pyparsing==2.4.7
+python-dateutil==2.8.1
+scikit-learn==0.23.1
+scipy==1.4.1
+six==1.15.0
+threadpoolctl==2.1.0

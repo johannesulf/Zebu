@@ -6,6 +6,7 @@ import argparse
 from astropy.table import Table, vstack
 from astropy.cosmology import FlatLambdaCDM
 from scipy.interpolate import interp1d
+from dsigma.jackknife import add_continous_fields, jackknife_field_centers
 from dsigma.jackknife import add_jackknife_fields, compress_jackknife_fields
 from dsigma.physics import critical_surface_density
 
@@ -16,6 +17,7 @@ parser.add_argument('--zspec', action='store_true',
                     help='use spectroscopic instead of photometric redshfits')
 parser.add_argument('--gamma', action='store_true',
                     help='use noise-free shapes')
+parser.add_argument('--survey', help='the lens survey', required=True)
 parser.add_argument('--zspec_zphot_sys_weights',  action='store_true',
                     help="whether to correct for different redshift weights " +
                     "when using spec-z's")
@@ -56,7 +58,16 @@ def zspec_systematic_weights(lens_bin, source_bin):
     return interp1d(z_lens, weight_phot_z / weight_spec_z)
 
 
-centers = np.genfromtxt(os.path.join('jackknife', 'centers.csv'))
+if not os.path.exists('jackknife'):
+    os.makedirs('jackknife')
+
+try:
+    centers = np.genfromtxt(os.path.join('jackknife', 'centers.csv'))
+except OSError:
+    table_l = zebu.read_raw_data(1, 'random', 3)
+    table_l = add_continous_fields(table_l, distance_threshold=1)
+    centers = jackknife_field_centers(table_l, n_jk=100)
+    np.savetxt(os.path.join('jackknife', 'centers.csv'), centers)
 
 for lens in ['l', 'r']:
     for lens_bin in range(4):
@@ -64,10 +75,8 @@ for lens in ['l', 'r']:
             print('{}: Lens-Bin {}, Source-Bin {}'.format(
                 'Lenses' if lens == 'l' else 'Randoms', lens_bin, source_bin))
 
-            if lens_bin == 3 and source_bin == 0:
-                continue
-
-            fname_base = 'l{}_s{}_{}'.format(lens_bin, source_bin, lens[0])
+            fname_base = 'l{}_s{}_{}_{}'.format(
+                lens_bin, source_bin, args.survey, lens[0])
 
             if args.gamma:
                 fname_base = fname_base + '_gamma'
@@ -92,12 +101,11 @@ for lens in ['l', 'r']:
                         lens_bin, source_bin)(table_l_i['z'])
 
                 add_jackknife_fields(table_l_i, centers)
+                print(np.unique(table_l_i['field_jk']))
                 table_l_i = compress_jackknife_fields(table_l_i)
                 table_l.append(table_l_i)
 
             table_l = compress_jackknife_fields(vstack(table_l))
-            # undo vstack concatenate
-            table_l.meta['rp_bins'] = table_l_i.meta['rp_bins']
 
             if args.zspec and args.zspec_zphot_sys_weights:
                 fname_base = fname_base + '_w_sys'
