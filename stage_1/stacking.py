@@ -1,11 +1,20 @@
 import os
+import argparse
 import numpy as np
 from astropy.table import Table
 import matplotlib.pyplot as plt
 from dsigma.stacking import excess_surface_density
 from dsigma.jackknife import jackknife_resampling
 
+parser = argparse.ArgumentParser()
+parser.add_argument('--survey', help='the lens survey', required=True)
+args = parser.parse_args()
+
 # %%
+
+output = 'results_{}'.format(args.survey)
+if not os.path.exists(output):
+    os.makedirs(output)
 
 z_bins = [0.1, 0.3, 0.5, 0.7, 0.9, 1.1, 1.5]
 
@@ -16,13 +25,18 @@ for lens_bin in range(4):
     for source_bin in range(4):
 
         try:
-            fname_l = 'l{}_s{}_l.hdf5'.format(lens_bin, source_bin)
-            fname_r = 'l{}_s{}_r.hdf5'.format(lens_bin, source_bin)
+            fname_l = 'l{}_s{}_{}_l.hdf5'.format(lens_bin, source_bin,
+                                                 args.survey)
+            fname_r = 'l{}_s{}_{}_r.hdf5'.format(lens_bin, source_bin,
+                                                 args.survey)
             table_l = Table.read(os.path.join('jackknife', fname_l),
                                  path='data')
             table_r = Table.read(os.path.join('jackknife', fname_r),
                                  path='data')
         except FileNotFoundError:
+            continue
+
+        if np.sum(table_l['sum w_ls']) == 0:
             continue
 
         kwargs = {'table_r': table_r, 'photo_z_dilution_correction': True,
@@ -48,8 +62,8 @@ for lens_bin in range(4):
             yerr=delta_sigma['rp'] * delta_sigma['delta sigma_err'], fmt='.',
             ms=0)
 
-        delta_sigma.write('results/result_{}_{}.csv'.format(
-            lens_bin, source_bin), overwrite=True)
+        delta_sigma.write(os.path.join(output, 'result_{}_{}.csv'.format(
+                                       lens_bin, source_bin)), overwrite=True)
 
     axarr[0].set_title(r'${:.1f} < z_l < {:.1f}$'.format(
         z_bins[lens_bin], z_bins[lens_bin + 1]))
@@ -63,6 +77,7 @@ for lens_bin in range(4):
     plt.xscale('log')
     plt.tight_layout(pad=0.3)
     plt.subplots_adjust(hspace=0)
-    plt.savefig('results/result_{}.pdf'.format(lens_bin))
-    plt.savefig('results/result_{}.png'.format(lens_bin), dpi=300)
+    plt.savefig(os.path.join(output, 'result_{}.pdf'.format(lens_bin)))
+    plt.savefig(os.path.join(output, 'result_{}.pdf'.format(lens_bin)),
+                dpi=300)
     plt.close()

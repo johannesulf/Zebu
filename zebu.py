@@ -49,6 +49,17 @@ def read_raw_data(stage, catalog_type, z_bin, survey=None):
         path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'raw',
                             'stage{}mocks'.format(stage))
 
+    z_bin_min = 0
+    z_bin_max = 3
+
+    if survey == 'kids' and catalog_type in ['source', 'calibration']:
+        z_bin_max = 4
+
+    if z_bin < z_bin_min or z_bin > z_bin_max:
+        raise RuntimeError('Invalid {} redshift bin. '.format(catalog_type) +
+                           'Must be in [{}, {}]'.format(z_bin_min, z_bin_max) +
+                           ', but received {}.'.format(z_bin))
+
     if (stage == 0 or stage == 1) and catalog_type in ['lens', 'random']:
         z_bins = [0.1, 0.3, 0.5, 0.7, 0.9]
 
@@ -96,7 +107,7 @@ def read_raw_data(stage, catalog_type, z_bin, survey=None):
         cols_c = ['z_true', 'z', 'w']
 
         if survey not in ['des', 'hsc', 'kids']:
-            raise RuntimeError('Unkown catalog type: {}.'.format(survey))
+            raise RuntimeError('Unkown survey: {}.'.format(survey))
 
         if survey == 'des':
             z_bins = [0.20, 0.43, 0.63, 0.90, 1.30]
@@ -108,6 +119,9 @@ def read_raw_data(stage, catalog_type, z_bin, survey=None):
         if survey == 'hsc':
             cols_s += ['m', 'sigma_rms']
             cols_c += ['m', 'sigma_rms']
+        elif survey == 'kids':
+            cols_s += ['m', 'dummy']
+            cols_c += ['m']
 
         z_min = '{:.2f}'.format(z_bins[z_bin]).replace('.', 'pt')
         z_max = '{:.2f}'.format(z_bins[z_bin + 1]).replace('.', 'pt')

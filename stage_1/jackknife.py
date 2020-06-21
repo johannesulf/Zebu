@@ -101,11 +101,12 @@ for lens in ['l', 'r']:
                         lens_bin, source_bin)(table_l_i['z'])
 
                 add_jackknife_fields(table_l_i, centers)
-                print(np.unique(table_l_i['field_jk']))
                 table_l_i = compress_jackknife_fields(table_l_i)
                 table_l.append(table_l_i)
 
             table_l = compress_jackknife_fields(vstack(table_l))
+            # undo vstack concatenate
+            table_l.meta['rp_bins'] = table_l_i.meta['rp_bins']
 
             if args.zspec and args.zspec_zphot_sys_weights:
                 fname_base = fname_base + '_w_sys'
