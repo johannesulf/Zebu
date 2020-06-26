@@ -34,6 +34,21 @@ def check_z_bin(z_bin):
             'z_bin must be between 0 and 3 but received {}.'.format(z_bin))
 
 
+def source_z_bins(stage, survey=None):
+
+    if stage == 0:
+        return [0.5, 0.7, 0.9, 1.1, 1.5]
+
+    if survey == 'des':
+        return [0.20, 0.43, 0.63, 0.90, 1.30]
+    elif survey == 'hsc':
+        return [0.3, 0.6, 0.9, 1.2, 1.5]
+    elif survey == 'kids':
+        return [0.1, 0.3, 0.5, 0.7, 0.9, 1.2]
+    else:
+        raise RuntimeError('Unkown survey: {}.'.format(survey))
+
+
 def read_raw_data(stage, catalog_type, z_bin, survey=None):
 
     if catalog_type not in ['source', 'lens', 'calibration', 'random']:
@@ -78,7 +93,7 @@ def read_raw_data(stage, catalog_type, z_bin, survey=None):
 
     elif stage == 0 and catalog_type in ['source', 'calibration']:
 
-        z_bins = [0.5, 0.7, 0.9, 1.1, 1.5]
+        z_bins = source_z_bins(0)
 
         cols_s = ['ra', 'dec', 'z_true', 'z', 'gamma_1', 'gamma_2', 'e_1',
                   'e_2', 'w']
@@ -109,14 +124,13 @@ def read_raw_data(stage, catalog_type, z_bin, survey=None):
         if survey not in ['des', 'hsc', 'kids']:
             raise RuntimeError('Unkown survey: {}.'.format(survey))
 
-        if survey == 'des':
-            z_bins = [0.20, 0.43, 0.63, 0.90, 1.30]
-        elif survey == 'hsc':
-            z_bins = [0.3, 0.6, 0.9, 1.2, 1.5]
-        else:
-            z_bins = [0.1, 0.3, 0.5, 0.7, 0.9, 1.2]
+        z_bins = source_z_bins(1, survey)
 
-        if survey == 'hsc':
+        if survey == 'des':
+            cols_s += ['R_11', 'R_22']
+            cols_c.remove('w')
+            cols_c += ['R_11', 'R_22']
+        elif survey == 'hsc':
             cols_s += ['m', 'sigma_rms']
             cols_c += ['m', 'sigma_rms']
         elif survey == 'kids':
@@ -134,8 +148,13 @@ def read_raw_data(stage, catalog_type, z_bin, survey=None):
                            data_start=1, names=cols_s if
                            catalog_type == 'source' else cols_c)
 
+        if survey == 'des':
+            table['R_MCAL'] = (table['R_11'] + table['R_22']) / 2
+
         if catalog_type == 'calibration':
-            table['w'] = np.ones(len(table))
             table['w_sys'] = np.ones(len(table))
+
+        if survey == 'des' and catalog_type == 'calibration':
+            table['w'] = np.ones(len(table))
 
     return table

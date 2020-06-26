@@ -71,7 +71,7 @@ except OSError:
 
 for lens in ['l', 'r']:
     for lens_bin in range(4):
-        for source_bin in range(4):
+        for source_bin in range(4 if args.survey != 'kids' else 5):
             print('{}: Lens-Bin {}, Source-Bin {}'.format(
                 'Lenses' if lens == 'l' else 'Randoms', lens_bin, source_bin))
 
