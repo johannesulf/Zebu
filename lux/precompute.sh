@@ -1,13 +1,13 @@
 #!/bin/bash
 
 TEMPLATE=$'#!/bin/bash
-#SBATCH --partition=leauthaud
-#SBATCH --account=leauthaud
+#SBATCH --partition=cpuq
+#SBATCH --account=cpuq
 #SBATCH --job-name=precompute_lLENS_BIN_sSOURCE_BIN_stageSTAGE_SURVEY
 #SBATCH --nodes=1
 #SBATCH --ntasks=40
 #SBATCH --cpus-per-task=1
-#SBATCH --time=2-0:00:00
+#SBATCH --time=1-0:00:00
 #SBATCH --mail-type=FAIL
 #SBATCH --mail-user=jolange@ucsc.edu
 #SBATCH --output=log/precompute_lLENS_BIN_sSOURCE_BIN_stageSTAGE_SURVEY.out
@@ -39,8 +39,8 @@ if [ "$2" == "kids" ]; then
   NS=5
 fi
 
-for (( i=0; i<=$(expr $NL - 1); i++ )); do
-  for (( k=0; k<=$(expr $NS - 1); k++ )); do
+for (( i=3; i<$NL; i++ )); do
+  for (( k=0; k<$NS; k++ )); do
 
     SCRIPT="${TEMPLATE//LENS_BIN/$i}"
     SCRIPT="${SCRIPT//SOURCE_BIN/$k}"

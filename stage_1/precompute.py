@@ -36,7 +36,7 @@ except OSError:
     table_l = zebu.read_raw_data(1, 'random', 3)
     table_l = add_continous_fields(table_l, distance_threshold=1)
     centers = jackknife_field_centers(table_l, n_jk=100)
-    np.savetxt(os.path.join('jackknife', 'centers.csv'), centers)
+    np.savetxt(os.path.join(output_directory, 'centers.csv'), centers)
 
 table_c = zebu.read_raw_data(1, 'calibration', args.source_bin,
                              survey=args.survey)
