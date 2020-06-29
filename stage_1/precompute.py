@@ -1,8 +1,11 @@
 import os
 import zebu
 import argparse
+import numpy as np
 import multiprocessing
 from dsigma.precompute import add_maximum_lens_redshift, precompute_catalog
+from dsigma.jackknife import add_continous_fields, jackknife_field_centers
+from dsigma.jackknife import add_jackknife_fields, compress_jackknife_fields
 
 # %%
 
@@ -22,6 +25,19 @@ args = parser.parse_args()
 
 # %%
 
+output_directory = 'precompute'
+
+if not os.path.exists(output_directory):
+    os.makedirs(output_directory)
+
+try:
+    centers = np.genfromtxt(os.path.join(output_directory, 'centers.csv'))
+except OSError:
+    table_l = zebu.read_raw_data(1, 'random', 3)
+    table_l = add_continous_fields(table_l, distance_threshold=1)
+    centers = jackknife_field_centers(table_l, n_jk=100)
+    np.savetxt(os.path.join('jackknife', 'centers.csv'), centers)
+
 table_c = zebu.read_raw_data(1, 'calibration', args.source_bin,
                              survey=args.survey)
 table_s = zebu.read_raw_data(1, 'source', args.source_bin, survey=args.survey)
@@ -40,8 +56,9 @@ for table in [table_s, table_c]:
 for catalog_type in ['lens', 'random']:
 
     table_l = zebu.read_raw_data(1, catalog_type, args.lens_bin)
+    add_jackknife_fields(table_l, centers)
 
-    output = os.path.join('precompute', 'l{}_s{}_{}_{}'.format(
+    output = os.path.join(output_directory, 'l{}_s{}_{}_{}'.format(
         args.lens_bin, args.source_bin, args.survey, catalog_type[0]))
 
     if args.gamma:
@@ -49,16 +66,10 @@ for catalog_type in ['lens', 'random']:
     if args.zspec:
         output = output + '_zspec'
 
-    d_i = 100000
+    output = output + '.hdf5'
 
-    for i in range(len(table_l) // d_i + 1):
+    table_l = compress_jackknife_fields(precompute_catalog(
+        table_l, table_s, zebu.rp_bins, cosmology=zebu.cosmo, table_c=table_c,
+        n_jobs=multiprocessing.cpu_count()))
 
-        output_i = output + '_{}.hdf5'.format(i)
-
-        if not os.path.isfile(output_i):
-            table_l_i = precompute_catalog(
-                table_l[i*d_i:(i+1)*d_i], table_s, zebu.rp_bins,
-                cosmology=zebu.cosmo, table_c=table_c,
-                n_jobs=multiprocessing.cpu_count())
-            table_l_i.write(output_i, path='data', overwrite=True,
-                            serialize_meta=True)
+    table_l.write(output, path='data', overwrite=True)
