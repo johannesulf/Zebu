@@ -84,7 +84,7 @@ def read_raw_data(stage, catalog_type, z_bin, survey=None):
         z_max = '{:.1f}'.format(z_bins[z_bin + 1]).replace('.', 'pt')
 
         fname = 'stage{}mock_reg{}_{}_{}_zs{}_{}.dat'.format(
-            stage, 1 if stage == 0 else 6,  'lenses' if catalog_type == 'lens'
+            stage, 1,  'lenses' if catalog_type == 'lens'
             else 'randlenses', 'BGS' if z_bin <= 1 else 'LRG', z_min, z_max)
 
         table = Table.read(os.path.join(path, fname), format='ascii',
@@ -141,7 +141,7 @@ def read_raw_data(stage, catalog_type, z_bin, survey=None):
         z_max = '{:.2f}'.format(z_bins[z_bin + 1]).replace('.', 'pt')
 
         fname = 'stage1mock_{}_sources_{}_zp{}_{}.dat'.format(
-            'reg6' if catalog_type == 'source' else 'cal', survey, z_min,
+            'reg1' if catalog_type == 'source' else 'cal', survey, z_min,
             z_max)
 
         table = Table.read(os.path.join(path, fname), format='ascii',
