@@ -39,11 +39,11 @@ def source_z_bins(stage, survey=None):
     if stage == 0:
         return [0.5, 0.7, 0.9, 1.1, 1.5]
 
-    if survey == 'des':
+    if survey.lower() == 'des':
         return [0.20, 0.43, 0.63, 0.90, 1.30]
-    elif survey == 'hsc':
+    elif survey.lower() == 'hsc':
         return [0.3, 0.6, 0.9, 1.2, 1.5]
-    elif survey == 'kids':
+    elif survey.lower() == 'kids':
         return [0.1, 0.3, 0.5, 0.7, 0.9, 1.2]
     else:
         raise RuntimeError('Unkown survey: {}.'.format(survey))
@@ -89,7 +89,8 @@ def read_raw_data(stage, catalog_type, z_bin, survey=None):
 
         table = Table.read(os.path.join(path, fname), format='ascii',
                            data_start=1, names=cols_l if
-                           catalog_type == 'source' else cols_l)
+                           catalog_type == 'source' else cols_l,
+                           fast_reader={'chunk_size': 100 * 1000000})
 
     elif stage == 0 and catalog_type in ['source', 'calibration']:
 
@@ -107,7 +108,8 @@ def read_raw_data(stage, catalog_type, z_bin, survey=None):
 
         table = Table.read(os.path.join(path, fname), format='ascii',
                            data_start=1, names=cols_s if
-                           catalog_type == 'source' else cols_c)
+                           catalog_type == 'source' else cols_c,
+                           fast_reader={'chunk_size': 100 * 1000000})
 
         table['z_err'] = 0.1 * (1 + table['z_true'])
 
@@ -117,23 +119,23 @@ def read_raw_data(stage, catalog_type, z_bin, survey=None):
 
     elif stage == 1 and catalog_type in ['source', 'calibration']:
 
-        cols_s = ['ra', 'dec', 'z_true', 'z', 'gamma_1', 'gamma_2', 'e_1',
-                  'e_2', 'w']
+        cols_s = ['ra', 'dec', 'z_true', 'z', 'gamma_1', 'gamma_2', 'g_1',
+                  'g_2', 'e_1', 'e_2', 'w']
         cols_c = ['z_true', 'z', 'w']
 
-        if survey not in ['des', 'hsc', 'kids']:
-            raise RuntimeError('Unkown survey: {}.'.format(survey))
+        if survey.lower() not in ['des', 'hsc', 'kids']:
+            raise RuntimeError('Unkown survey: {}.'.format(survey.lower()))
 
         z_bins = source_z_bins(1, survey)
 
-        if survey == 'des':
+        if survey.lower() == 'des':
             cols_s += ['R_11', 'R_22']
             cols_c.remove('w')
             cols_c += ['R_11', 'R_22']
-        elif survey == 'hsc':
+        elif survey.lower() == 'hsc':
             cols_s += ['m', 'sigma_rms']
             cols_c += ['m', 'sigma_rms']
-        elif survey == 'kids':
+        elif survey.lower() == 'kids':
             cols_s += ['m', 'dummy']
             cols_c += ['m']
 
@@ -141,12 +143,13 @@ def read_raw_data(stage, catalog_type, z_bin, survey=None):
         z_max = '{:.2f}'.format(z_bins[z_bin + 1]).replace('.', 'pt')
 
         fname = 'stage1mock_{}_sources_{}_zp{}_{}.dat'.format(
-            'reg1' if catalog_type == 'source' else 'cal', survey, z_min,
-            z_max)
+            'reg1' if catalog_type == 'source' else 'cal', survey.lower(),
+            z_min, z_max)
 
         table = Table.read(os.path.join(path, fname), format='ascii',
                            data_start=1, names=cols_s if
-                           catalog_type == 'source' else cols_c)
+                           catalog_type == 'source' else cols_c,
+                           fast_reader={'chunk_size': 100 * 1000000})
 
         if survey == 'des':
             table['R_MCAL'] = (table['R_11'] + table['R_22']) / 2
