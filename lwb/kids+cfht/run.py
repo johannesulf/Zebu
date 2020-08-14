@@ -16,7 +16,15 @@ parser = argparse.ArgumentParser(description='Calculate the galaxy-galaxy ' +
 parser.add_argument('survey', help='the lens survey')
 parser.add_argument('--no_dilution_correction', action='store_true',
                     help='do not correct for photo-z dilution')
+parser.add_argument('--nstar', help='whether to calculate only the high or ' +
+                    'low n_star regions')
 args = parser.parse_args()
+
+if args.nstar is not None:
+    if args.nstar not in ['low', 'high']:
+        raise ValueError("nstar must be 'low' or 'high'.")
+    if args.survey.lower() != 'cfht':
+        raise ValueError("nstar can only be specified for CFHT.")
 
 # %%
 
@@ -116,15 +124,25 @@ for lens_bin in range(4):
             z_bins[lens_bin], z_bins[lens_bin + 1]), delimiter=' ',
         format='ascii', names=['ra', 'dec', 'z'])
 
+    if args.nstar is not None:
+        mask_l = ((table_l['ra'] < 100) | ((table_l['ra'] > 200) &
+                                           (table_l['ra'] < 300)))
+        mask_r = ((table_r['ra'] < 100) | ((table_r['ra'] > 200) &
+                                           (table_r['ra'] < 300)))
+        if args.nstar == 'low':
+            table_l = table_l[mask_l]
+            table_r = table_r[mask_r]
+        else:
+            table_l = table_l[~mask_l]
+            table_r = table_r[~mask_r]
+
     table_r['w_sys'] = np.ones(len(table_r))
     table_l['w_sys'] = table_l['w_tot']
     print('Working on lenses in bin {}...'.format(lens_bin + 1))
-    table_l['idx'] = np.arange(len(table_l))
     table_l_pre = precompute_catalog(table_l, table_s, rp_bins, n_jobs=40,
                                      comoving=False, table_c=table_c,
                                      cosmology=FlatLambdaCDM(H0=70, Om0=0.3))
     print('Working on randoms in bin {}...'.format(lens_bin + 1))
-    table_r['idx'] = np.arange(len(table_r))
     table_r_pre = precompute_catalog(table_r, table_s, rp_bins, n_jobs=40,
                                      comoving=False, table_c=table_c,
                                      cosmology=FlatLambdaCDM(H0=70, Om0=0.3))
@@ -141,10 +159,16 @@ for lens_bin in range(4):
 
     result = excess_surface_density(table_l_pre, **kwargs)
     kwargs['return_table'] = False
-    result['ds_err'] = np.sqrt(np.diag(jackknife_resampling(
-        excess_surface_density, table_l_pre, **kwargs)))
+    ds_cov = jackknife_resampling(
+        excess_surface_density, table_l_pre, **kwargs)
+    result['ds_err'] = np.sqrt(np.diag(ds_cov))
 
-    result.write(os.path.join('results', '{}_{}{}.csv'.format(
+    fname_base = '{}_{}{}{}'.format(
         args.survey.lower(), lens_bin,
-        '_no_dillution_correction' if args.no_dilution_correction else '')),
+        '_no_dillution_correction' if args.no_dilution_correction else '',
+        ('_nstar_' + args.nstar) if args.nstar is not None else '')
+
+    np.savetxt(os.path.join('results', fname_base + '_cov.csv'), ds_cov)
+
+    result.write(os.path.join('results', fname_base + '.csv'),
                  overwrite=True)
