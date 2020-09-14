@@ -35,6 +35,7 @@ if args.survey.lower() == 'kids':
     for reg in [9, 12, 15, 23, 'S']:
         kv = Table.read(os.path.join(
             'kids', 'KV450_G{}_reweight_3x4x4_v2_good.cat'.format(reg)), hdu=1)
+        kv = kv[kv['MASK'] == 0]
 
         table = dsigma_table(kv, 'source', survey='KiDS', version='KV450',
                              verbose=reg == 9)

@@ -9,7 +9,7 @@ rp = 0.5 * (rp_bins[1:] + rp_bins[:-1])
 
 # %%
 
-for survey in ['CFHT', ]:
+for survey in ['CFHT', 'KiDS']:
 
     fig, axarr = plt.subplots(figsize=(7, 7), nrows=2, ncols=2, sharex=True,
                               sharey=True)

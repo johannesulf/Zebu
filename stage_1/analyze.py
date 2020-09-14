@@ -31,9 +31,9 @@ for lens_bin in range(len(z_bins_l) - 1):
                                                  args.survey)
             fname_r = 'l{}_s{}_{}_r.hdf5'.format(lens_bin, source_bin,
                                                  args.survey)
-            table_l = Table.read(os.path.join('jackknife', fname_l),
+            table_l = Table.read(os.path.join('precompute', fname_l),
                                  path='data')
-            table_r = Table.read(os.path.join('jackknife', fname_r),
+            table_r = Table.read(os.path.join('precompute', fname_r),
                                  path='data')
         except FileNotFoundError:
             continue
@@ -47,7 +47,7 @@ for lens_bin in range(len(z_bins_l) - 1):
                   'shear_responsivity_correction': args.survey == 'hsc'}
         delta_sigma = excess_surface_density(table_l, **kwargs)
         kwargs['return_table'] = False
-        delta_sigma['delta sigma_err'] = np.sqrt(np.diag(
+        delta_sigma['ds_err'] = np.sqrt(np.diag(
             jackknife_resampling(excess_surface_density, table_l, **kwargs)))
 
         color = 'C{}'.format(source_bin)
@@ -59,10 +59,10 @@ for lens_bin in range(len(z_bins_l) - 1):
                       ls='--', label=r"boost" if source_bin == 3 else "")
         axarr[1].errorbar(
             delta_sigma['rp'] * (1 + (source_bin - lens_bin) * 0.03),
-            delta_sigma['rp'] * delta_sigma['delta sigma'], color=color,
+            delta_sigma['rp'] * delta_sigma['ds'], color=color,
             label=r'${:.1f} < z_s < {:.1f}$'.format(
                 z_bins_s[source_bin], z_bins_s[source_bin + 1]),
-            yerr=delta_sigma['rp'] * delta_sigma['delta sigma_err'], fmt='.',
+            yerr=delta_sigma['rp'] * delta_sigma['ds_err'], fmt='.',
             ms=0)
 
         delta_sigma.write(os.path.join(output, 'result_{}_{}.csv'.format(
