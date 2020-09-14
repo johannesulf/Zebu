@@ -1,8 +1,8 @@
 #!/bin/bash
 
 TEMPLATE=$'#!/bin/bash
-#SBATCH --partition=cpuq
-#SBATCH --account=cpuq
+#SBATCH --partition=leauthaud
+#SBATCH --account=leauthaud
 #SBATCH --job-name=precompute_lLENS_BIN_sSOURCE_BIN_stageSTAGE_SURVEY
 #SBATCH --nodes=1
 #SBATCH --ntasks=40
@@ -39,7 +39,7 @@ if [ "$2" == "kids" ]; then
   NS=5
 fi
 
-for (( i=3; i<$NL; i++ )); do
+for (( i=0; i<$NL; i++ )); do
   for (( k=0; k<$NS; k++ )); do
 
     SCRIPT="${TEMPLATE//LENS_BIN/$i}"
