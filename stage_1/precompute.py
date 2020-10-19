@@ -43,8 +43,8 @@ table_c = zebu.read_raw_data(1, 'calibration', args.source_bin,
 table_s = zebu.read_raw_data(1, 'source', args.source_bin, survey=args.survey)
 
 if args.gamma:
-    table_s['e_1'] = table_s['gamma_1']
-    table_s['e_2'] = table_s['gamma_2']
+    table_s['e_1'] = table_s['g_1']
+    table_s['e_2'] = table_s['g_2']
 
 if args.zspec:
     table_c['z'] = table_c['z_true']
