@@ -144,11 +144,14 @@ for (( lens=$LENS_BIN_MIN; lens<=$LENS_BIN_MAX; lens++ )); do
       SCRIPT="${SCRIPT//SURVEY/${SURVEY}}"
     fi
     SCRIPT="${SCRIPT//QUEUE/${QUEUE}}"
-    if [ "$GAMMA" != true ] ; then
+    if [ "$QUEUE" == "leauthaud" ]; then
+      SCRIPT="${SCRIPT//#SBATCH --time=1-0:00:00/#SBATCH --time=7-0:00:00}"
+    fi
+    if [ "$GAMMA" != true ]; then
       SCRIPT="${SCRIPT//_gamma/}"
       SCRIPT="${SCRIPT// --gamma/}"
     fi
-    if [ "$ZSPEC" != true ] ; then
+    if [ "$ZSPEC" != true ]; then
       SCRIPT="${SCRIPT//_zspec/}"
       SCRIPT="${SCRIPT// --zspec/}"
     fi
