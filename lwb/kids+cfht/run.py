@@ -46,29 +46,22 @@ if args.survey.lower() == 'kids':
 
         table_s = vstack([table_s, table])
 
-    table_s = table_s[table_s['z'] > 0.25 - 1e-6]
-    table_s = table_s[table_s['z'] < 1.2 + 1e-6]
-    table_s = add_maximum_lens_redshift(table_s, dz_min=0.105)
-    table_s['m'] = kids.multiplicative_shear_bias(table_s['z'],
-                                                  version='KV450')
-
-    table_c = table_s[np.random.randint(len(table_s), size=100000)][
-        'z', 'z_l_max', 'w']
-
-    table_c['w_sys'] = np.ones(len(table_c))
-    table_c['z_true'] = np.zeros(len(table_c))
-
     z_bins = [0.1, 0.3, 0.5, 0.7, 0.9, 1.2]
+    table_s['z_bin'] = np.digitize(table_s['z'], z_bins) - 1
 
     for i in range(len(z_bins) - 1):
-        nz = Table.read(os.path.join(
-            'kids', 'Nz_DIR_z{}t{}.asc'.format(z_bins[i], z_bins[i + 1])),
-            format='ascii', names=['z', 'n(z)'])
-        nz['z'] = nz['z'] + 0.025
-        nz['n(z)'] /= np.sum(nz['n(z)'])
-        mask = np.digitize(table_c['z'], z_bins) - 1 == i
-        table_c['z_true'][mask] = np.random.choice(
-            nz['z'], p=nz['n(z)'], size=np.sum(mask))
+        data = Table.read('Nz_DIR_z{}t{}.asc'.format(z_bins[i], z_bins[i + 1]),
+                          format='ascii', names=['z', 'n(z)'])
+        if i == 0:
+            nz_z = data['z']
+            nz_n = data['n(z)']
+        else:
+            nz_z = np.vstack((nz_z, data['z']))
+            nz_n = np.vstack((nz_n, data['n(z)']))
+
+    table_s = table_s[(table_s['z_bin'] >= 0) &
+                      (table_s['z_bin'] < len(z_bins) - 1)]
+
 
 elif args.survey.lower() == 'cfht':
 
@@ -99,12 +92,13 @@ elif args.survey.lower() == 'cfht':
 else:
     raise ValueError("Survey must be 'kids' or 'cfht'.")
 
-if args.no_dilution_correction:
-    print("Not correcting for photo-z dilution.")
-    table_c['z_l_max'] = np.minimum(table_c['z_l_max'],
-                                    table_c['z_true'] - 1e-5)
-else:
-    print("Correcting for photo-z dilution.")
+elif args.survey.lower() == 'cfht':
+    if args.no_dilution_correction:
+        print("Not correcting for photo-z dilution.")
+        table_c['z_l_max'] = np.minimum(table_c['z_l_max'],
+                                        table_c['z_true'] - 1e-5)
+    else:
+        print("Correcting for photo-z dilution.")
 
 # %%
 
@@ -139,14 +133,20 @@ for lens_bin in range(4):
 
     table_r['w_sys'] = np.ones(len(table_r))
     table_l['w_sys'] = table_l['w_tot']
+
+    kwargs = {'n_jobs': 40, 'comoving': False,
+              'cosmology': FlatLambdaCDM(H0=70, Om0=0.3)}
+    if args.survey.lower() == 'cfht':
+        kwargs['table_c'] = table_c
+    if args.survey.lower() == 'kids':
+        kwargs['nz_z'] = nz_z
+        kwargs['nz_z'] = nz_n
+        kwargs['use_nz'] = True
+
     print('Working on lenses in bin {}...'.format(lens_bin + 1))
-    table_l_pre = precompute_catalog(table_l, table_s, rp_bins, n_jobs=40,
-                                     comoving=False, table_c=table_c,
-                                     cosmology=FlatLambdaCDM(H0=70, Om0=0.3))
+    table_l_pre = precompute_catalog(table_l, table_s, rp_bins, **kwargs)
     print('Working on randoms in bin {}...'.format(lens_bin + 1))
-    table_r_pre = precompute_catalog(table_r, table_s, rp_bins, n_jobs=40,
-                                     comoving=False, table_c=table_c,
-                                     cosmology=FlatLambdaCDM(H0=70, Om0=0.3))
+    table_r_pre = precompute_catalog(table_r, table_s, rp_bins, **kwargs)
 
     # Create the jackknife fields.
     table_l_pre = add_continous_fields(table_l_pre, distance_threshold=2)
@@ -155,7 +155,8 @@ for lens_bin in range(4):
     table_r_pre = add_jackknife_fields(table_r_pre, centers)
 
     kwargs = {'return_table': True, 'shear_bias_correction': True,
-              'random_subtraction': True, 'photo_z_dilution_correction': True,
+              'random_subtraction': True,
+              'photo_z_dilution_correction': args.survey.lower() == 'cfht',
               'table_r': table_r_pre}
 
     result = excess_surface_density(table_l_pre, **kwargs)
