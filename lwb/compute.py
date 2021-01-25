@@ -102,7 +102,7 @@ for lens_bin in range(4):
     table_r['w_sys'] = np.ones(len(table_r))
     table_l['w_sys'] = table_l['w_tot']
 
-    kwargs = {'n_jobs': 4, 'comoving': False,
+    kwargs = {'n_jobs': 40, 'comoving': False,
               'cosmology': FlatLambdaCDM(H0=70, Om0=0.3)}
     if args.survey.lower() == 'cfht':
         kwargs['table_c'] = table_c
