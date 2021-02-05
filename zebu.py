@@ -34,6 +34,9 @@ def check_z_bin(z_bin):
             'z_bin must be between 0 and 3 but received {}.'.format(z_bin))
 
 
+lens_z_bins = np.linspace(0.1, 0.9, 5)
+
+
 def source_z_bins(stage, survey=None):
 
     if stage == 0:
