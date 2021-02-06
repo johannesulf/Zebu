@@ -1,7 +1,10 @@
+import os
 import zebu
 import healpy
 import argparse
 import numpy as np
+from functools import partial
+from multiprocessing import Pool, cpu_count
 import matplotlib.pyplot as plt
 from astropy import units as u
 from dsigma.precompute import precompute_photo_z_dilution_factor
@@ -19,63 +22,81 @@ print('Area: {:.2f} sq. deg'.format(
     healpy.pixelfunc.nside2pixarea(nside, degrees=True)))
 n_source_bins = 4 if args.survey != 'kids' else 5
 n_lens_bins = 4
-fbias_rel_err = np.zeros((n_source_bins, n_lens_bins))
 
 # %%
 
-for source_bin in range(n_source_bins):
 
-    table_s = zebu.read_raw_data(stage, 'source', source_bin,
-                                 survey=args.survey)
+def fbias_func(table_l, table_s):
+    return photo_z_dilution_factor(precompute_photo_z_dilution_factor(
+        table_l, table_s, cosmology=zebu.cosmo))
 
-    table_s['w_sys'] = 1
-    table_s['pix'] = healpy.ang2pix(nside, table_s['ra'], table_s['dec'],
-                                    lonlat=True)
-    all_pixs = np.unique(table_s['pix'])
-    use_pixs = np.zeros(0)
 
-    for pix in all_pixs:
-        near_pixs = healpy.pixelfunc.get_all_neighbours(nside, pix)
-        if np.all(np.isin(near_pixs, all_pixs)):
-            use_pixs = np.append(use_pixs, pix)
+if not os.path.isfile('{}.csv'.format(args.survey)):
 
-    table_s = table_s[np.isin(table_s['pix'], use_pixs)]
-    table_s['z_l_max'] = table_s['z']
+    fbias_rel_err = np.zeros((n_source_bins, n_lens_bins))
 
-    if 'd_com' not in table_s.colnames:
-        table_s['d_com'] = zebu.cosmo.comoving_transverse_distance(
-            table_s['z']).to(u.Mpc).value
+    for source_bin in range(n_source_bins):
 
-    if 'd_com_true' not in table_s.colnames:
-        table_s['d_com_true'] = zebu.cosmo.comoving_transverse_distance(
-            table_s['z_true']).to(u.Mpc).value
+        print('Working on source bin {}...'.format(source_bin))
 
-    for lens_bin in range(n_lens_bins):
-        table_l = zebu.read_raw_data(stage, 'lens', lens_bin,
+        table_s = zebu.read_raw_data(stage, 'source', source_bin,
                                      survey=args.survey)
-        table_l['z'][:100] = np.percentile(table_l['z'], np.arange(100) + 0.5)
-        table_l = table_l[:100]
 
-        if np.amin(table_l['z']) < np.amax(table_s['z_l_max']):
+        table_s['w_sys'] = 1
+        table_s['pix'] = healpy.ang2pix(nside, table_s['ra'], table_s['dec'],
+                                        lonlat=True)
+        all_pixs = np.unique(table_s['pix'])
+        use_pixs = np.zeros(0, dtype=np.int)
 
-            fbias = np.zeros(len(use_pixs))
+        for pix in all_pixs:
+            near_pixs = healpy.pixelfunc.get_all_neighbours(nside, pix)
+            if np.all(np.isin(near_pixs, all_pixs)):
+                use_pixs = np.append(use_pixs, pix)
 
-            for i, pix in enumerate(use_pixs):
-                print(source_bin, lens_bin, i)
-                mask = table_s['pix'] == pix
-                table_l = precompute_photo_z_dilution_factor(
-                    table_l, table_s[mask], cosmology=zebu.cosmo)
-                fbias[i] = photo_z_dilution_factor(table_l)
+        table_s = table_s[np.isin(table_s['pix'], use_pixs)]
+        table_s['z_l_max'] = table_s['z']
 
-            fbias_rel_err[source_bin, lens_bin] = (
-                np.std(fbias) / np.mean(fbias))
+        if 'd_com' not in table_s.colnames:
+            table_s['d_com'] = zebu.cosmo.comoving_transverse_distance(
+                table_s['z']).to(u.Mpc).value
 
-        else:
-            fbias_rel_err[source_bin, lens_bin] = np.nan
+        if 'd_com_true' not in table_s.colnames:
+            table_s['d_com_true'] = zebu.cosmo.comoving_transverse_distance(
+                table_s['z_true']).to(u.Mpc).value
+
+        for lens_bin in range(n_lens_bins):
+
+            print('\t...lens bin {}'.format(lens_bin))
+
+            table_l = zebu.read_raw_data(stage, 'lens', lens_bin,
+                                         survey=args.survey)
+            table_l['z'][:100] = np.percentile(
+                table_l['z'], np.arange(100) + 0.5)
+            table_l = table_l[:100]
+
+            if np.amin(table_l['z']) < np.amax(table_s['z_l_max']):
+
+                table_s_pix = [table_s[table_s['pix'] == pix] for pix in
+                               use_pixs]
+
+                with Pool(cpu_count()) as p:
+                    fbias = np.array(p.map(
+                        partial(fbias_func, table_l), table_s_pix))
+
+                fbias_rel_err[source_bin, lens_bin] = (
+                    np.std(fbias) / np.mean(fbias))
+
+            else:
+                fbias_rel_err[source_bin, lens_bin] = np.nan
+
+    np.savetxt('{}.csv'.format(args.survey), fbias_rel_err)
+
+else:
+    fbias_rel_err = np.genfromtxt('{}.csv'.format(args.survey))
 
 # %%
 
-plt.imshow(fbias_rel_err, origin='lower', aspect='auto')
+plt.imshow(fbias_rel_err, origin='lower', aspect='auto', vmin=0, vmax=0.05)
 cb = plt.colorbar()
 cb.set_label(r'$\sigma_{f_{\rm bias}} / f_{\rm bias}$')
 
