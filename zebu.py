@@ -3,6 +3,8 @@ import numpy as np
 from astropy.table import Table
 from astropy.cosmology import FlatLambdaCDM
 
+base_dir = os.path.dirname(os.path.abspath(__file__))
+
 cosmo = FlatLambdaCDM(Om0=0.286, H0=100)
 rp_bins = 0.05 * np.logspace(0, 3, 31)
 
