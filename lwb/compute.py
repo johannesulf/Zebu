@@ -1,6 +1,7 @@
 import os
 import argparse
 import numpy as np
+import multiprocessing
 from astropy.table import Table, vstack
 from dsigma.helpers import dsigma_table
 from dsigma.precompute import precompute_catalog, add_maximum_lens_redshift
@@ -34,20 +35,13 @@ if args.survey.lower() == 'kids':
     z_bins = [0.1, 0.3, 0.5, 0.7, 0.9, 1.2]
     table_s['z_bin'] = np.digitize(table_s['z'], z_bins) - 1
 
-    for i in range(len(z_bins) - 1):
-        data = Table.read(os.path.join(
-            'raw', 'Nz_DIR_z{}t{}.asc'.format(z_bins[i], z_bins[i + 1])),
-                          format='ascii', names=['z', 'n(z)'])
-        if i == 0:
-            nz_z = data['z']
-            nz_n = data['n(z)']
-        else:
-            nz_z = np.vstack((nz_z, data['z']))
-            nz_n = np.vstack((nz_n, data['n(z)']))
+    nz = np.array([np.genfromtxt(os.path.join(
+        'raw', 'Nz_DIR_z{}t{}.asc'.format(z_min, z_max))).T for
+        z_min, z_max in zip(z_bins[:-1], z_bins[1:])])
 
     table_s = table_s[(table_s['z_bin'] >= 0) &
                       (table_s['z_bin'] < len(z_bins) - 1)]
-    table_s = add_maximum_lens_redshift(table_s, dz_min=0.2)
+    table_s = add_maximum_lens_redshift(table_s, dz_min=0.1)
     table_s['m'] = kids.multiplicative_shear_bias(table_s['z'],
                                                   version='KV450')
 
@@ -102,14 +96,12 @@ for lens_bin in range(4):
     table_r['w_sys'] = np.ones(len(table_r))
     table_l['w_sys'] = table_l['w_tot']
 
-    kwargs = {'n_jobs': 40, 'comoving': False,
+    kwargs = {'n_jobs': multiprocessing.cpu_count(), 'comoving': False,
               'cosmology': FlatLambdaCDM(H0=70, Om0=0.3)}
     if args.survey.lower() == 'cfht':
         kwargs['table_c'] = table_c
     if args.survey.lower() == 'kids':
-        kwargs['nz_z'] = nz_z
-        kwargs['nz_n'] = nz_n
-        kwargs['use_nz'] = True
+        kwargs['nz'] = nz
 
     print('Working on lenses in bin {}...'.format(lens_bin + 1))
     table_l_pre = precompute_catalog(table_l, table_s, rp_bins, **kwargs)
