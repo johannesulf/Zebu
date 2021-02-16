@@ -15,7 +15,7 @@ TEMPLATE=$'#!/bin/bash
 cd /data/groups/leauthaud/jolange/Zebu/lux
 source init.sh
 cd ../stage_STAGE/
-python precompute.py --lens_bin=LENS_BIN --source_bin=SOURCE_BIN --survey=SURVEY --gamma --zspec'
+python precompute.py LENS_BIN SOURCE_BIN SURVEY --gamma --zspec'
 
 if [[ $1 != [0-2] ]]; then
   echo "The first command line argument must be an int representing the stage."
@@ -139,7 +139,7 @@ for (( lens=$LENS_BIN_MIN; lens<=$LENS_BIN_MAX; lens++ )); do
     SCRIPT="${SCRIPT//STAGE/${STAGE}}"
     if [ "$SURVEY" == "" ]; then
       SCRIPT="${SCRIPT//_SURVEY/}"
-      SCRIPT="${SCRIPT// --survey=SURVEY/}"
+      SCRIPT="${SCRIPT// SURVEY/}"
     else
       SCRIPT="${SCRIPT//SURVEY/${SURVEY}}"
     fi

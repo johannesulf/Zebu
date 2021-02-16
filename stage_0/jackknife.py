@@ -59,7 +59,7 @@ def zspec_systematic_weights(lens_bin, source_bin):
 centers = np.genfromtxt(os.path.join('jackknife', 'centers.csv'))
 
 for lens in ['l', 'r']:
-    for lens_bin in range(4):
+    for lens_bin in range(3, 4):
         for source_bin in range(4):
             print('{}: Lens-Bin {}, Source-Bin {}'.format(
                 'Lenses' if lens == 'l' else 'Randoms', lens_bin, source_bin))
@@ -74,18 +74,18 @@ for lens in ['l', 'r']:
             if args.zspec:
                 fname_base = fname_base + '_zspec'
 
-            if len(glob.glob(os.path.join('precompute',
-                                          fname_base + '*'))) == 0:
-                continue
-
             table_l = []
+            i = 0
 
-            for fname in glob.glob(
-                    os.path.join('precompute', fname_base + '*')):
+            while True:
 
-                print(fname)
+                fname = os.path.join(
+                    'precompute', fname_base + '_{}.hdf5'.format(i))
 
-                table_l_i = Table.read(fname, path='data')
+                try:
+                    table_l_i = Table.read(fname, path='data')
+                except FileNotFoundError:
+                    break
 
                 if args.zspec and args.zspec_zphot_sys_weights:
                     table_l_i['w_sys'] = zspec_systematic_weights(
@@ -94,6 +94,11 @@ for lens in ['l', 'r']:
                 add_jackknife_fields(table_l_i, centers)
                 table_l_i = compress_jackknife_fields(table_l_i)
                 table_l.append(table_l_i)
+                print(fname)
+                i = i + 1
+
+            if i == 0:
+                continue
 
             table_l = compress_jackknife_fields(vstack(table_l))
             # undo vstack concatenate
