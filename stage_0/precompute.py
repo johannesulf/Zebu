@@ -10,10 +10,8 @@ from dsigma.precompute import add_maximum_lens_redshift, precompute_catalog
 parser = argparse.ArgumentParser(description='Perform the pre-computation ' +
                                  'for the lensing measurements of the mock0 ' +
                                  'challenge.')
-parser.add_argument('--lens_bin', type=int, help='the tomographic lens bin',
-                    required=True)
-parser.add_argument('--source_bin', type=int,
-                    help='the tomographic source bin', required=True)
+parser.add_argument('lens_bin', type=int, help='the tomographic lens bin')
+parser.add_argument('source_bin', type=int, help='the tomographic source bin')
 parser.add_argument('--zspec', action='store_true',
                     help='use spectroscopic instead of photometric redshfits')
 parser.add_argument('--gamma', action='store_true',
