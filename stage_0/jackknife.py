@@ -1,5 +1,4 @@
 import os
-import glob
 import zebu
 import numpy as np
 import argparse
@@ -59,7 +58,12 @@ def zspec_systematic_weights(lens_bin, source_bin):
 centers = np.genfromtxt(os.path.join('jackknife', 'centers.csv'))
 
 for lens in ['l', 'r']:
-    for lens_bin in range(3, 4):
+    for lens_bin in range(4):
+
+        table_l = zebu.read_raw_data(0, 'lens' if lens == 'l' else 'random',
+                                     lens_bin)
+        n_l = len(table_l)
+
         for source_bin in range(4):
             print('{}: Lens-Bin {}, Source-Bin {}'.format(
                 'Lenses' if lens == 'l' else 'Randoms', lens_bin, source_bin))
@@ -75,9 +79,9 @@ for lens in ['l', 'r']:
                 fname_base = fname_base + '_zspec'
 
             table_l = []
-            i = 0
+            n_l_pre = 0
 
-            while True:
+            for i in range(n_l // 100000 + 1):
 
                 fname = os.path.join(
                     'precompute', fname_base + '_{}.hdf5'.format(i))
@@ -91,18 +95,20 @@ for lens in ['l', 'r']:
                     table_l_i['w_sys'] = zspec_systematic_weights(
                         lens_bin, source_bin)(table_l_i['z'])
 
+                n_l_pre += len(table_l_i)
                 add_jackknife_fields(table_l_i, centers)
                 table_l_i = compress_jackknife_fields(table_l_i)
                 table_l.append(table_l_i)
-                print(fname)
-                i = i + 1
 
-            if i == 0:
+            if n_l_pre != n_l:
+                print(n_l_pre, n_l)
+                print("Incomplete! Try again later!")
                 continue
 
             table_l = compress_jackknife_fields(vstack(table_l))
-            # undo vstack concatenate
+            # undo vstack concatenate and delete useless comments
             table_l.meta['rp_bins'] = table_l_i.meta['rp_bins']
+            del table_l.meta['comments']
 
             if args.zspec and args.zspec_zphot_sys_weights:
                 fname_base = fname_base + '_w_sys'
