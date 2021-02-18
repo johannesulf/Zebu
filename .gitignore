@@ -2,8 +2,7 @@
 __pycache__/
 raw
 *.hdf5
-lwb/kids+cfht/DSResultFiles
-lwb/kids+cfht/kids
-lwb/kids+cfht/lwb_files_jan2020
-lwb/kids+cfht/CFHTLS.csv
-lwb/kids+cfht/results
+lwb/raw
+~lwb/raw/MD5SUM
+scratch
+lux/env

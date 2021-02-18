@@ -12,11 +12,9 @@ from dsigma.jackknife import add_jackknife_fields, compress_jackknife_fields
 parser = argparse.ArgumentParser(description='Perform the pre-computation ' +
                                  'for the lensing measurements of the mock0 ' +
                                  'challenge.')
-parser.add_argument('--lens_bin', type=int, help='the tomographic lens bin',
-                    required=True)
-parser.add_argument('--source_bin', type=int,
-                    help='the tomographic source bin', required=True)
-parser.add_argument('--survey', help='the lens survey', required=True)
+parser.add_argument('lens_bin', type=int, help='the tomographic lens bin')
+parser.add_argument('source_bin', type=int, help='the tomographic source bin')
+parser.add_argument('survey', help='the lens survey')
 parser.add_argument('--zspec', action='store_true',
                     help='use spectroscopic instead of photometric redshfits')
 parser.add_argument('--gamma', action='store_true',
@@ -51,7 +49,7 @@ if args.zspec:
     table_s['z'] = table_s['z_true']
 
 for table in [table_s, table_c]:
-    table = add_maximum_lens_redshift(table, dz_min=0.0, z_err_factor=0)
+    table = add_maximum_lens_redshift(table, dz_min=0.2, z_err_factor=0)
 
 for catalog_type in ['lens', 'random']:
 

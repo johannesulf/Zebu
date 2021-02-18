@@ -108,10 +108,10 @@ while :; do
         return 1
       fi
       ;;
-    -?*)
-       echo "Unknown option $1"
-       return 1
-       ;;
+    ?*)
+      echo "Unknown option $1"
+      return 1
+      ;;
     *)
       break
   esac

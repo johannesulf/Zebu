@@ -36,6 +36,13 @@ def check_z_bin(z_bin):
             'z_bin must be between 0 and 3 but received {}.'.format(z_bin))
 
 
+def stacking_kwargs(stage, survey=None):
+
+    if stage == 0:
+        return {'photo_z_dilution_correction': True,
+                'boost_correction': True, 'random_subtraction': True}
+
+
 lens_z_bins = np.linspace(0.1, 0.9, 5)
 
 
