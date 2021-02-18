@@ -79,62 +79,72 @@ for ext in ['', '_gamma', '_gamma_zspec', '_gamma_zspec_w_sys']:
 
 rp = np.sqrt(zebu.rp_bins[1:] * zebu.rp_bins[:-1])
 
-for lens_bin in range(4):
-    for source_bin in range(4):
+for ext_1, ext_2, name in zip(['gamma', 'gamma_zspec'],
+                              ['gamma_zspec_w_sys', 'gamma_zspec_w_sys'],
+                              ['spec_vs_phot', 'w_sys']):
+    for lens_bin in range(4):
+        for source_bin in range(4):
 
-        try:
-            table_l_1 = Table.read(os.path.join(
-                'jackknife', 'l{}_s{}_l_gamma.hdf5'.format(
-                    lens_bin, source_bin)), path='data')
-            table_r_1 = Table.read(os.path.join(
-                'jackknife', 'l{}_s{}_r_gamma.hdf5'.format(
-                    lens_bin, source_bin)), path='data')
-            table_l_2 = Table.read(os.path.join(
-                'jackknife', 'l{}_s{}_l_gamma_zspec_w_sys.hdf5'.format(
-                    lens_bin, source_bin)), path='data')
-            table_r_2 = Table.read(os.path.join(
-                'jackknife', 'l{}_s{}_r_gamma_zspec_w_sys.hdf5'.format(
-                    lens_bin, source_bin)), path='data')
-        except FileNotFoundError:
-            continue
+            try:
+                table_l_1 = Table.read(os.path.join(
+                    'jackknife', 'l{}_s{}_l_{}.hdf5'.format(
+                        lens_bin, source_bin, ext_1)), path='data')
+                table_r_1 = Table.read(os.path.join(
+                    'jackknife', 'l{}_s{}_r_{}.hdf5'.format(
+                        lens_bin, source_bin, ext_1)), path='data')
+                table_l_2 = Table.read(os.path.join(
+                    'jackknife', 'l{}_s{}_l_{}.hdf5'.format(
+                        lens_bin, source_bin, ext_2)), path='data')
+                table_r_2 = Table.read(os.path.join(
+                    'jackknife', 'l{}_s{}_r_{}.hdf5'.format(
+                        lens_bin, source_bin, ext_2)), path='data')
+            except FileNotFoundError:
+                continue
 
-        stacking_kwargs['table_r'] = table_r_2
-        stacking_kwargs['return_table'] = False
-        ds_norm = excess_surface_density(table_l_2, **stacking_kwargs)
+            stacking_kwargs['table_r'] = table_r_2
+            stacking_kwargs['return_table'] = False
+            ds_norm = excess_surface_density(table_l_2, **stacking_kwargs)
 
-        dds = zebu.ds_diff(
-            table_l_1, table_r=table_r_1, table_l_2=table_l_2,
-            table_r_2=table_r_2, ds_norm=ds_norm)
-        dds_cov = jackknife_resampling(
-            zebu.ds_diff, table_l_1, table_r=table_r_1, table_l_2=table_l_2,
-            table_r_2=table_r_2, ds_norm=ds_norm)
-        dds_err = np.sqrt(np.diag(dds_cov))
+            dds = zebu.ds_diff(
+                table_l_1, table_r=table_r_1, table_l_2=table_l_2,
+                table_r_2=table_r_2, ds_norm=ds_norm)
+            dds_cov = jackknife_resampling(
+                zebu.ds_diff, table_l_1, table_r=table_r_1,
+                table_l_2=table_l_2, table_r_2=table_r_2, ds_norm=ds_norm)
+            dds_err = np.sqrt(np.diag(dds_cov))
 
-        i_min = np.arange(len(rp))[rp > 0.5][0]
-        dds_ave, dds_ave_cov = zebu.linear_regression(
-            rp[i_min:], dds[i_min:], dds_cov[i_min:, i_min:],
-            return_err=True)
-        dds_ave = dds_ave[0]
-        dds_ave_err = np.sqrt(dds_ave_cov[0, 0])
-        plt.errorbar(rp[i_min:] * (1 + source_bin * 0.03), dds[i_min:],
-                     yerr=dds_err[i_min:],
-                     label=r'${:.1f} < z_s < {:.1f}: {:.3f} \pm {:.3f}$'.format(
-            zebu.source_z_bins(0)[source_bin],
-            zebu.source_z_bins(0)[source_bin + 1],
-            dds_ave, dds_ave_err), fmt='.', ms=0)
+            i_min = np.arange(len(rp))[rp > 0.5][0]
+            dds_ave, dds_ave_cov = zebu.linear_regression(
+                rp[i_min:], dds[i_min:], dds_cov[i_min:, i_min:],
+                return_err=True)
+            dds_ave = dds_ave[0]
+            dds_ave_err = np.sqrt(dds_ave_cov[0, 0])
+            plt.errorbar(
+                rp[i_min:] * (1 + source_bin * 0.03), dds[i_min:],
+                yerr=dds_err[i_min:],
+                label=r'${:.1f} < z_s < {:.1f}: {:.3f} \pm {:.3f}$'.format(
+                    zebu.source_z_bins(0)[source_bin],
+                    zebu.source_z_bins(0)[source_bin + 1],
+                    dds_ave, dds_ave_err), fmt='.', ms=0)
 
-    plt.title(r'${:.1f} < z_l < {:.1f}$'.format(
-        zebu.lens_z_bins[lens_bin], zebu.lens_z_bins[lens_bin + 1]))
-    plt.legend(loc='upper center', frameon=False)
-    plt.xlabel(r'Projected Radius $r_p \, [h^{-1} \, \mathrm{Mpc}]$')
-    plt.ylabel(r'$(\Delta \Sigma_{\rm phot} - \Delta \Sigma_{\rm spec}) ' +
-               r'/ \Delta \Sigma_{\rm spec}$')
+        plt.title(r'${:.1f} < z_l < {:.1f}$'.format(
+            zebu.lens_z_bins[lens_bin], zebu.lens_z_bins[lens_bin + 1]))
+        plt.legend(loc='upper center', frameon=False)
+        plt.xlabel(r'Projected Radius $r_p \, [h^{-1} \, \mathrm{Mpc}]$')
+        if name == 'spec_vs_phot':
+            plt.ylabel(
+                r'$(\Delta \Sigma_{\rm phot} - \Delta \Sigma_{\rm spec}) ' +
+                r'/ \Delta \Sigma_{\rm spec}$')
+        else:
+            plt.ylabel(
+                r'$(\Delta \Sigma - \Delta \Sigma_{\rm weighted}) ' +
+                r'/ \Delta \Sigma_{\rm weighted}$')
 
-    plt.xscale('log')
-    plt.axhline(0.0, ls='--', color='black')
-    plt.tight_layout(pad=0.3)
-    plt.subplots_adjust(hspace=0)
-    fname = 'diff_spec_vs_phot_{}'.format(lens_bin)
-    plt.savefig(os.path.join('results', fname + '.pdf'))
-    plt.savefig(os.path.join('results', fname + '.png'), dpi=300)
-    plt.close()
+        plt.xscale('log')
+        plt.axhline(0.0, ls='--', color='black')
+        plt.tight_layout(pad=0.3)
+        plt.subplots_adjust(hspace=0)
+        fname = 'diff_{}_{}'.format(name, lens_bin)
+        plt.savefig(os.path.join('results', fname + '.pdf'))
+        plt.savefig(os.path.join('results', fname + '.png'), dpi=300)
+        plt.close()
