@@ -32,13 +32,11 @@ def zspec_systematic_weights(lens_bin, source_bin):
 
     z_bins = [0.1, 0.3, 0.5, 0.7, 0.9, 1.1, 1.5]
 
-    cols_c = ['z_spec', 'z_phot']
-    table_c = Table.read(zebu.raw_data_path('calibration', source_bin, 0),
-                         format='ascii', data_start=1, names=cols_c)
+    table_c = zebu.read_raw_data(0, 'calibration', source_bin)
 
-    cosmo = FlatLambdaCDM(Om0=0.286, H0=100)
-    table_c['d_com_phot'] = cosmo.comoving_distance(table_c['z_phot']).value
-    table_c['d_com_spec'] = cosmo.comoving_distance(table_c['z_spec']).value
+    cosmo = zebu.cosmo
+    table_c['d_com_phot'] = cosmo.comoving_distance(table_c['z']).value
+    table_c['d_com_spec'] = cosmo.comoving_distance(table_c['z_true']).value
 
     z_lens = np.linspace(z_bins[lens_bin], z_bins[lens_bin + 1], 500)
     weight_phot_z = np.zeros_like(z_lens)
@@ -46,10 +44,10 @@ def zspec_systematic_weights(lens_bin, source_bin):
 
     for i, z in enumerate(z_lens):
         weight_phot_z[i] = total_weight(
-            z, cosmo.comoving_distance(z).value, table_c['z_phot'],
+            z, cosmo.comoving_distance(z).value, table_c['z'],
             table_c['d_com_phot'])
         weight_spec_z[i] = total_weight(
-            z, cosmo.comoving_distance(z).value, table_c['z_spec'],
+            z, cosmo.comoving_distance(z).value, table_c['z_true'],
             table_c['d_com_spec'])
 
     return interp1d(z_lens, weight_phot_z / weight_spec_z)
