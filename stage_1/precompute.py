@@ -73,8 +73,8 @@ if args.equal:
     # attempt any re-weighting.
     if np.amin(weight) < 1e-2:
         w_sys = interp1d(z_lens, np.zeros_like(z_lens))
-
-    w_sys = interp1d(z_lens, 1.0 / weight)
+    else:
+        w_sys = interp1d(z_lens, 1.0 / weight)
 
 for catalog_type in ['lens', 'random']:
 
