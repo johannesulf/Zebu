@@ -2,6 +2,7 @@ import os
 import numpy as np
 from astropy.table import Table
 from astropy.cosmology import FlatLambdaCDM
+from dsigma.stacking import excess_surface_density
 
 base_dir = os.path.dirname(os.path.abspath(__file__))
 
@@ -173,3 +174,34 @@ def read_raw_data(stage, catalog_type, z_bin, survey=None):
             table['w'] = np.ones(len(table))
 
     return table
+
+
+def ds_diff(table_l, table_r=None, table_l_2=None, table_r_2=None,
+            stage=0, survey_1=None, survey_2=None, ds_norm=None):
+
+    ds_1 = excess_surface_density(
+        table_l, table_r=table_r, **stacking_kwargs(stage, survey_1))
+    ds_2 = excess_surface_density(
+        table_l_2, table_r=table_r_2, **stacking_kwargs(stage, survey_2))
+
+    if ds_norm is not None:
+        return (ds_1 - ds_2) / ds_norm
+
+    return ds_1 - ds_2
+
+
+def linear_regression(x, y, cov, fit_constant=True, return_err=False):
+
+    if not fit_constant:
+        X = np.vstack([np.ones_like(x), x]).T
+    else:
+        X = np.atleast_2d(np.ones_like(x)).T
+
+    pre = np.linalg.inv(cov)
+    beta_cov = np.linalg.inv(np.dot(np.dot(X.T, pre), X))
+    beta = np.dot(np.dot(np.dot(beta_cov, X.T),  pre), y)
+
+    if return_err:
+        return beta, beta_cov
+
+    return beta

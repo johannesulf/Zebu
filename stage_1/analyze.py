@@ -68,45 +68,6 @@ def read_precompute(survey, lens_bin, source_bin, zspec=False, gamma=False):
 
     return table_l_all, table_r_all
 
-
-def ds_diff(table_l, table_r=None, table_l_2=None, table_r_2=None,
-            survey_1='hsc', survey_2='kids', ds_norm=None):
-
-    ds_1 = excess_surface_density(
-        table_l, table_r=table_r, photo_z_dilution_correction=True,
-        boost_correction=True, random_subtraction=True,
-        shear_bias_correction=(survey_1 != 'des'),
-        shear_responsivity_correction=(survey_1 == 'hsc'),
-        metacalibration_response_correction=(survey_1 == 'des'))
-    ds_2 = excess_surface_density(
-        table_l_2, table_r=table_r_2, photo_z_dilution_correction=True,
-        boost_correction=True, random_subtraction=True,
-        shear_bias_correction=(survey_2 != 'des'),
-        shear_responsivity_correction=(survey_2 == 'hsc'),
-        metacalibration_response_correction=(survey_2 == 'des'))
-
-    if ds_norm is not None:
-        return (ds_1 - ds_2) / ds_norm
-
-    return ds_1 - ds_2
-
-
-def linear_regression(x, y, cov, fit_constant=True, return_err=False):
-
-    if not fit_constant:
-        X = np.vstack([np.ones_like(x), x]).T
-    else:
-        X = np.atleast_2d(np.ones_like(x)).T
-
-    pre = np.linalg.inv(cov)
-    beta_cov = np.linalg.inv(np.dot(np.dot(X.T, pre), X))
-    beta = np.dot(np.dot(np.dot(beta_cov, X.T),  pre), y)
-
-    if return_err:
-        return beta, beta_cov
-
-    return beta
-
 # %%
 
 
@@ -299,17 +260,17 @@ for gamma, zspec in zip(gamma_list, zspec_list):
             if len(table_l_2) == 0 or np.sum(table_l_2['sum w_ls']) == 0:
                 continue
 
-            dds = ds_diff(
+            dds = zebu.ds_diff(
                 table_l_1, table_r=table_r_1, table_l_2=table_l_2,
                 table_r_2=table_r_2, survey_1=survey_1, survey_2=survey_2,
-                ds_norm=ds_norm)
+                ds_norm=ds_norm, stage=1)
             dds_cov = jackknife_resampling(
-                ds_diff, table_l_1, table_r=table_r_1, table_l_2=table_l_2,
-                table_r_2=table_r_2, survey_1=survey_1, survey_2=survey_2,
-                ds_norm=ds_norm)
+                zebu.ds_diff, table_l_1, table_r=table_r_1,
+                table_l_2=table_l_2, table_r_2=table_r_2, survey_1=survey_1,
+                survey_2=survey_2, ds_norm=ds_norm, stage=1)
             dds_err = np.sqrt(np.diag(dds_cov))
             i_min = np.arange(len(rp))[rp > 1][0]
-            dds_ave, dds_ave_cov = linear_regression(
+            dds_ave, dds_ave_cov = zebu.linear_regression(
                 rp[i_min:], dds[i_min:], dds_cov[i_min:, i_min:],
                 return_err=True)
             dds_ave = dds_ave[0]
