@@ -72,7 +72,7 @@ if args.equal:
     # If correcting for unequal weight distorts weighting dramatically, don't
     # attempt any re-weighting.
     if np.amin(weight) < 1e-2:
-        w_sys = interp1d(z_lens, 0)
+        w_sys = interp1d(z_lens, np.zeros_like(z_lens))
 
     w_sys = interp1d(z_lens, 1.0 / weight)
 
