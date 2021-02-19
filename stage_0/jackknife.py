@@ -3,7 +3,6 @@ import zebu
 import numpy as np
 import argparse
 from astropy.table import Table, vstack
-from astropy.cosmology import FlatLambdaCDM
 from scipy.interpolate import interp1d
 from dsigma.jackknife import add_jackknife_fields, compress_jackknife_fields
 from dsigma.physics import critical_surface_density

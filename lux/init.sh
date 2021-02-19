@@ -1,7 +1,5 @@
 module load openmpi
 module load python/3.6.7
-module load numpy
-module load h5py
 module load blas
 
 export PYTHONPATH="${PYTHONPATH}:/data/groups/leauthaud/jolange/Zebu/"

@@ -42,6 +42,15 @@ def stacking_kwargs(stage, survey=None):
     if stage == 0:
         return {'photo_z_dilution_correction': True,
                 'boost_correction': True, 'random_subtraction': True}
+    else:
+        if survey not in ['des', 'hsc', 'kids']:
+            raise RuntimeError('Unkown lensing survey {}.'.format(survey))
+        return {'photo_z_dilution_correction': True,
+                'boost_correction': True, 'random_subtraction': True,
+                'return_table': True,
+                'shear_bias_correction': survey != 'des',
+                'shear_responsivity_correction': survey == 'hsc',
+                'metacalibration_response_correction': survey == 'des'}
 
 
 lens_z_bins = np.linspace(0.1, 0.9, 5)
@@ -177,12 +186,18 @@ def read_raw_data(stage, catalog_type, z_bin, survey=None):
 
 
 def ds_diff(table_l, table_r=None, table_l_2=None, table_r_2=None,
-            stage=0, survey_1=None, survey_2=None, ds_norm=None):
+            survey_1=None, survey_2=None, ds_norm=None, stage=0):
+
+    for survey in [survey_1, survey_2]:
+        if survey not in [None, 'hsc', 'kids', 'des']:
+            raise RuntimeError('Unkown survey!')
 
     ds_1 = excess_surface_density(
-        table_l, table_r=table_r, **stacking_kwargs(stage, survey_1))
+        table_l, table_r=table_r,
+        **stacking_kwargs(stage, survey=survey_1))
     ds_2 = excess_surface_density(
-        table_l_2, table_r=table_r_2, **stacking_kwargs(stage, survey_2))
+        table_l_2, table_r=table_r_2,
+        **stacking_kwargs(stage, survey=survey_2))
 
     if ds_norm is not None:
         return (ds_1 - ds_2) / ds_norm
