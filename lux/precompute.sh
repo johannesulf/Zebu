@@ -3,19 +3,19 @@
 TEMPLATE=$'#!/bin/bash
 #SBATCH --partition=QUEUE
 #SBATCH --account=QUEUE
-#SBATCH --job-name=precompute_lLENS_BIN_sSOURCE_BIN_stageSTAGE_SURVEY_gamma_zspec
+#SBATCH --job-name=precompute_lLENS_BIN_sSOURCE_BIN_stageSTAGE_SURVEY_gamma_zspec_equal
 #SBATCH --nodes=1
 #SBATCH --ntasks=40
 #SBATCH --cpus-per-task=1
 #SBATCH --time=1-0:00:00
 #SBATCH --mail-type=FAIL
 #SBATCH --mail-user=jolange@ucsc.edu
-#SBATCH --output=log/precompute_lLENS_BIN_sSOURCE_BIN_stageSTAGE_SURVEY_gamma_zspec.out
+#SBATCH --output=log/precompute_lLENS_BIN_sSOURCE_BIN_stageSTAGE_SURVEY_gamma_zspec_equal.out
 
 cd /data/groups/leauthaud/jolange/Zebu/lux
 source init.sh
 cd ../stage_STAGE/
-python precompute.py LENS_BIN SOURCE_BIN SURVEY --gamma --zspec'
+python precompute.py LENS_BIN SOURCE_BIN SURVEY --gamma --zspec --equal'
 
 if [[ $1 != [0-2] ]]; then
   echo "The first command line argument must be an int representing the stage."
@@ -28,6 +28,7 @@ shift
 SURVEY=
 GAMMA=false
 ZSPEC=false
+EQUAL=false
 LENS_BIN_MIN=0
 LENS_BIN_MAX=3
 SOURCE_BIN_MIN=0
@@ -58,6 +59,9 @@ while :; do
       ;;
     -z|--zspec)
       ZSPEC=true
+      ;;
+    -e|--equal)
+      EQUAL=true
       ;;
     -q|--queue)
       if [ "$2" ]; then
@@ -154,6 +158,10 @@ for (( lens=$LENS_BIN_MIN; lens<=$LENS_BIN_MAX; lens++ )); do
     if [ "$ZSPEC" != true ]; then
       SCRIPT="${SCRIPT//_zspec/}"
       SCRIPT="${SCRIPT// --zspec/}"
+    fi
+    if [ "$EQUAL" != true ]; then
+      SCRIPT="${SCRIPT//_equal/}"
+      SCRIPT="${SCRIPT// --equal/}"
     fi
     FILE=precompute_${lens}_${source}_stage${STAGE}_${SURVEY}.sh
     
