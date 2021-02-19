@@ -47,7 +47,6 @@ def stacking_kwargs(stage, survey=None):
             raise RuntimeError('Unkown lensing survey {}.'.format(survey))
         return {'photo_z_dilution_correction': True,
                 'boost_correction': True, 'random_subtraction': True,
-                'return_table': True,
                 'shear_bias_correction': survey != 'des',
                 'shear_responsivity_correction': survey == 'hsc',
                 'metacalibration_response_correction': survey == 'des'}
@@ -174,7 +173,8 @@ def read_raw_data(stage, catalog_type, z_bin, survey=None):
                            fast_reader={'chunk_size': 100 * 1000000})
 
         if survey == 'des':
-            table['R_MCAL'] = (table['R_11'] + table['R_22']) / 2
+            table['R_12'] = 0
+            table['R_21'] = 0
 
         if catalog_type == 'calibration':
             table['w_sys'] = np.ones(len(table))
