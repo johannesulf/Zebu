@@ -64,7 +64,8 @@ if args.equal:
     for i in range(len(z_lens)):
         sigma_crit = critical_surface_density(z_lens[i], table_c['z'],
                                               cosmology=zebu.cosmo)
-        weight[i] = np.sum(table_c['w'] * table_c['w_sys'] * sigma_crit**-2)
+        weight[i] = np.sum(table_c['w'] * table_c['w_sys'] * sigma_crit**-2 *
+                           (z_lens[i] < table_c['z_l_max']))
 
     if np.amax(weight) > 0:
         weight = weight / np.amax(weight)
