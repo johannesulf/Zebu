@@ -8,6 +8,7 @@ from multiprocessing import Pool, cpu_count
 import matplotlib.pyplot as plt
 from astropy import units as u
 from dsigma.precompute import precompute_photo_z_dilution_factor
+from dsigma.precompute import add_maximum_lens_redshift
 from dsigma.stacking import photo_z_dilution_factor
 
 # %%
@@ -54,7 +55,7 @@ if not os.path.isfile('{}.csv'.format(args.survey)):
                 use_pixs = np.append(use_pixs, pix)
 
         table_s = table_s[np.isin(table_s['pix'], use_pixs)]
-        table_s['z_l_max'] = table_s['z']
+        table_s = add_maximum_lens_redshift(table_s, dz_min=0.15)
 
         if 'd_com' not in table_s.colnames:
             table_s['d_com'] = zebu.cosmo.comoving_transverse_distance(
@@ -96,7 +97,7 @@ else:
 
 # %%
 
-plt.imshow(fbias_rel_err, origin='lower', aspect='auto', vmin=0, vmax=0.05)
+plt.imshow(fbias_rel_err, origin='lower', aspect='auto', vmin=0, vmax=0.03)
 cb = plt.colorbar()
 cb.set_label(r'$\sigma_{f_{\rm bias}} / f_{\rm bias}$')
 

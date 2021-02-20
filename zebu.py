@@ -46,7 +46,7 @@ def stacking_kwargs(stage, survey=None):
         if survey not in ['des', 'hsc', 'kids']:
             raise RuntimeError('Unkown lensing survey {}.'.format(survey))
         return {'photo_z_dilution_correction': True,
-                'boost_correction': True, 'random_subtraction': True,
+                'boost_correction': False, 'random_subtraction': True,
                 'shear_bias_correction': survey != 'des',
                 'shear_responsivity_correction': survey == 'hsc',
                 'metacalibration_response_correction': survey == 'des'}

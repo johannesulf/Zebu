@@ -93,6 +93,14 @@ for catalog_type in ['lens', 'random']:
     if args.equal:
         output = output + '_equal'
 
+    if np.all(np.isclose(table_l['w_sys'], 0)) or np.all(
+            table_l['z'] > np.amax(table_s['z_l_max'])):
+        output = output + '.txt'
+        fstream = open(output, "w")
+        fstream.write("No suitable lens-source pairs!")
+        fstream.close()
+        continue
+
     output = output + '.hdf5'
 
     table_l = compress_jackknife_fields(precompute_catalog(
