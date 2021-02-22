@@ -3,6 +3,7 @@ import zebu
 import argparse
 import numpy as np
 import multiprocessing
+from astropy.table import vstack
 from scipy.interpolate import interp1d
 from dsigma.physics import critical_surface_density
 from dsigma.precompute import add_maximum_lens_redshift, precompute_catalog
@@ -104,8 +105,15 @@ for catalog_type in ['lens', 'random']:
 
     output = output + '.hdf5'
 
-    table_l = compress_jackknife_fields(precompute_catalog(
-        table_l, table_s, zebu.rp_bins, cosmology=zebu.cosmo, table_c=table_c,
-        n_jobs=multiprocessing.cpu_count()))
+    table_l_list = []
+
+    for i in range(10):
+        use = (((i * 10) <= table_l['field_jk']) &
+               (table_l['field_jk'] < (i + 1) * 10))
+        table_l_list.append(compress_jackknife_fields(precompute_catalog(
+            table_l[use], table_s, zebu.rp_bins, cosmology=zebu.cosmo,
+            table_c=table_c, n_jobs=multiprocessing.cpu_count())))
+
+    table_l = vstack(table_l_list)
 
     table_l.write(output, path='data', overwrite=True)

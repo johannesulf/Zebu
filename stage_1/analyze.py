@@ -15,7 +15,7 @@ zspec_list = [False, False, True]
 
 
 def read_precompute(survey, lens_bin, source_bin, zspec=False, gamma=False,
-                    equal=False):
+                    equal=True):
 
     table_l_all = Table()
     table_r_all = Table()
@@ -81,9 +81,7 @@ def read_precompute(survey, lens_bin, source_bin, zspec=False, gamma=False,
             continue
 
         else:
-            print("Warning: {}/Lens:{}/Source:{} not finished.".format(
-                survey.upper(), lens_bin, source_bin))
-            continue
+            raise FileNotFoundError()
 
     return table_l_all, table_r_all
 
@@ -94,14 +92,14 @@ print("Calculating all individual results...")
 
 for gamma, zspec in zip(gamma_list, zspec_list):
 
-    print(('Without' if gamma else 'With') + ' Shape Noise...')
-    print(('Without' if zspec else 'With') + " Photo-z's...")
-
     for survey in surveys:
 
         output = 'results_{}'.format(survey)
         if not os.path.exists(output):
             os.makedirs(output)
+
+        finished = np.zeros((4, 5) if survey == 'kids' else (4, 4),
+                            dtype=np.str)
 
         z_bins_s = zebu.source_z_bins(1, survey=survey)
 
@@ -112,8 +110,13 @@ for gamma, zspec in zip(gamma_list, zspec_list):
 
             for source_bin in range(len(z_bins_s) - 1):
 
-                table_l, table_r = read_precompute(
-                    survey, lens_bin, source_bin, gamma=gamma, zspec=zspec)
+                try:
+                    table_l, table_r = read_precompute(
+                        survey, lens_bin, source_bin, gamma=gamma,
+                        zspec=zspec)
+                except FileNotFoundError:
+                    finished[lens_bin, source_bin] = 'x'
+                    continue
 
                 if len(table_l) == 0:
                     continue
@@ -181,6 +184,21 @@ for gamma, zspec in zip(gamma_list, zspec_list):
                 plt.savefig(os.path.join(output, fname + '.png'), dpi=300)
             plt.close()
 
+        if not gamma and not zspec:
+            print('\n\n{}: default'.format(survey))
+        elif not zspec:
+            print('\n\n{}: gamma'.format(survey))
+        else:
+            print('\n\n{}: gamma/zspec'.format(survey))
+        print('\t\t\t| \t\t\tlens bin\t\t\t|'.expandtabs(4))
+        print('source bin\t|\t0\t|\t1\t|\t2\t|\t3\t|'.expandtabs(4))
+
+        for i in range(finished.shape[1]):
+            print('---------------------------------------------')
+            print('\t {}\t\t|\t{}\t|\t{}\t|\t{}\t|\t{}\t|'.format(
+                i, finished[0, i], finished[1, i], finished[2, i],
+                finished[3, i]).expandtabs(4))
+
 # %%
 
 print('Comparing results for all sources accross surveys...')
@@ -199,8 +217,11 @@ for gamma, zspec in zip(gamma_list, zspec_list):
 
             z_bins_s = zebu.source_z_bins(1, survey=survey)
 
-            table_l, table_r = read_precompute(survey, lens_bin, 'all',
-                                               gamma=gamma, zspec=zspec)
+            try:
+                table_l, table_r = read_precompute(survey, lens_bin, 'all',
+                                                   gamma=gamma, zspec=zspec)
+            except FileNotFoundError:
+                continue
 
             if len(table_l) == 0:
                 continue
