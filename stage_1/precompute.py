@@ -105,15 +105,9 @@ for catalog_type in ['lens', 'random']:
 
     output = output + '.hdf5'
 
-    table_l_list = []
-
-    for i in range(10):
-        use = (((i * 10) <= table_l['field_jk']) &
-               (table_l['field_jk'] < (i + 1) * 10))
-        table_l_list.append(compress_jackknife_fields(precompute_catalog(
-            table_l[use], table_s, zebu.rp_bins, cosmology=zebu.cosmo,
-            table_c=table_c, n_jobs=multiprocessing.cpu_count())))
-
-    table_l = vstack(table_l_list)
+    table_l = precompute_catalog(
+            table_l, table_s, zebu.rp_bins, cosmology=zebu.cosmo,
+            table_c=table_c, compress_jackknife_fields=True,
+            n_jobs=multiprocessing.cpu_count())
 
     table_l.write(output, path='data', overwrite=True)
