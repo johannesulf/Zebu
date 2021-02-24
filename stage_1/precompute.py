@@ -3,12 +3,12 @@ import zebu
 import argparse
 import numpy as np
 import multiprocessing
-from astropy.table import vstack
 from scipy.interpolate import interp1d
 from dsigma.physics import critical_surface_density
 from dsigma.precompute import add_maximum_lens_redshift, precompute_catalog
+from dsigma.precompute import merge_precompute_catalogs
 from dsigma.jackknife import add_continous_fields, jackknife_field_centers
-from dsigma.jackknife import add_jackknife_fields, compress_jackknife_fields
+from dsigma.jackknife import add_jackknife_fields
 
 # %%
 
@@ -105,9 +105,18 @@ for catalog_type in ['lens', 'random']:
 
     output = output + '.hdf5'
 
-    table_l = precompute_catalog(
-            table_l, table_s, zebu.rp_bins, cosmology=zebu.cosmo,
-            table_c=table_c, compress_jackknife_fields=True,
-            n_jobs=multiprocessing.cpu_count())
+    kwargs = {'cosmology': zebu.cosmo, 'table_c': table_c,
+              'compress_jackknife_fields': True,
+              'n_jobs': multiprocessing.cpu_count()}
+
+    if args.lens_bin > 0:
+        table_l = precompute_catalog(table_l, table_s, zebu.rp_bins, **kwargs)
+    else:
+        # save memory
+        table_l_1 = precompute_catalog(
+            table_l, table_s[0::2], zebu.rp_bins, **kwargs)
+        table_l_2 = precompute_catalog(
+            table_l, table_s[1::2], zebu.rp_bins, **kwargs)
+        table_l = merge_precompute_catalogs([table_l_1, table_l_2])
 
     table_l.write(output, path='data', overwrite=True)
