@@ -1,6 +1,5 @@
 import os
 import zebu
-import itertools
 import numpy as np
 from astropy.table import Table, vstack
 import matplotlib.pyplot as plt
@@ -10,8 +9,6 @@ from dsigma.jackknife import jackknife_resampling
 surveys = ['des', 'hsc', 'kids']
 z_bins_l = zebu.lens_z_bins
 rp = 0.5 * (zebu.rp_bins[1:] + zebu.rp_bins[:-1])
-gamma_list = [False, True, True]
-zspec_list = [False, False, True]
 
 
 def read_precompute(survey, lens_bin, source_bin, zspec=False, gamma=False,
@@ -89,6 +86,9 @@ def read_precompute(survey, lens_bin, source_bin, zspec=False, gamma=False,
 
 
 print("Calculating all individual results...")
+
+gamma_list = [False, True, True]
+zspec_list = [False, False, True]
 
 for gamma, zspec in zip(gamma_list, zspec_list):
 
@@ -201,6 +201,153 @@ for gamma, zspec in zip(gamma_list, zspec_list):
 
 # %%
 
+
+def plot_ratio(lens_bin, source_bin_1, survey_1, gamma_1, zspec_1,
+               source_bin_2, survey_2, gamma_2, zspec_2, ds_norm, label,
+               offset):
+
+    table_l_1, table_r_1 = read_precompute(survey_1, lens_bin, source_bin_1,
+                                           gamma=gamma_1, zspec=zspec_1)
+    table_l_2, table_r_2 = read_precompute(survey_2, lens_bin, source_bin_2,
+                                           gamma=gamma_2, zspec=zspec_2)
+
+    if len(table_l_1) == 0 or len(table_l_2) == 0:
+        return 1
+
+    dds = zebu.ds_diff(
+        table_l_1, table_r=table_r_1, table_l_2=table_l_2, table_r_2=table_r_2,
+        survey_1=survey_1, survey_2=survey_2, ds_norm=ds_norm, stage=1)
+    dds_cov = jackknife_resampling(
+        zebu.ds_diff, table_l_1, table_r=table_r_1, table_l_2=table_l_2,
+        table_r_2=table_r_2, survey_1=survey_1, survey_2=survey_2,
+        ds_norm=ds_norm, stage=1)
+
+    if np.all(np.isclose(dds_cov, 0)):
+        return 1
+
+    dds_err = np.sqrt(np.diag(dds_cov))
+    i_min = np.arange(len(rp))[rp > 0.5][0]
+    dds_ave, dds_ave_cov = zebu.linear_regression(
+        rp[i_min:], dds[i_min:], dds_cov[i_min:, i_min:], return_err=True)
+    dds_ave = dds_ave[0]
+    dds_ave_err = np.sqrt(dds_ave_cov[0, 0])
+    plt.errorbar(
+        rp[i_min:] * (1 + offset * 0.03), dds[i_min:], yerr=dds_err[i_min:],
+        label=r'{}: ${:.3f} \pm {:.3f}$'.format(label, dds_ave, dds_ave_err),
+        fmt='.', ms=0)
+
+    return 0
+
+# %%
+
+
+print('Comparing results accross redshifts...')
+
+for zspec in [True, False]:
+    for survey in surveys:
+        for lens_bin in range(1, 4):
+
+            output = 'results_{}'.format(survey)
+
+            table_l, table_r = read_precompute(survey, lens_bin, 'all',
+                                               gamma=True, zspec=zspec)
+            ds_norm = excess_surface_density(
+                table_l, table_r=table_r, **zebu.stacking_kwargs(1, survey))
+
+            offset = 0
+            source_z_bins = zebu.source_z_bins(1, survey=survey)
+
+            for source_bin in np.arange(len(source_z_bins) - 1):
+                try:
+                    success = plot_ratio(
+                        lens_bin, source_bin, survey, True, zspec,
+                        'all', survey, True, zspec, ds_norm,
+                        r'${:.2f} \leq z_s < {:.2f}$'.format(
+                            source_z_bins[source_bin],
+                            source_z_bins[source_bin + 1]), offset)
+                    if success == 0:
+                        offset = offset + 1
+                except FileNotFoundError:
+                    pass
+
+            if offset == 0:
+                continue
+
+            plt.title(r'${:.1f} < z_l < {:.1f}$'.format(
+                z_bins_l[lens_bin], z_bins_l[lens_bin + 1]))
+            plt.legend(loc='upper center', frameon=False)
+            plt.xlabel(r'Projected Radius $r_p \, [h^{-1} \, \mathrm{Mpc}]$')
+            plt.ylabel(r'$(\Delta \Sigma - \Delta \Sigma_{\rm all}) /' +
+                       r'\Delta \Sigma_{\rm all}$')
+
+            plt.xscale('log')
+            plt.axhline(0.0, ls='--', color='black')
+            ymin, ymax = plt.gca().get_ylim()
+            yabsmax = max(np.abs(ymin), np.abs(ymax))
+            plt.ylim(-yabsmax, 2 * yabsmax)
+            plt.tight_layout(pad=0.3)
+            plt.subplots_adjust(hspace=0)
+            fname = 'diff_{}_zs_gamma'.format(lens_bin)
+            if zspec:
+                fname = fname + '_zspec'
+            plt.savefig(os.path.join(output, fname + '.pdf'))
+            plt.savefig(os.path.join(output, fname + '.png'), dpi=300)
+            plt.close()
+
+# %%
+
+print('Comparing photometric vs. spectroscopic results...')
+
+for survey in surveys:
+    for lens_bin in range(1, 4):
+
+        output = 'results_{}'.format(survey)
+
+        table_l, table_r = read_precompute(survey, lens_bin, 'all',
+                                           gamma=True, zspec=True)
+        ds_norm = excess_surface_density(
+            table_l, table_r=table_r, **zebu.stacking_kwargs(1, survey))
+
+        offset = 0
+        source_z_bins = zebu.source_z_bins(1, survey=survey)
+
+        for source_bin in np.arange(len(source_z_bins) - 1):
+            try:
+                success = plot_ratio(
+                    lens_bin, source_bin, survey, True, False, 'all', survey,
+                    True, True, ds_norm, r'${:.2f} \leq z_s < {:.2f}$'.format(
+                        source_z_bins[source_bin],
+                        source_z_bins[source_bin + 1]), offset)
+                if success == 0:
+                    offset = offset + 1
+            except FileNotFoundError:
+                pass
+
+        if offset == 0:
+            continue
+
+        plt.title(r'${:.1f} < z_l < {:.1f}$'.format(
+            z_bins_l[lens_bin], z_bins_l[lens_bin + 1]))
+        plt.legend(loc='upper center', frameon=False)
+        plt.xlabel(r'Projected Radius $r_p \, [h^{-1} \, \mathrm{Mpc}]$')
+        plt.ylabel(r'$(\Delta \Sigma_{\rm phot} - \Delta \Sigma_{\rm spec}) ' +
+                   r'/ \Delta \Sigma_{\rm spec}$')
+
+        plt.xscale('log')
+        plt.axhline(0.0, ls='--', color='black')
+        ymin, ymax = plt.gca().get_ylim()
+        yabsmax = max(np.abs(ymin), np.abs(ymax))
+        plt.ylim(-yabsmax, 2 * yabsmax)
+        plt.tight_layout(pad=0.3)
+        plt.subplots_adjust(hspace=0)
+        fname = 'diff_{}_spec_vs_phot_gamma'.format(lens_bin)
+        plt.savefig(os.path.join(output, fname + '.pdf'))
+        plt.savefig(os.path.join(output, fname + '.png'), dpi=300)
+        plt.close()
+
+
+# %%
+
 print('Comparing results for all sources accross surveys...')
 
 output = 'results_all'
@@ -263,64 +410,31 @@ for gamma, zspec in zip(gamma_list, zspec_list):
 
 for gamma, zspec in zip(gamma_list, zspec_list):
 
-    for lens_bin in range(len(z_bins_l) - 1):
+    for lens_bin in range(1, len(z_bins_l) - 1):
 
-        i = 0
-
-        table_l, table_r = read_precompute('hsc', lens_bin, 'all')
-
-        if len(table_l) == 0:
-            continue
-
+        table_l, table_r = read_precompute('hsc', lens_bin, 'all',
+                                           gamma=gamma, zspec=zspec)
         ds_norm = excess_surface_density(
-            table_l, table_r=table_r, photo_z_dilution_correction=True,
-            boost_correction=True, random_subtraction=True,
-            shear_bias_correction=True, shear_responsivity_correction=True)
+            table_l, table_r=table_r, **zebu.stacking_kwargs(1, survey='hsc'))
 
-        for survey_1, survey_2 in itertools.combinations(surveys, 2):
+        for survey in ['kids', 'des']:
 
-            table_l_1, table_r_1 = read_precompute(survey_1, lens_bin, 'all',
-                                                   gamma=gamma, zspec=zspec)
-            table_l_2, table_r_2 = read_precompute(survey_2, lens_bin, 'all',
-                                                   gamma=gamma, zspec=zspec)
-
-            if len(table_l_1) == 0 or len(table_l_2) == 0:
-                continue
-
-            dds = zebu.ds_diff(
-                table_l_1, table_r=table_r_1, table_l_2=table_l_2,
-                table_r_2=table_r_2, survey_1=survey_1, survey_2=survey_2,
-                ds_norm=ds_norm, stage=1)
-            dds_cov = jackknife_resampling(
-                zebu.ds_diff, table_l_1, table_r=table_r_1,
-                table_l_2=table_l_2, table_r_2=table_r_2, survey_1=survey_1,
-                survey_2=survey_2, ds_norm=ds_norm, stage=1)
-            dds_err = np.sqrt(np.diag(dds_cov))
-            i_min = np.arange(len(rp))[rp > 0.5][0]
-            dds_ave, dds_ave_cov = zebu.linear_regression(
-                rp[i_min:], dds[i_min:], dds_cov[i_min:, i_min:],
-                return_err=True)
-            dds_ave = dds_ave[0]
-            dds_ave_err = np.sqrt(dds_ave_cov[0, 0])
-            plt.errorbar(rp[i_min:] * (1 + i * 0.03), dds[i_min:],
-                         yerr=dds_err[i_min:],
-                         label=r'{} vs. {}: ${:.3f} \pm {:.3f}$'.format(
-                survey_1.upper(), survey_2.upper(), dds_ave, dds_ave_err),
-                fmt='.', ms=0)
-            i = i + 1
-
-        if i == 0:
-            continue
+            plot_ratio(lens_bin, 'all', survey, gamma, zspec, 'all', 'hsc',
+                       gamma, zspec, ds_norm, survey.upper(),
+                       0 if survey == 'kids' else 1)
 
         plt.title(r'${:.1f} < z_l < {:.1f}$'.format(
             z_bins_l[lens_bin], z_bins_l[lens_bin + 1]))
-        plt.legend(loc='upper left', frameon=False)
+        plt.legend(loc='upper center', frameon=False)
         plt.xlabel(r'Projected Radius $r_p \, [h^{-1} \, \mathrm{Mpc}]$')
-        plt.ylabel(r'$(\Delta \Sigma_1 - \Delta \Sigma_2) /' +
-                   r'\Delta \Sigma_{\rm norm}$')
+        plt.ylabel(r'$(\Delta \Sigma - \Delta \Sigma_{\rm HSC}) /' +
+                   r'\Delta \Sigma_{\rm HSC}$')
 
         plt.xscale('log')
         plt.axhline(0.0, ls='--', color='black')
+        ymin, ymax = plt.gca().get_ylim()
+        yabsmax = max(np.abs(ymin), np.abs(ymax))
+        plt.ylim(-yabsmax, 2 * yabsmax)
         plt.tight_layout(pad=0.3)
         plt.subplots_adjust(hspace=0)
         fname = 'diff_{}'.format(lens_bin)
