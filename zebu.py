@@ -2,6 +2,7 @@ import os
 import numpy as np
 from astropy.table import Table
 from astropy.cosmology import FlatLambdaCDM
+from scipy.spatial import cKDTree
 from dsigma.stacking import excess_surface_density
 
 base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -220,3 +221,41 @@ def linear_regression(x, y, cov, fit_constant=True, return_err=False):
         return beta, beta_cov
 
     return beta
+
+
+def project_onto_som(som, pos):
+
+    weights = som._weights.reshape(
+        np.prod(som._weights.shape[:-1]), som._weights.shape[-1])
+
+    kdtree = cKDTree(weights)
+
+    d3d, idx = kdtree.query(pos)
+    idx_x = idx // som._weights.shape[1]
+    idx_y = idx % som._weights.shape[1]
+
+    return d3d, idx_x, idx_y
+
+
+def som_f_of_x(som, pos, x, f=np.mean):
+
+    d3d, idx_x, idx_y = project_onto_som(som, pos)
+
+    map_shape = som._weights.shape[:-1]
+
+    idx = idx_x * map_shape[1] + idx_y
+
+    y = np.zeros(np.prod(map_shape))
+
+    x = x[np.argsort(idx)]
+    idx = np.sort(idx)
+
+    for i in range(len(y)):
+        i_min = np.searchsorted(idx, i)
+        i_max = np.searchsorted(idx, i + 1)
+        if i_max - i_min > 0:
+            y[i] = f(x[i_min:i_max].astype(np.float64))
+        else:
+            y[i] = np.nan
+
+    return y.reshape(map_shape)
