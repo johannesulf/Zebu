@@ -245,7 +245,7 @@ print('Comparing results accross redshifts...')
 
 for zspec in [True, False]:
     for survey in surveys:
-        for lens_bin in range(1, 4):
+        for lens_bin in range(4):
 
             output = 'results_{}'.format(survey)
 
@@ -299,7 +299,7 @@ for zspec in [True, False]:
 print('Comparing photometric vs. spectroscopic results...')
 
 for survey in surveys:
-    for lens_bin in range(1, 4):
+    for lens_bin in range(4):
 
         output = 'results_{}'.format(survey)
 
@@ -314,8 +314,9 @@ for survey in surveys:
         for source_bin in np.arange(len(source_z_bins) - 1):
             try:
                 success = plot_ratio(
-                    lens_bin, source_bin, survey, True, False, 'all', survey,
-                    True, True, ds_norm, r'${:.2f} \leq z_s < {:.2f}$'.format(
+                    lens_bin, source_bin, survey, True, False, source_bin,
+                    survey, True, True, ds_norm,
+                    r'${:.2f} \leq z_s < {:.2f}$'.format(
                         source_z_bins[source_bin],
                         source_z_bins[source_bin + 1]), offset)
                 if success == 0:
