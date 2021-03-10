@@ -59,10 +59,10 @@ for survey in survey_list:
 
     table_c = zebu.read_mock_data(
         'calibration', args.source_bin, survey=survey,
-        magnification=source_magnification)[:10000]
+        magnification=source_magnification)
     table_s = zebu.read_mock_data(
         'source', args.source_bin, survey=survey,
-        magnification=source_magnification)[:10000]
+        magnification=source_magnification)
 
     if not args.noisy:
         table_s['e_1'] = table_s['g_1']
