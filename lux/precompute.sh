@@ -3,19 +3,19 @@
 TEMPLATE=$'#!/bin/bash
 #SBATCH --partition=QUEUE
 #SBATCH --account=QUEUE
-#SBATCH --job-name=precompute_lLENS_BIN_sSOURCE_BIN_stageSTAGE_SURVEY_gamma_zspec_equal
+#SBATCH --job-name=pre_stageSTAGE_lLENS_BIN_sSOURCE_BIN_noisy_zspec.out
 #SBATCH --nodes=1
 #SBATCH --ntasks=40
 #SBATCH --cpus-per-task=1
 #SBATCH --time=1-0:00:00
 #SBATCH --mail-type=FAIL
 #SBATCH --mail-user=jolange@ucsc.edu
-#SBATCH --output=log/precompute_lLENS_BIN_sSOURCE_BIN_stageSTAGE_SURVEY_gamma_zspec_equal.out
+#SBATCH --output=log/pre_stageSTAGE_lLENS_BIN_sSOURCE_BIN_noisy_zspec.out
 
 cd /data/groups/leauthaud/jolange/Zebu/lux
 source init.sh
-cd ../stage_STAGE/
-python precompute.py LENS_BIN SOURCE_BIN SURVEY --gamma --zspec --equal'
+cd ../stacks/
+python precompute.py STAGE LENS_BIN SOURCE_BIN --noisy --zspec'
 
 if [[ $1 != [0-2] ]]; then
   echo "The first command line argument must be an int representing the stage."
@@ -25,43 +25,25 @@ fi
 STAGE=$1
 shift
 
-SURVEY=
-GAMMA=false
+NOISY=false
 ZSPEC=false
-EQUAL=false
 LENS_BIN_MIN=0
 LENS_BIN_MAX=3
 SOURCE_BIN_MIN=0
 SOURCE_BIN_MAX=4
 QUEUE=cpuq
+OVERWRITE=false
 
 while :; do
   case $1 in
-    -s|--survey)
-      if [ "$2" ]; then
-        if [ "$2" != "des" ] && [ "$2" != "hsc" ] && [ "$2" != "kids" ]; then
-          echo "The survey must be des, hsc or kids."
-          return 1
-        fi
-        if [ $STAGE == "0" ]; then
-          echo "You cannot give a survey for stage 0."
-          return 1
-        fi
-        SURVEY=$2
-        shift
-      else
-        echo 'ERROR: "--survey" requires a non-empty option argument.'
-        return 1
-      fi
-      ;;
-    -g|--gamma)
-      GAMMA=true
+    -n|--noisy)
+      NOISY=true
       ;;
     -z|--zspec)
       ZSPEC=true
       ;;
-    -e|--equal)
-      EQUAL=true
+    -o|--overwrite)
+      OVERWRITE=true
       ;;
     -q|--queue)
       if [ "$2" ]; then
@@ -122,51 +104,103 @@ while :; do
   shift
 done
 
-if [ "$SURVEY" != "kids" ]; then
+if [ $STAGE == 0 ]; then
   SOURCE_BIN_MAX=$(( SOURCE_BIN_MAX > 3 ? 3 : SOURCE_BIN_MAX ))
 fi
 
 echo "Submitting scripts..."
 echo "stage: $STAGE"
-echo "survey: $SURVEY"
 echo "lenses: $LENS_BIN_MIN - $LENS_BIN_MAX"
 echo "sources: $SOURCE_BIN_MIN - $SOURCE_BIN_MAX"
-echo "gamma: $GAMMA"
+echo "noisy: $NOISY"
 echo "zspec: $ZSPEC"
 echo "queue: $QUEUE"
 
-for (( lens=$LENS_BIN_MIN; lens<=$LENS_BIN_MAX; lens++ )); do
-  for (( source=$SOURCE_BIN_MIN; source<=$SOURCE_BIN_MAX; source++ )); do
+finished () {
 
-    SCRIPT="${TEMPLATE//LENS_BIN/$lens}"
-    SCRIPT="${SCRIPT//SOURCE_BIN/$source}"
-    SCRIPT="${SCRIPT//STAGE/${STAGE}}"
-    if [ "$SURVEY" == "" ]; then
-      SCRIPT="${SCRIPT//_SURVEY/}"
-      SCRIPT="${SCRIPT// SURVEY/}"
-    else
-      SCRIPT="${SCRIPT//SURVEY/${SURVEY}}"
+  PRE_FINISHED=false
+
+  LOG=log/pre_stage${STAGE}_l${LENS_BIN}_s${SOURCE_BIN}_noisy_zspec.out
+
+  if [ "$NOISY" != true ]; then
+    LOG="${LOG//_noisy/}"
+  fi
+
+  if [ "$ZSPEC" != true ]; then
+    LOG="${LOG//_zspec/}"
+  fi
+
+  if test -f "$LOG"; then
+      LAST_LINE=$(tail -1 $LOG)
+      if [ "$LAST_LINE" == 'Finished successfully!' ]; then
+        PRE_FINISHED=true
+      fi
+  fi
+
+}
+
+N_TOT=0
+N_SUC=0
+
+
+for (( LENS_BIN=$LENS_BIN_MIN; LENS_BIN<=$LENS_BIN_MAX; LENS_BIN++ )); do
+  for (( SOURCE_BIN=$SOURCE_BIN_MIN; SOURCE_BIN<=$SOURCE_BIN_MAX; SOURCE_BIN++ )); do
+
+    finished
+
+    let N_TOT++
+
+    if $PRE_FINISHED; then
+      let N_SUC++
     fi
-    SCRIPT="${SCRIPT//QUEUE/${QUEUE}}"
-    if [ "$QUEUE" == "leauthaud" ]; then
-      SCRIPT="${SCRIPT//#SBATCH --time=1-0:00:00/#SBATCH --time=7-0:00:00}"
-    fi
-    if [ "$GAMMA" != true ]; then
-      SCRIPT="${SCRIPT//_gamma/}"
-      SCRIPT="${SCRIPT// --gamma/}"
-    fi
-    if [ "$ZSPEC" != true ]; then
-      SCRIPT="${SCRIPT//_zspec/}"
-      SCRIPT="${SCRIPT// --zspec/}"
-    fi
-    if [ "$EQUAL" != true ]; then
-      SCRIPT="${SCRIPT//_equal/}"
-      SCRIPT="${SCRIPT// --equal/}"
-    fi
-    FILE=precompute_${lens}_${source}_stage${STAGE}_${SURVEY}.sh
-    
-    echo "$SCRIPT" > $FILE
-    sbatch $FILE
-    rm $FILE
+
   done
 done
+
+if $OVERWRITE; then
+  echo "Number of jobs: $N_TOT"
+else
+  echo "Finished jobs: $N_SUC"
+  echo "Remaining jobs: $(expr $N_TOT - $N_SUC)"
+fi
+
+echo "Proceed?"
+
+read PROCEED
+
+if [ "$PROCEED" == 'yes' ]; then
+  for (( LENS_BIN=$LENS_BIN_MIN; LENS_BIN<=$LENS_BIN_MAX; LENS_BIN++ )); do
+    for (( SOURCE_BIN=$SOURCE_BIN_MIN; SOURCE_BIN<=$SOURCE_BIN_MAX; SOURCE_BIN++ )); do
+
+      SCRIPT="${TEMPLATE//LENS_BIN/$LENS_BIN}"
+      SCRIPT="${SCRIPT//SOURCE_BIN/$SOURCE_BIN}"
+      SCRIPT="${SCRIPT//STAGE/$STAGE}"
+      SCRIPT="${SCRIPT//QUEUE/$QUEUE}"
+
+      if [ "$QUEUE" == "leauthaud" ]; then
+        SCRIPT="${SCRIPT//#SBATCH --time=1-0:00:00/#SBATCH --time=7-0:00:00}"
+      fi
+
+      if [ "$NOISY" != true ]; then
+        SCRIPT="${SCRIPT//_noisy/}"
+        SCRIPT="${SCRIPT// --noisy/}"
+      fi
+
+      if [ "$ZSPEC" != true ]; then
+        SCRIPT="${SCRIPT//_zspec/}"
+        SCRIPT="${SCRIPT// --zspec/}"
+      fi
+
+      FILE=pre_stage${STAGE}_${LENS_BIN}_${SOURCE_BIN}.sh
+
+      finished
+
+      if ! $PRE_FINISHED; then
+        echo "$SCRIPT" > $FILE
+        sbatch $FILE
+        rm $FILE
+      fi
+
+    done
+  done
+fi
