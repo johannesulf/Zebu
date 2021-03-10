@@ -3,7 +3,7 @@
 TEMPLATE=$'#!/bin/bash
 #SBATCH --partition=QUEUE
 #SBATCH --account=QUEUE
-#SBATCH --job-name=pre_stageSTAGE_lLENS_BIN_sSOURCE_BIN_noisy_zspec.out
+#SBATCH --job-name=pre_stageSTAGE_lLENS_BIN_sSOURCE_BIN_noisy_zspec
 #SBATCH --nodes=1
 #SBATCH --ntasks=40
 #SBATCH --cpus-per-task=1
@@ -195,7 +195,7 @@ if [ "$PROCEED" == 'yes' ]; then
 
       finished
 
-      if ! $PRE_FINISHED; then
+      if ! $PRE_FINISHED || $OVERWRITE; then
         echo "$SCRIPT" > $FILE
         sbatch $FILE
         rm $FILE
