@@ -89,7 +89,7 @@ def main(args):
                     source_bin)), overwrite=args.overwrite, path='catalog',
                     serialize_meta=True)
 
-        elif args.stage == 1:
+        else:
             for survey in ['des', 'hsc', 'kids']:
 
                 z_bins = z_source_bins[survey]
