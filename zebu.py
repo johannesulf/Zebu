@@ -26,7 +26,7 @@ def stacking_kwargs(survey):
 
 
 lens_z_bins = np.linspace(0.1, 0.9, 5)
-z_source_bins = {
+source_z_bins = {
     'gen': [0.5, 0.7, 0.9, 1.1, 1.5],
     'des': [0.2, 0.43, 0.63, 0.9, 1.3],
     'hsc': [0.3, 0.6, 0.9, 1.2, 1.5],
@@ -75,15 +75,13 @@ def ds_diff(table_l, table_r=None, table_l_2=None, table_r_2=None,
             survey_1=None, survey_2=None, ds_norm=None, stage=0):
 
     for survey in [survey_1, survey_2]:
-        if survey not in [None, 'hsc', 'kids', 'des']:
+        if survey not in ['gen', 'hsc', 'kids', 'des']:
             raise RuntimeError('Unkown survey!')
 
-    ds_1 = excess_surface_density(
-        table_l, table_r=table_r,
-        **stacking_kwargs(stage, survey=survey_1))
-    ds_2 = excess_surface_density(
-        table_l_2, table_r=table_r_2,
-        **stacking_kwargs(stage, survey=survey_2))
+    ds_1 = excess_surface_density(table_l, table_r=table_r,
+                                  **stacking_kwargs(survey_1))
+    ds_2 = excess_surface_density(table_l_2, table_r=table_r_2,
+                                  **stacking_kwargs(survey_2))
 
     if ds_norm is not None:
         return (ds_1 - ds_2) / ds_norm

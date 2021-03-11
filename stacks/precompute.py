@@ -26,7 +26,7 @@ args = parser.parse_args()
 
 # %%
 
-output_directory = 'precompute_{}'.format(args.region)
+output_directory = os.path.join('region_{}'.format(args.region), 'precompute')
 
 if not os.path.exists(output_directory):
     os.makedirs(output_directory)
@@ -49,7 +49,7 @@ if args.stage == 0:
     survey_list = ['gen']
 else:
     if args.source_bin < 4:
-        survey_list = ['des', ]#'hsc', 'kids']
+        survey_list = ['des', 'hsc', 'kids']
     else:
         survey_list = ['kids']
 
