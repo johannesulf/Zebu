@@ -96,7 +96,7 @@ rp = np.sqrt(zebu.rp_bins[1:] * zebu.rp_bins[:-1])
 
 if args.stage == 0:
 
-    for lens_bin in range(2, len(zebu.lens_z_bins) - 1):
+    for lens_bin in range(1, len(zebu.lens_z_bins) - 1):
 
         table_l, table_r = read_precompute(
             'gen', lens_bin, 'all', zspec=True,
@@ -125,18 +125,18 @@ if args.stage == 0:
 
 
 def plot_ratio(table_l_1, table_r_1, survey_1, table_l_2, table_r_2, survey_2,
-               ds_norm, label, offset):
+               ds_norm, label, offset, lens_bin):
 
     if len(table_l_1) == 0 or len(table_l_2) == 0:
         return 1
 
     dds = zebu.ds_diff(
         table_l_1, table_r=table_r_1, table_l_2=table_l_2, table_r_2=table_r_2,
-        survey_1=survey_1, survey_2=survey_2, ds_norm=ds_norm, stage=1)
+        survey_1=survey_1, survey_2=survey_2, ds_norm=ds_norm)
     dds_cov = jackknife_resampling(
         zebu.ds_diff, table_l_1, table_r=table_r_1, table_l_2=table_l_2,
         table_r_2=table_r_2, survey_1=survey_1, survey_2=survey_2,
-        ds_norm=ds_norm, stage=1)
+        ds_norm=ds_norm)
 
     if np.all(np.isclose(dds_cov, 0)):
         return 1
@@ -158,7 +158,7 @@ def plot_ratio(table_l_1, table_r_1, survey_1, table_l_2, table_r_2, survey_2,
 
 
 if args.stage == 0:
-    for lens_bin in range(2, len(zebu.lens_z_bins) - 1):
+    for lens_bin in range(1, len(zebu.lens_z_bins) - 1):
 
         table_l_2, table_r_2 = read_precompute(
             'gen', lens_bin, 'all', zspec=True,
@@ -181,7 +181,8 @@ if args.stage == 0:
                 label = r'${:.2f} \leq z_s < {:.2f}$'.format(
                         source_z_bins[source_bin], source_z_bins[source_bin+1])
                 success = plot_ratio(table_l_1, table_r_1, 'gen', table_l_2,
-                                     table_r_2, 'gen', ds_norm, label, offset)
+                                     table_r_2, 'gen', ds_norm, label, offset,
+                                     lens_bin)
                 if success == 0:
                     offset = offset + 1
             except FileNotFoundError:
@@ -212,7 +213,7 @@ if args.stage == 0:
 
 
 for survey in survey_list:
-    for lens_bin in range(2, len(zebu.lens_z_bins) - 1):
+    for lens_bin in range(1, len(zebu.lens_z_bins) - 1):
 
         offset = 0
         source_z_bins = zebu.source_z_bins[survey]
@@ -232,7 +233,8 @@ for survey in survey_list:
                 label = r'${:.2f} \leq z_s < {:.2f}$'.format(
                         source_z_bins[source_bin], source_z_bins[source_bin+1])
                 success = plot_ratio(table_l_1, table_r_1, 'gen', table_l_2,
-                                     table_r_2, 'gen', ds_norm, label, offset)
+                                     table_r_2, 'gen', ds_norm, label, offset,
+                                     lens_bin)
                 if success == 0:
                     offset = offset + 1
             except FileNotFoundError:

@@ -1,13 +1,24 @@
 import os
+import camb
 import numpy as np
 from astropy.table import Table
 from astropy.cosmology import FlatLambdaCDM
 from scipy.spatial import cKDTree
 from dsigma.stacking import excess_surface_density
 
+
 base_dir = os.path.dirname(os.path.abspath(__file__))
 cosmo = FlatLambdaCDM(Om0=0.286, H0=100)
 rp_bins = 0.2 * np.logspace(0, 2, 21)
+
+lens_z_bins = np.linspace(0.1, 0.9, 5)
+source_z_bins = {
+    'gen': [0.5, 0.7, 0.9, 1.1, 1.5],
+    'des': [0.2, 0.43, 0.63, 0.9, 1.3],
+    'hsc': [0.3, 0.6, 0.9, 1.2, 1.5],
+    'kids': [0.1, 0.3, 0.5, 0.7, 0.9, 1.2]}
+
+alpha_l = [1.5, 2.6, 3.3, 3.0]
 
 
 def stacking_kwargs(survey):
@@ -23,14 +34,6 @@ def stacking_kwargs(survey):
                 'metacalibration_response_correction': survey.lower() == 'des'}
     else:
         raise RuntimeError('Unkown lensing survey {}.'.format(survey))
-
-
-lens_z_bins = np.linspace(0.1, 0.9, 5)
-source_z_bins = {
-    'gen': [0.5, 0.7, 0.9, 1.1, 1.5],
-    'des': [0.2, 0.43, 0.63, 0.9, 1.3],
-    'hsc': [0.3, 0.6, 0.9, 1.2, 1.5],
-    'kids': [0.1, 0.3, 0.5, 0.7, 0.9, 1.2]}
 
 
 def read_mock_data(catalog_type, z_bin, survey='gen', region=1,
@@ -72,7 +75,7 @@ def read_mock_data(catalog_type, z_bin, survey='gen', region=1,
 
 
 def ds_diff(table_l, table_r=None, table_l_2=None, table_r_2=None,
-            survey_1=None, survey_2=None, ds_norm=None, stage=0):
+            survey_1=None, survey_2=None, ds_norm=None):
 
     for survey in [survey_1, survey_2]:
         if survey not in ['gen', 'hsc', 'kids', 'des']:
@@ -142,3 +145,16 @@ def som_f_of_x(som, pos, x, f=np.mean):
             y[i] = np.nan
 
     return y.reshape(map_shape)
+
+
+def get_camb_results():
+
+    h = cosmo.H0.value / 100
+    pars = camb.CAMBparams()
+    pars.set_cosmology(H0=100 * h, ombh2=0.046 * h**2,
+                       omch2=(cosmo.Om0 - 0.046) * h**2)
+    pars.InitPower.set_params(ns=0.96, As=9.93075e-10)
+    pars.set_matter_power(redshifts=np.linspace(2, 0, 20), kmax=2000.0,
+                          nonlinear=True)
+
+    return camb.get_results(pars)
