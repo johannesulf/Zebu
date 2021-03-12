@@ -34,7 +34,7 @@ plt.title(r'$z_d = {:.2f}, z_s = {:.2f}, \alpha_d = {:.2f}$'.format(
     z_d, z_s, alpha_d))
 plt.xscale('log')
 plt.xlabel(r'$\theta$ in arcmin')
-plt.ylabel(r'$10^5 \times \gamma_t^{\rm LSS} (\theta)$')
+plt.ylabel(r'Bias $10^5 \times \Delta \gamma_t$')
 plt.xlim(0.5, 20)
 plt.tight_layout(pad=0.3)
 plt.savefig('unruh_20.pdf')
