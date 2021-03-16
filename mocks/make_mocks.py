@@ -61,6 +61,10 @@ def main(args):
         table_s.meta['area'] = hp.nside2pixarea(
             nside, degrees=True) * len(pixel_use)
         table_s.meta['bands'] = 'grizy'
+        np.random.seed(0)
+        table_s['random_1'] = np.random.random(size=len(table_s))
+        table_s['random_2'] = np.random.random(size=len(table_s))
+        table_s['randint'] = np.random.randint(3, size=len(table_s))
 
         if args.stage == 0:
             print('Making tailored source catalog...')
@@ -143,7 +147,7 @@ def main(args):
                                                serialize_meta=True)
                     table_c = table_s_survey_z_bin[
                         np.random.randint(len(table_s_survey_z_bin),
-                                          size=100000)]
+                                          size=1000000)]
                     table_c.meta = {'bands': table_c.meta['bands']}
                     table_c.write(os.path.join(output, 'c{}_{}{}.hdf5'.format(
                         source_bin, survey, '_nomag' if args.stage == 1 else
@@ -329,9 +333,11 @@ def subsample_source_catalog(table_s, table_s_ref=None, survey=None):
 
             p = ((n_ref[mag_dig[use]] / table_s_ref.meta['area']) /
                  (n[mag_dig[use]] / table_s.meta['area']))
-            use_all[use] = p > np.random.random(size=np.sum(use))
+            use_all[use] = p > table_s['random_1'][use]
 
         table_s = table_s[use_all]
+
+    table_s.remove_column('random_1')
 
     return table_s
 
@@ -350,7 +356,7 @@ def apply_observed_shear(table_s, table_s_ref=None, survey=None):
         tree = cKDTree(mag_ref)
         idx = tree.query(mag, k=3)[1]
         idx = np.array(idx)
-        idx = idx[np.arange(len(idx)), np.random.randint(3, size=len(idx))]
+        idx = idx[np.arange(len(idx)), table_s['randint']]
 
         for key in table_s_ref.colnames:
             if key in ['m', 'w', 'R_11', 'R_22', 'R_12', 'R_21',
@@ -374,6 +380,8 @@ def apply_observed_shear(table_s, table_s_ref=None, survey=None):
         if survey.lower() == 'hsc':
             table_s['g_1'] *= 1 - table_s['e_rms']**2
             table_s['g_2'] *= 1 - table_s['e_rms']**2
+
+    table_s.remove_column('randint')
 
     return table_s
 
@@ -432,10 +440,12 @@ def apply_photometric_redshift(table_s, table_c_ref):
                 continue
             cdf_fine = cdf_fine / cdf_fine[-1]
 
-            z = z_bins_fine[np.searchsorted(cdf_fine, np.random.random(
-                size=np.sum(use)))]
+            z = z_bins_fine[np.searchsorted(
+                cdf_fine, table_s['random_2'][use])]
 
             table_s['z'][use] = z
+
+    table_s.remove_column('random_2')
 
     return table_s
 
