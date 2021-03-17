@@ -264,7 +264,7 @@ if args.stage == 2:
             for source_bin in np.arange(len(source_z_bins) - 1):
                 try:
                     table_l_1, table_r_1 = read_precompute(
-                        survey, lens_bin, source_bin, zspec=False,
+                        survey, lens_bin, source_bin, zspec=True,
                         lens_magnification=lens_magnification,
                         source_magnification=True,
                         fiber_assignment=fiber_assignment)
