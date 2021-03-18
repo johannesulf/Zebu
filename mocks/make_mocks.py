@@ -315,8 +315,8 @@ def subsample_source_catalog(table_s, table_s_ref=None, survey=None):
         if survey == 'hsc':
             mag_dig[table_s['z'] > 1.2] -= 1
 
-        mag_dig = np.maximum(np.minimum(mag_dig, 0), len(z_bins) - 2)
-        mag_dig_ref = np.maximum(np.minimum(mag_dig_ref, 0), len(z_bins) - 2)
+        mag_dig = np.minimum(np.maximum(mag_dig, 0), len(mag_bins) - 2)
+        mag_dig_ref = np.minimum(np.maximum(mag_dig_ref, 0), len(mag_bins) - 2)
 
         use_all = np.zeros(len(table_s), dtype=np.bool)
 
@@ -394,7 +394,7 @@ def apply_shape_noise(table_s, sigma):
     a_1 = table_s['g_1'] + n_1
     a_2 = table_s['g_2'] + n_2
     a_3 = 1.0 + table_s['g_1'] * n_1 + table_s['g_2'] * n_2
-    a_4 = table_s['g_1'] * n_1 - table_s['g_2'] * n_2
+    a_4 = table_s['g_1'] * n_2 - table_s['g_2'] * n_1
     table_s['e_1'] = (a_1 * a_3 + a_2 * a_4) / (a_3 * a_3 + a_4 * a_4)
     table_s['e_2'] = (a_2 * a_3 - a_1 * a_4) / (a_3 * a_3 + a_4 * a_4)
 
