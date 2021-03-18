@@ -19,7 +19,7 @@ for survey in ['des', 'hsc', 'kids']:
 
 # %%
 
-fig, axarr = plt.subplots(figsize=(7, 2.5), ncols=3, sharey=True, sharex=True)
+fig, axarr = plt.subplots(figsize=(7, 2.0), ncols=3, sharey=True, sharex=True)
 z_bins = np.linspace(0, 2, 51)
 z_plot = np.linspace(0, 2, 1000)
 
@@ -48,7 +48,7 @@ plt.close()
 
 # %%
 
-fig, axarr = plt.subplots(figsize=(7, 2.5), ncols=3, sharey=True, sharex=True)
+fig, axarr = plt.subplots(figsize=(7, 2.0), ncols=3, sharey=True, sharex=True)
 mag_bins = np.linspace(15, 25, 51)
 
 cmap = matplotlib.cm.get_cmap('viridis')
