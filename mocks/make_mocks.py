@@ -29,7 +29,8 @@ def main(args):
     table_b = Table()
     for pixel in pixel_use:
         table_b = vstack([table_b, read_buzzard_catalog(
-            pixel, mag_lensed=(args.stage == 2))])
+            pixel, mag_lensed=(args.stage >= 2),
+            coord_lensed=(args.stage == 3))])
     table_b.meta['area'] = hp.nside2pixarea(
         nside, degrees=True) * len(pixel_use)
     table_b.meta['bands'] = ['g', 'r', 'i', 'z', 'y', 'w1', 'w2']
@@ -38,7 +39,7 @@ def main(args):
     table_b['random_2'] = np.random.random(size=len(table_b))
     table_b['randint'] = np.random.randint(3, size=len(table_b))
 
-    if args.stage == 0:
+    if args.stage in [0, 3]:
 
         sample = ['BGS', 'BGS', 'LRG', 'LRG']
         z_min = [0.1, 0.3, 0.5, 0.7]
@@ -52,9 +53,16 @@ def main(args):
             table_l = table_l[(z_min[lens_bin] <= table_l['z']) &
                               (table_l['z'] < z_max[lens_bin])]
             print('Writing lens catalog for z-bin {}...'.format(lens_bin))
-            table_l.write(os.path.join(output, 'l{}_nofib.hdf5'.format(
-                lens_bin)), overwrite=args.overwrite, path='catalog',
-                serialize_meta=True)
+            fname = 'l{}_nofib'.format(lens_bin)
+            if args.stage == 0:
+                fname = fname + '_nomag'
+            fname = fname + '.hdf5'
+            table_l.write(os.path.join(output, fname),
+                          overwrite=args.overwrite, path='catalog',
+                          serialize_meta=True)
+
+            if args.stage != 0:
+                continue
 
             print('Reading random catalog for z-bin {}...'.format(lens_bin))
             table_r = read_random_catalog(args.region, sample[lens_bin])
@@ -139,19 +147,22 @@ def main(args):
                     use = ((z_bins[source_bin] <= table_s['z']) &
                            (table_s['z'] < z_bins[source_bin + 1]))
                     table_s_z_bin = table_s[use]
-                    table_s_z_bin.write(os.path.join(
-                        output, 's{}_{}{}.hdf5'.format(
-                            source_bin, survey, '_nomag' if args.stage == 1
-                            else '')), overwrite=args.overwrite,
-                                               path='catalog',
-                                               serialize_meta=True)
+                    fname = 's{}_{}'.format(source_bin, survey)
+                    if args.stage == 1:
+                        fname = fname + '_nomag'
+                    elif args.stage == 2:
+                        fname = fname + '_semimag'
+                    fname = fname + '.hdf5'
+                    table_s_z_bin.write(
+                        os.path.join(output, fname), overwrite=args.overwrite,
+                        path='catalog', serialize_meta=True)
+                    fname = 'c' + fname[1:]
                     table_c = table_s_z_bin[
                         np.random.randint(len(table_s_z_bin), size=1000000)]
                     table_c.meta = {'bands': table_c.meta['bands']}
-                    table_c.write(os.path.join(output, 'c{}_{}{}.hdf5'.format(
-                        source_bin, survey, '_nomag' if args.stage == 1 else
-                        '')), overwrite=args.overwrite, path='catalog',
-                                  serialize_meta=True)
+                    table_c.write(
+                        os.path.join(output, fname), overwrite=args.overwrite,
+                        path='catalog', serialize_meta=True)
 
     print('Finished!')
 
