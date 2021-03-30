@@ -20,6 +20,24 @@ def main(args):
     if not os.path.isdir(output):
         os.makedirs(output)
 
+    print('Reading raw buzzard catalog...')
+    nside = 8
+    pixel = np.arange(hp.nside2npix(nside))
+    ra_pixel, dec_pixel = hp.pix2ang(nside, pixel, nest=True, lonlat=True)
+    pixel_use = pixel[ra_dec_in_region(ra_pixel, dec_pixel, args.region)]
+
+    table_b = Table()
+    for pixel in pixel_use:
+        table_b = vstack([table_b, read_buzzard_catalog(
+            pixel, mag_lensed=(args.stage == 2))])
+    table_b.meta['area'] = hp.nside2pixarea(
+        nside, degrees=True) * len(pixel_use)
+    table_b.meta['bands'] = ['g', 'r', 'i', 'z', 'y', 'w1', 'w2']
+    np.random.seed(0)
+    table_b['random_1'] = np.random.random(size=len(table_b))
+    table_b['random_2'] = np.random.random(size=len(table_b))
+    table_b['randint'] = np.random.randint(3, size=len(table_b))
+
     if args.stage == 0:
 
         sample = ['BGS', 'BGS', 'LRG', 'LRG']
@@ -29,17 +47,17 @@ def main(args):
         for lens_bin in range(4):
 
             print('Reading lens catalog for z-bin {}...'.format(lens_bin))
-            table_l = read_raw_lens_catalog(args.region, sample[lens_bin],
-                                            'lens', magnification=True)
+            table_l = table_b[is_BGS(table_b)]
+            table_l.rename_column('z_true', 'z')
             table_l = table_l[(z_min[lens_bin] <= table_l['z']) &
                               (table_l['z'] < z_max[lens_bin])]
             print('Writing lens catalog for z-bin {}...'.format(lens_bin))
             table_l.write(os.path.join(output, 'l{}_nofib.hdf5'.format(
-                lens_bin)), overwrite=args.overwrite, path='catalog')
+                lens_bin)), overwrite=args.overwrite, path='catalog',
+                serialize_meta=True)
 
             print('Reading random catalog for z-bin {}...'.format(lens_bin))
-            table_r = read_raw_lens_catalog(args.region, sample[lens_bin],
-                                            'random')
+            table_r = read_random_catalog(args.region, sample[lens_bin])
             table_r = table_r[(z_min[lens_bin] <= table_r['z']) &
                               (table_r['z'] < z_max[lens_bin])]
             print('Writing random catalog for z-bin {}...'.format(lens_bin))
@@ -48,27 +66,9 @@ def main(args):
 
     if args.stage in [0, 1, 2]:
 
-        print('Reading raw source catalog...')
-        nside = 8
-        pixel = np.arange(hp.nside2npix(nside))
-        ra_pixel, dec_pixel = hp.pix2ang(nside, pixel, nest=True, lonlat=True)
-        pixel_use = pixel[ra_dec_in_region(ra_pixel, dec_pixel, args.region)]
-
-        table_s = Table()
-        for pixel in pixel_use:
-            table_s = vstack([table_s, read_raw_source_catalog(
-                pixel, magnification=(args.stage == 2))])
-        table_s.meta['area'] = hp.nside2pixarea(
-            nside, degrees=True) * len(pixel_use)
-        table_s.meta['bands'] = 'grizy'
-        np.random.seed(0)
-        table_s['random_1'] = np.random.random(size=len(table_s))
-        table_s['random_2'] = np.random.random(size=len(table_s))
-        table_s['randint'] = np.random.randint(3, size=len(table_s))
-
         if args.stage == 0:
             print('Making tailored source catalog...')
-            table_s = subsample_source_catalog(table_s)
+            table_s = subsample_source_catalog(table_b)
             table_s = apply_observed_shear(table_s)
             table_s = apply_shape_noise(table_s, 0.28)
             table_s = apply_photometric_redshift(table_s, None)
@@ -105,16 +105,16 @@ def main(args):
                 table_c_ref = read_real_calibration_catalog(survey)
 
                 print('Assigning photometric redshifts...')
-                table_s_survey = apply_photometric_redshift(
-                    table_s, table_c_ref)
+                table_s = apply_photometric_redshift(
+                    table_b, table_c_ref)
 
                 print('Downsampling to target density...')
-                table_s_survey = subsample_source_catalog(
-                    table_s_survey, table_s_ref=table_s_ref, survey=survey)
+                table_s = subsample_source_catalog(
+                    table_s, table_s_ref=table_s_ref, survey=survey)
 
                 print('Calculating observed shear...')
-                table_s_survey = apply_observed_shear(
-                    table_s_survey, table_s_ref=table_s_ref, survey=survey)
+                table_s = apply_observed_shear(
+                    table_s, table_s_ref=table_s_ref, survey=survey)
 
                 print('Applying shape noise...')
                 if survey in ['des', 'kids']:
@@ -124,30 +124,29 @@ def main(args):
                     else:
                         sigma = np.array([0.276, 0.269, 0.290, 0.281, 0.294])
 
-                    sigma = sigma[np.digitize(table_s_survey['z'], z_bins) - 1]
+                    sigma = sigma[np.digitize(table_s['z'], z_bins) - 1]
 
                 else:
 
-                    sigma = 1.0 / np.sqrt(table_s_survey['w'])
+                    sigma = 1.0 / np.sqrt(table_s['w'])
 
-                table_s_survey = apply_shape_noise(table_s_survey, sigma)
+                table_s = apply_shape_noise(table_s, sigma)
 
                 for source_bin in range(len(z_bins) - 1):
 
                     print('Writing source catalog for z-bin {}...'.format(
                         source_bin))
-                    use = ((z_bins[source_bin] <= table_s_survey['z']) &
-                           (table_s_survey['z'] < z_bins[source_bin + 1]))
-                    table_s_survey_z_bin = table_s_survey[use]
-                    table_s_survey_z_bin.write(os.path.join(
+                    use = ((z_bins[source_bin] <= table_s['z']) &
+                           (table_s['z'] < z_bins[source_bin + 1]))
+                    table_s_z_bin = table_s[use]
+                    table_s_z_bin.write(os.path.join(
                         output, 's{}_{}{}.hdf5'.format(
                             source_bin, survey, '_nomag' if args.stage == 1
                             else '')), overwrite=args.overwrite,
                                                path='catalog',
                                                serialize_meta=True)
-                    table_c = table_s_survey_z_bin[
-                        np.random.randint(len(table_s_survey_z_bin),
-                                          size=1000000)]
+                    table_c = table_s_z_bin[
+                        np.random.randint(len(table_s_z_bin), size=1000000)]
                     table_c.meta = {'bands': table_c.meta['bands']}
                     table_c.write(os.path.join(output, 'c{}_{}{}.hdf5'.format(
                         source_bin, survey, '_nomag' if args.stage == 1 else
@@ -159,7 +158,7 @@ def main(args):
     return
 
 
-def read_raw_source_catalog(pixel, magnification=True):
+def read_buzzard_catalog(pixel, mag_lensed=False, coord_lensed=False):
 
     path = os.path.join('/', 'project', 'projectdirs', 'desi', 'mocks',
                         'buzzard', 'buzzard_v2.0', 'buzzard-4',
@@ -168,28 +167,34 @@ def read_raw_source_catalog(pixel, magnification=True):
     path = os.path.join(path, '{}'.format(pixel // 100), '{}'.format(pixel))
     fname = 'Buzzard_v2.0_lensed-8-{}.fits'.format(pixel)
 
-    table_s = Table.read(os.path.join(path, fname))
-    table_s.rename_column('GAMMA1', 'gamma_1')
-    table_s.rename_column('GAMMA2', 'gamma_2')
-    table_s.rename_column('Z', 'z_true')
+    table = Table.read(os.path.join(path, fname))
+    table.rename_column('GAMMA1', 'gamma_1')
+    table.rename_column('GAMMA2', 'gamma_2')
+    table.rename_column('Z', 'z_true')
+    table.rename_column('KAPPA', 'kappa')
 
-    if magnification:
-        table_s.rename_column('RA', 'ra')
-        table_s.rename_column('DEC', 'dec')
-        table_s.rename_column('LMAG', 'mag')
+    if mag_lensed:
+        table['mag'] = np.hstack((table['LMAG'], table['LMAG_WISE']))
     else:
-        table_s.rename_column('RA', 'ra')
-        table_s.rename_column('DEC', 'dec')
-        table_s.rename_column('TMAG', 'mag')
+        table['mag'] = np.hstack((table['TMAG'], table['TMAG_WISE']))
 
-    table_s.keep_columns(['z_true', 'ra', 'dec', 'mag', 'gamma_1', 'gamma_2'])
+    if coord_lensed:
+        table.rename_column('RA', 'ra')
+        table.rename_column('DEC', 'dec')
+    else:
+        table['ra'], table['dec'] = hp.vec2ang(
+            np.array([table['PX'], table['PY'], table['PZ']]).T,
+            lonlat=True)
 
-    table_s.meta = {}
+    table.keep_columns(['z_true', 'ra', 'dec', 'mag', 'gamma_1', 'gamma_2',
+                        'kappa'])
 
-    return table_s
+    table.meta = {}
+
+    return table
 
 
-def read_raw_lens_catalog(region, sample, catalog_type, magnification=False):
+def read_random_catalog(region, sample, magnification=False):
 
     path = os.path.join('/', 'project', 'projectdirs', 'desi', 'mocks',
                         'buzzard', 'buzzard_v2.0', 'buzzard-4',
@@ -202,29 +207,21 @@ def read_raw_lens_catalog(region, sample, catalog_type, magnification=False):
     else:
         raise RuntimeError('Unknown lens sample {}.'.format(sample))
 
-    if catalog_type == 'lens':
-        table_l = Table.read(os.path.join(path, 'buzzard_{}.fits'.format(
-            sample)))
-    elif catalog_type == 'random':
-        table_l = Table()
-        for i in range(9):
-            table_l = vstack([table_l, Table.read(os.path.join(
-                path, 'buzzard_{}_rand.{:02}.fits'.format(sample, i + 1)))])
-    else:
-        raise RuntimeError('Unknown lens catalog type {}.'.format(
-            catalog_type))
+    table_r = vstack([Table.read(os.path.join(
+        path, 'buzzard_{}_rand.{:02}.fits'.format(sample, i + 1))) for i in
+        range(9)])
 
-    table_l.rename_column('RA', 'ra')
-    table_l.rename_column('DEC', 'dec')
-    table_l['z'] = table_l['Z_COSMO'] + table_l['DZ_RSD']
-    table_l.keep_columns(['ra', 'dec', 'z'])
+    table_r.rename_column('RA', 'ra')
+    table_r.rename_column('DEC', 'dec')
+    table_r['z'] = table_r['Z_COSMO'] + table_r['DZ_RSD']
+    table_r.keep_columns(['ra', 'dec', 'z'])
 
-    use = ra_dec_in_region(table_l['ra'], table_l['dec'], region)
-    use = use & (z_min <= table_l['z']) & (table_l['z'] < z_max)
+    use = ra_dec_in_region(table_r['ra'], table_r['dec'], region)
+    use = use & (z_min <= table_r['z']) & (table_r['z'] < z_max)
 
-    table_l.meta = {}
+    table_r.meta = {}
 
-    return table_l[use].filled()
+    return table_r[use].filled()
 
 
 def ra_dec_in_region(ra, dec, region):
@@ -561,6 +558,33 @@ def read_real_calibration_catalog(survey):
     table_c = table_c[table_c['w_sys'] > 0]
 
     return table_c
+
+
+def is_BGS(table):
+    bgs = table['mag'][:, table.meta['bands'].index('r')] < 20
+    return bgs
+
+
+def is_LRG(table):
+
+    g = table['mag'][:, table.meta['bands'].index('g')]
+    r = table['mag'][:, table.meta['bands'].index('r')]
+    z = table['mag'][:, table.meta['bands'].index('z')]
+    w1 = table['mag'][:, table.meta['bands'].index('w1')]
+
+    lrg = np.ones(len(g), dtype=bool)
+
+    lrg &= z < 20.4
+    lrg &= z > 18.0
+    lrg &= r - z < 2.5
+    lrg &= r - z > 0.8
+    lrg &= 1.7 * (r - z) - (r - w1) < 0.6
+    lrg &= 1.7 * (r - z) - (r - w1) > -1.0
+    lrg &= z < 17.05 + 2 * (r - z)
+    lrg &= z > 15.00 + 2 * (r - z)
+    lrg &= (z < r - 1.2) | (r < g - 1.7)
+
+    return lrg
 
 
 if __name__ == '__main__':
