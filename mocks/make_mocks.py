@@ -140,6 +140,9 @@ def main(args):
 
                 table_s = apply_shape_noise(table_s, sigma)
 
+                if args.stage == 2:
+                    table_s['w'] = table_s['w'] / table_s['mu']
+
                 for source_bin in range(len(z_bins) - 1):
 
                     print('Writing source catalog for z-bin {}...'.format(
@@ -182,7 +185,7 @@ def read_buzzard_catalog(pixel, mag_lensed=False, coord_lensed=False):
     table.rename_column('GAMMA1', 'gamma_1')
     table.rename_column('GAMMA2', 'gamma_2')
     table.rename_column('Z', 'z_true')
-    table.rename_column('KAPPA', 'kappa')
+    table.rename_column('MU', 'mu')
 
     if mag_lensed:
         table['mag'] = np.hstack((table['LMAG'], table['LMAG_WISE']))
@@ -197,8 +200,8 @@ def read_buzzard_catalog(pixel, mag_lensed=False, coord_lensed=False):
             np.array([table['PX'], table['PY'], table['PZ']]).T,
             lonlat=True)
 
-    table.keep_columns(['z_true', 'ra', 'dec', 'mag', 'gamma_1', 'gamma_2',
-                        'kappa'])
+    table.keep_columns(
+        ['z_true', 'ra', 'dec', 'mag', 'gamma_1', 'gamma_2', 'mu'])
 
     table.meta = {}
 

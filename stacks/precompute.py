@@ -42,8 +42,8 @@ except OSError:
 # %%
 
 source_magnification = args.stage >= 2
-lens_magnification = args.stage >= 0
-fiber_assignment = args.stage >= 3
+lens_magnification = args.stage >= 3
+fiber_assignment = args.stage >= 4
 
 if args.stage == 0:
     survey_list = ['gen']
@@ -59,10 +59,12 @@ for survey in survey_list:
 
     table_c = zebu.read_mock_data(
         'calibration', args.source_bin, survey=survey,
-        magnification=source_magnification)
+        mag_lensed=source_magnification,
+        coord_lensed=(source_magnification and lens_magnification))
     table_s = zebu.read_mock_data(
         'source', args.source_bin, survey=survey,
-        magnification=source_magnification)
+        mag_lensed=source_magnification,
+        coord_lensed=(source_magnification and lens_magnification))
 
     if not args.noisy:
         table_s['e_1'] = table_s['g_1']
@@ -99,7 +101,8 @@ for survey in survey_list:
     for catalog_type in ['lens', 'random']:
 
         table_l = zebu.read_mock_data(
-            catalog_type, args.lens_bin, magnification=lens_magnification,
+            catalog_type, args.lens_bin, mag_lensed=lens_magnification,
+            coord_lensed=(source_magnification and lens_magnification),
             fiber_assignment=fiber_assignment)
         table_l['w_sys'] *= w_sys(table_l['z'])
         add_jackknife_fields(table_l, centers)
