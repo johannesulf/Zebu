@@ -31,7 +31,7 @@ def main(args):
         table_b = vstack([table_b, read_buzzard_catalog(
             pixel, mag_lensed=(args.stage >= 2),
             coord_lensed=(args.stage == 3))])
-    table_b = Table(table_b, mask=False)
+    table_b = Table(table_b, masked=False)
     table_b.meta['area'] = hp.nside2pixarea(
         nside, degrees=True) * len(pixel_use)
     table_b.meta['bands'] = ['g', 'r', 'i', 'z', 'y', 'w1', 'w2']
