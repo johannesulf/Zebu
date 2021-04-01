@@ -48,11 +48,15 @@ def main(args):
         for lens_bin in range(4):
 
             print('Reading lens catalog for z-bin {}...'.format(lens_bin))
-            table_l = table_b[is_BGS(table_b)]
+            if lens_bin <= 1:
+                table_l = table_b[is_BGS(table_b)]
+            else:
+                table_l = table_b[is_LRG(table_b)]
             table_l.rename_column('z_true', 'z')
             table_l = table_l[(z_min[lens_bin] <= table_l['z']) &
                               (table_l['z'] < z_max[lens_bin])]
             print('Writing lens catalog for z-bin {}...'.format(lens_bin))
+            table_l.keep_columns(['z', 'ra', 'dec', 'mag'])
             fname = 'l{}_nofib'.format(lens_bin)
             if args.stage == 0:
                 fname = fname + '_nomag'
@@ -205,7 +209,7 @@ def read_buzzard_catalog(pixel, mag_lensed=False, coord_lensed=False):
 
     table.meta = {}
 
-    return table
+    return Table(table, masked=False)
 
 
 def read_random_catalog(region, sample, magnification=False):
@@ -235,7 +239,7 @@ def read_random_catalog(region, sample, magnification=False):
 
     table_r.meta = {}
 
-    return table_r[use].filled()
+    return Table(table_r[use], masked=False)
 
 
 def ra_dec_in_region(ra, dec, region):
