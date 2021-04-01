@@ -31,7 +31,7 @@ def main(args):
         table_b = vstack([table_b, read_buzzard_catalog(
             pixel, mag_lensed=(args.stage >= 2),
             coord_lensed=(args.stage == 3))])
-    table_b = Table(table_b, masked=False)
+    table_b = table_b.filled()
     table_b.meta['area'] = hp.nside2pixarea(
         nside, degrees=True) * len(pixel_use)
     table_b.meta['bands'] = ['g', 'r', 'i', 'z', 'y', 'w1', 'w2']
@@ -210,7 +210,7 @@ def read_buzzard_catalog(pixel, mag_lensed=False, coord_lensed=False):
 
     table.meta = {}
 
-    return Table(table, masked=False)
+    return table
 
 
 def read_random_catalog(region, sample, magnification=False):
@@ -240,7 +240,7 @@ def read_random_catalog(region, sample, magnification=False):
 
     table_r.meta = {}
 
-    return Table(table_r[use], masked=False)
+    return table_r[use]
 
 
 def ra_dec_in_region(ra, dec, region):
