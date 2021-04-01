@@ -18,7 +18,7 @@ source_z_bins = {
     'hsc': [0.3, 0.6, 0.9, 1.2, 1.5],
     'kids': [0.1, 0.3, 0.5, 0.7, 0.9, 1.2]}
 
-alpha_l = [1.5, 2.6, 3.3, 3.0]
+alpha_l = [0.87, 2.0, 2.57, 3.0]
 
 
 def stacking_kwargs(survey):
