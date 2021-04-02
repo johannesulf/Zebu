@@ -37,8 +37,7 @@ def stacking_kwargs(survey):
 
 
 def read_mock_data(catalog_type, z_bin, survey='gen', region=1,
-                   mag_lensed=False, coord_lensed=False,
-                   fiber_assignment=False):
+                   magnification=False, fiber_assignment=False):
 
     if catalog_type not in ['source', 'lens', 'calibration', 'random']:
         raise RuntimeError('Unkown catalog type: {}.'.format(catalog_type))
@@ -53,28 +52,14 @@ def read_mock_data(catalog_type, z_bin, survey='gen', region=1,
     if not fiber_assignment and catalog_type == 'lens':
         fname = fname + '_nofib'
 
-    if mag_lensed and catalog_type != 'random':
-        if not coord_lensed:
-            fname = fname + '_semimag'
-    elif not mag_lensed and catalog_type != 'random':
-        if not coord_lensed:
-            fname = fname + '_nomag'
-        else:
-            raise RuntimeError('Catalogs with lensed coordinates and ' +
-                               'unlensed magnitudes have not been ' +
-                               'implemented.')
+    if not magnification and catalog_type != 'random':
+        fname = fname + '_nomag'
 
     fname = fname + '.hdf5'
 
     table = Table.read(os.path.join(path, fname))
 
-    if catalog_type in ['calibration', 'source'] and survey == 'gen':
-        table['w'] = 1.0
-
     if catalog_type == 'calibration':
-        table['w_sys'] = 1.0
-
-    if catalog_type == 'lens' and not fiber_assignment:
         table['w_sys'] = 1.0
 
     if catalog_type == 'random':

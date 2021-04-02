@@ -29,8 +29,7 @@ def main(args):
     table_b = Table()
     for pixel in pixel_use:
         table_b = vstack([table_b, read_buzzard_catalog(
-            pixel, mag_lensed=(args.stage >= 2),
-            coord_lensed=(args.stage >= 3))])
+            pixel, mag_lensed=(args.stage >= 2))])
     table_b = table_b.filled()
     table_b.meta['area'] = hp.nside2pixarea(
         nside, degrees=True) * len(pixel_use)
@@ -56,8 +55,11 @@ def main(args):
             table_l.rename_column('z_true', 'z')
             table_l = table_l[(z_min[lens_bin] <= table_l['z']) &
                               (table_l['z'] < z_max[lens_bin])]
+            table_l['w_sys'] = 1.0
+            if args.stage == 0:
+                table_l['w_sys'] = table_l['w_sys'] * table_l['mu']
             print('Writing lens catalog for z-bin {}...'.format(lens_bin))
-            table_l.keep_columns(['z', 'ra', 'dec', 'mag'])
+            table_l.keep_columns(['z', 'ra', 'dec', 'mag', 'w_sys'])
             fname = 'l{}_nofib'.format(lens_bin)
             if args.stage == 0:
                 fname = fname + '_nomag'
@@ -77,7 +79,7 @@ def main(args):
             table_r.write(os.path.join(output, 'r{}.hdf5'.format(lens_bin)),
                           overwrite=args.overwrite, path='catalog')
 
-    if args.stage in [0, 1, 2, 3]:
+    if args.stage in [0, 1, 2]:
 
         if args.stage == 0:
             print('Making tailored source catalog...')
@@ -94,6 +96,7 @@ def main(args):
                 use = ((z_bins[source_bin] <= table_s['z']) &
                        (table_s['z'] < z_bins[source_bin + 1]))
                 table_s_z_bin = table_s[use]
+                table_s['w'] = table_s['mu']
                 table_s_z_bin.write(os.path.join(
                     output, 's{}_gen_nomag.hdf5'.format(source_bin)),
                                     overwrite=args.overwrite,
@@ -145,8 +148,8 @@ def main(args):
 
                 table_s = apply_shape_noise(table_s, sigma)
 
-                if args.stage == 2:
-                    table_s['w'] = table_s['w'] / table_s['mu']
+                if args.stage < 2:
+                    table_s['w'] = table_s['w'] * table_s['mu']
 
                 for source_bin in range(len(z_bins) - 1):
 
@@ -158,8 +161,6 @@ def main(args):
                     fname = 's{}_{}'.format(source_bin, survey)
                     if args.stage == 1:
                         fname = fname + '_nomag'
-                    elif args.stage == 2:
-                        fname = fname + '_semimag'
                     fname = fname + '.hdf5'
                     table_s_z_bin.write(
                         os.path.join(output, fname), overwrite=args.overwrite,
@@ -177,7 +178,7 @@ def main(args):
     return
 
 
-def read_buzzard_catalog(pixel, mag_lensed=False, coord_lensed=False):
+def read_buzzard_catalog(pixel, mag_lensed=False, coord_lensed=True):
 
     path = os.path.join('/', 'project', 'projectdirs', 'desi', 'mocks',
                         'buzzard', 'buzzard_v2.0', 'buzzard-4',

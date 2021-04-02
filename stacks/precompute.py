@@ -59,12 +59,10 @@ for survey in survey_list:
 
     table_c = zebu.read_mock_data(
         'calibration', args.source_bin, survey=survey,
-        mag_lensed=source_magnification,
-        coord_lensed=(source_magnification and lens_magnification))
+        magnification=source_magnification)
     table_s = zebu.read_mock_data(
         'source', args.source_bin, survey=survey,
-        mag_lensed=source_magnification,
-        coord_lensed=(source_magnification and lens_magnification))
+        magnification=source_magnification)
 
     if not args.noisy:
         table_s['e_1'] = table_s['g_1']
@@ -101,8 +99,7 @@ for survey in survey_list:
     for catalog_type in ['lens', 'random']:
 
         table_l = zebu.read_mock_data(
-            catalog_type, args.lens_bin, mag_lensed=lens_magnification,
-            coord_lensed=(source_magnification and lens_magnification),
+            catalog_type, args.lens_bin, magnification=lens_magnification,
             fiber_assignment=fiber_assignment)
         table_l['w_sys'] *= w_sys(table_l['z'])
         add_jackknife_fields(table_l, centers)
@@ -114,12 +111,12 @@ for survey in survey_list:
             output = output + '_noisy'
         if args.zspec:
             output = output + '_zspec'
-        if fiber_assignment:
-            output = output + '_fiber'
-        if not source_magnification:
-            output = output + '_nosmag'
-        if not lens_magnification:
+        if not source_magnification and not lens_magnification:
+            output = output + '_nomag'
+        if source_magnification and not lens_magnification:
             output = output + '_nolmag'
+        if not fiber_assignment:
+            output = output + '_nofib'
 
         if np.all(np.isclose(table_l['w_sys'], 0)) or np.all(
                 table_l['z'] > np.amax(table_s['z_l_max'])):
