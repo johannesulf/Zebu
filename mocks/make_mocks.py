@@ -30,7 +30,7 @@ def main(args):
     for pixel in pixel_use:
         table_b = vstack([table_b, read_buzzard_catalog(
             pixel, mag_lensed=(args.stage >= 2),
-            coord_lensed=(args.stage == 3))])
+            coord_lensed=(args.stage >= 3))])
     table_b = table_b.filled()
     table_b.meta['area'] = hp.nside2pixarea(
         nside, degrees=True) * len(pixel_use)
@@ -77,7 +77,7 @@ def main(args):
             table_r.write(os.path.join(output, 'r{}.hdf5'.format(lens_bin)),
                           overwrite=args.overwrite, path='catalog')
 
-    if args.stage in [0, 1, 2]:
+    if args.stage in [0, 1, 2, 3]:
 
         if args.stage == 0:
             print('Making tailored source catalog...')
