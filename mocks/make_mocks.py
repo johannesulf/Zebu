@@ -96,7 +96,7 @@ def main(args):
                 use = ((z_bins[source_bin] <= table_s['z']) &
                        (table_s['z'] < z_bins[source_bin + 1]))
                 table_s_z_bin = table_s[use]
-                table_s['w'] = table_s['mu']
+                table_s_z_bin['w'] = table_s['mu']
                 table_s_z_bin.write(os.path.join(
                     output, 's{}_gen_nomag.hdf5'.format(source_bin)),
                                     overwrite=args.overwrite,
