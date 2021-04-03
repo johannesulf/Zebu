@@ -87,6 +87,7 @@ def main(args):
             table_s = apply_observed_shear(table_s)
             table_s = apply_shape_noise(table_s, 0.28)
             table_s = apply_photometric_redshift(table_s, None)
+            table_s['w'] = table_s['mu']
 
             z_bins = [0.5, 0.7, 0.9, 1.1, 1.5]
 
@@ -96,7 +97,6 @@ def main(args):
                 use = ((z_bins[source_bin] <= table_s['z']) &
                        (table_s['z'] < z_bins[source_bin + 1]))
                 table_s_z_bin = table_s[use]
-                table_s_z_bin['w'] = table_s['mu']
                 table_s_z_bin.write(os.path.join(
                     output, 's{}_gen_nomag.hdf5'.format(source_bin)),
                                     overwrite=args.overwrite,
