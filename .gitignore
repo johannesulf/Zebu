@@ -16,6 +16,5 @@ lwb/raw
 ~lwb/raw/MD5SUM
 scratch
 lux/env
-stage_1/precompute
-stage_1/results_*/*.pdf
-stage_1/results_*/*.csv
+stacks/*
+~stacks/*.py
