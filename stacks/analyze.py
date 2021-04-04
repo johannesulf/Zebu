@@ -19,6 +19,9 @@ fiber_assignment = args.stage >= 4
 output = os.path.join('region_{}'.format(args.region),
                       'stage_{}'.format(args.stage))
 
+if not os.path.exists(output):
+    os.makedirs(output)
+
 if args.stage == 0:
     survey_list = ['gen']
 else:
@@ -48,12 +51,11 @@ def read_precompute(survey, lens_bin, source_bin, zspec=False, noisy=False,
             path += '_noisy'
         if zspec:
             path += '_zspec'
-        if not source_magnification:
-            if not lens_magnification:
-                path += '_nomag'
-            else:
-                path += '_semimag'
-        if lens_magnification and not source_magnification:
+        if not lens_magnification and not source_magnification:
+            path += '_nomag'
+        elif not lens_magnification and source_magnification:
+            path += '_nolmag'
+        elif lens_magnification and not source_magnification:
             raise RuntimeError('Precomputation with lens magnification but ' +
                                'no source magnification has not been ' +
                                'performed.')
@@ -147,9 +149,8 @@ for lens_bin in range(1, len(zebu.lens_z_bins) - 1):
 
     table_l, table_r = read_precompute(
             'gen', lens_bin, 'all', zspec=True,
-            lens_magnification=lens_magnification,
-            source_magnification=source_magnification,
-            fiber_assignment=fiber_assignment)
+            lens_magnification=False, source_magnification=False,
+            fiber_assignment=False)
     ds_norm.append(excess_surface_density(
         table_l, table_r=table_r, **zebu.stacking_kwargs('gen')))
 

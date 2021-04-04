@@ -17,7 +17,7 @@ source init.sh
 cd ../stacks/
 python precompute.py STAGE LENS_BIN SOURCE_BIN --noisy --zspec'
 
-if [[ $1 != [0-2] ]]; then
+if [[ $1 != [0-3] ]]; then
   echo "The first command line argument must be an int representing the stage."
   return 1
 fi
