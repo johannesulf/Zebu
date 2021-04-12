@@ -26,16 +26,16 @@ for i in range(4):
     f_mean = np.mean(f, axis=0)
     alpha = (f_mean[1] - f_mean[3]) / (mu[1] - mu[3])
 
-    plt.errorbar(mu, np.mean(f, axis=0),
-                 yerr=np.std(f, axis=0, ddof=1) / np.sqrt(f.shape[0]) * 10,
+    plt.errorbar(mu, np.mean(f, axis=0) / mu,
+                 yerr=np.std(f, axis=0) / mu / np.sqrt(f.shape[0]) * 10,
                  fmt='x', color=color,
                  label=r'lens bin {}: $\alpha = {:.2f}$'.format(i + 1, alpha))
 
-    plt.plot(mu, 1 + (mu - 1) * alpha, ls='--', color=color)
+    plt.plot(mu, mu**(alpha - 1), ls='--', color=color)
 
 plt.legend(loc='best')
 plt.xlabel(r'$\mu$')
-plt.ylabel(r'$\mu \times n(\mu) / n(\mu = 1)$')
+plt.ylabel(r'$n(\mu) / n(\mu = 1)$')
 plt.tight_layout(pad=0.3)
 plt.savefig('flux_magnification.pdf')
 plt.savefig('flux_magnification.png', dpi=300)

@@ -14,7 +14,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('stage', type=int, help='stage of the analysis')
 parser.add_argument('--region', type=int, help='region of the sky', default=1)
 parser.add_argument('--pdf', action='store_true', help='whether to make PDFs')
-args = parser.parse_args(['0'])
+args = parser.parse_args()
 
 source_magnification = args.stage >= 2
 lens_magnification = args.stage >= 3
@@ -30,30 +30,38 @@ else:
 rp = 0.5 * (zebu.rp_bins[1:] + zebu.rp_bins[:-1])
 
 
-def initialize_plot(survey):
+def initialize_plot(survey, ylabel=None):
 
-    fig, axarr = plt.subplots(figsize=(7, 4), nrows=2, ncols=2, sharex=True,
+    fig, axarr = plt.subplots(figsize=(7, 5), nrows=3, ncols=2, sharex=True,
                               sharey='row')
     ax_list = axarr.flatten()
     plt.xscale('log')
 
+    lens_bin_list = []
+
     for i, ax in enumerate(ax_list):
+        if i <= 3:
+            lens_bin = i // 2
+        else:
+            lens_bin = i - 2
+        lens_bin_list.append(lens_bin)
         ax.xaxis.set_major_formatter(ticker.FuncFormatter(
             lambda y, p: r'{:g}'.format(y)))
         ax.yaxis.set_major_formatter(ticker.FuncFormatter(
             lambda y, p: r'{:+g}\%'.format(y) if y != 0 else r'0\%'))
         ax.axhline(0, ls='--', color='black')
-        ax.text(0.5, 0.95, r'${:.1f} \leq z_l < {:.1f}$'.format(
-            zebu.lens_z_bins[i], zebu.lens_z_bins[i + 1]),
-                ha='center', va='top', transform=ax.transAxes,
+        ax.text(0.08, 0.92, r'${:.1f} \leq z_l < {:.1f}$'.format(
+            zebu.lens_z_bins[lens_bin], zebu.lens_z_bins[lens_bin + 1]),
+                ha='left', va='top', transform=ax.transAxes,
                 bbox=dict(facecolor='white', edgecolor='black'))
         if i >= 2:
             ax.set_xlabel(
                 r'Projected radius $r_p \, [h^{-1} \, \mathrm{Mpc}]$')
         if i % 2 == 0:
-            ax.set_ylabel(
-                r'$\Delta\Sigma_\mathrm{' + survey + r' vs. ref} / ' +
-                r'\Delta\Sigma_{\rm ref}$')
+            if ylabel is None:
+                ylabel = (r'$\Delta\Sigma_\mathrm{' + survey +
+                          r'\ vs. \ ref} / \Delta\Sigma_{\rm ref}$')
+            ax.set_ylabel(ylabel)
 
     plt.tight_layout(pad=0.3)
     plt.subplots_adjust(wspace=0, hspace=0)
@@ -70,7 +78,21 @@ def initialize_plot(survey):
         ['{:g}'.format(z_s) for z_s in zebu.source_z_bins[survey]])
     cb.set_label(r'Photometric source redshift $z_s$')
 
-    return fig, ax_list, color_list
+    source_bin_list = []
+
+    for lens_bin in range(4):
+        z_l_max = zebu.lens_z_bins[lens_bin + 1]
+        source_bin_use = np.arange(len(zebu.source_z_bins[survey]) - 1)[
+            z_l_max < zebu.source_z_bins[survey][1:] - 0.25]
+
+        if lens_bin <= 1:
+            n_s = len(source_bin_use)
+            source_bin_list.append(source_bin_use[:int(np.ceil(n_s / 2))])
+            source_bin_list.append(source_bin_use[int(np.ceil(n_s / 2)):])
+        else:
+            source_bin_list.append(source_bin_use)
+
+    return fig, ax_list, lens_bin_list, source_bin_list, color_list
 
 
 def read_precompute(survey, lens_bin, source_bin, zspec=False, noisy=False,
@@ -144,29 +166,73 @@ def difference(table_l, table_r=None, table_l_2=None, table_r_2=None,
     return ds_1 - ds_2
 
 
+def polyfit(x, y, cov, deg=1):
+
+    X = np.zeros((0, len(x)))
+    for i in range(deg + 1):
+        X = np.vstack((X, x**i))
+    X = X.T
+
+    pre = np.linalg.inv(cov)
+    beta_cov = np.linalg.inv(np.dot(np.dot(X.T, pre), X))
+    beta = np.dot(np.dot(np.dot(beta_cov, X.T),  pre), y)
+
+    return beta, beta_cov
+
+
+def polyval(x, beta, beta_cov):
+
+    A = np.array([x**i for i in range(len(beta))])
+
+    return np.sum(A * beta), np.sqrt(np.dot(np.dot(A.T, beta_cov),  A))
+
+
 def plot_difference(ax, color, table_l_1, table_r_1, table_l_2, table_r_2,
                     survey, survey_2=None, ds_norm=1.0, label=None,
                     offset=0, lens_bin=0):
+
+    if len(table_l_1) * len(table_r_1) * len(table_l_2) * len(table_r_2) == 0:
+        print('Warning: Received empty result to plot.')
+        return None
 
     if survey_2 is None:
         survey_2 = survey
 
     dds = difference(
         table_l_1, table_r=table_r_1, table_l_2=table_l_2, table_r_2=table_r_2,
-        survey_1=survey, survey_2=survey_2)
+        survey_1=survey, survey_2=survey_2) / ds_norm
     dds_cov = jackknife_resampling(
         difference, table_l_1, table_r=table_r_1, table_l_2=table_l_2,
         table_r_2=table_r_2, survey_1=survey, survey_2=survey_2)
+    if hasattr(ds_norm, 'shape'):
+        dds_cov = dds_cov / np.outer(ds_norm, ds_norm)
+    else:
+        dds_cov = dds_cov / ds_norm**2
 
     if np.all(np.isclose(dds_cov, 0)):
         raise RuntimeError('Tried to plot differences for identical results.')
 
     dds_err = np.sqrt(np.diag(dds_cov))
-    dds_ave, dds_ave_cov = zebu.linear_regression(
-        rp, dds, dds_cov, return_err=True)
-    ax.errorbar(rp * (1 + offset * 0.03), 100 * dds / ds_norm,
-                yerr=100 * dds_err / ds_norm, label=label, fmt='.', ms=0,
-                color=color)
+    plotline, caps, barlinecols = ax.errorbar(
+        rp * (1 + offset * 0.05), 100 * dds, yerr=100 * dds_err, label=label,
+        fmt='.', ms=0, color=color, zorder=offset + 100)
+    plt.setp(barlinecols[0], capstyle='round')
+
+    beta, beta_cov = polyfit(np.log10(rp), dds, dds_cov, deg=5)
+    rp_mod = np.logspace(np.amin(np.log10(zebu.rp_bins)),
+                         np.amax(np.log10(zebu.rp_bins)), 100)
+    dds_mod = np.zeros(len(rp_mod))
+    dds_mod_err = np.zeros(len(rp_mod))
+
+    for i in range(len(rp_mod)):
+        dds_mod[i], dds_mod_err[i] = polyval(np.log10(rp_mod[i]), beta,
+                                             beta_cov)
+    ax.plot(rp_mod * (1 + offset * 0.05), 100 * dds_mod, color=color,
+            zorder=offset + 50, lw=0.5)
+    ax.fill_between(
+        rp_mod * (1 + offset * 0.05), 100 * (dds_mod - dds_mod_err),
+        100 * (dds_mod + dds_mod_err), color=color, alpha=0.3, lw=0,
+        zorder=offset)
 
     return None
 
@@ -222,17 +288,16 @@ if args.stage == 0:
     plt.savefig(os.path.join(output, 'reference.png'), dpi=300)
     plt.close()
 
-
 # %%
 
 for survey in survey_list:
 
-    fig, ax_list, color_list = initialize_plot(survey)
+    fig, ax_list, lens_bin_list, source_bin_list_all, color_list = \
+        initialize_plot(survey)
 
-    for lens_bin, ax in zip(np.arange(4), ax_list):
-
-        for source_bin, color in zip(
-                np.arange(len(zebu.source_z_bins[survey]) - 1), color_list):
+    for lens_bin, source_bin_list, ax in zip(
+            lens_bin_list, source_bin_list_all, ax_list):
+        for offset, source_bin in enumerate(source_bin_list):
 
             table_l, table_r = read_precompute(
                 survey, lens_bin, source_bin, zspec=False,
@@ -240,12 +305,10 @@ for survey in survey_list:
                 source_magnification=source_magnification,
                 fiber_assignment=fiber_assignment)
 
-            if len(table_l) == 0:
-                continue
-
-            plot_difference(ax, color, table_l, table_r, table_l_ref[lens_bin],
-                            table_r_ref[lens_bin], survey, survey_2='gen',
-                            ds_norm=ds_ref[lens_bin], offset=source_bin)
+            plot_difference(ax, color_list[source_bin], table_l, table_r,
+                            table_l_ref[lens_bin], table_r_ref[lens_bin],
+                            survey, survey_2='gen', ds_norm=ds_ref[lens_bin],
+                            offset=offset)
 
     adjust_ylim(ax_list)
     savefigs('{}_vs_ref'.format(survey))
@@ -255,17 +318,13 @@ for survey in survey_list:
 
 for survey in survey_list:
 
-    fig, ax_list, color_list = initialize_plot(survey)
+    fig, ax_list, lens_bin_list, source_bin_list_all, color_list = \
+        initialize_plot(survey, r'$\Delta\Sigma_\mathrm{phot \ vs. \ spec} /' +
+                        r' \Delta\Sigma_{\rm ref}$')
 
-    for lens_bin, ax in zip(np.arange(4), ax_list):
-
-        if lens_bin % 2 == 0:
-            ax.set_ylabel(
-                r'$\Delta\Sigma_\mathrm{phot \ vs. \ spec} / ' +
-                r' \Delta\Sigma_{\rm ref}$')
-
-        for source_bin, color in zip(
-                np.arange(len(zebu.source_z_bins[survey]) - 1), color_list):
+    for lens_bin, source_bin_list, ax in zip(
+            lens_bin_list, source_bin_list_all, ax_list):
+        for offset, source_bin in enumerate(source_bin_list):
 
             table_l_phot, table_r_phot = read_precompute(
                 survey, lens_bin, source_bin, zspec=False,
@@ -278,12 +337,9 @@ for survey in survey_list:
                 source_magnification=source_magnification,
                 fiber_assignment=fiber_assignment)
 
-            if len(table_l_phot) == 0:
-                continue
-
-            plot_difference(ax, color, table_l_phot, table_r_phot,
-                            table_l_spec, table_r_spec, survey,
-                            ds_norm=ds_ref[lens_bin], offset=source_bin)
+            plot_difference(ax, color_list[source_bin], table_l_phot,
+                            table_r_phot, table_l_spec, table_r_spec, survey,
+                            ds_norm=ds_ref[lens_bin], offset=offset)
 
     adjust_ylim(ax_list)
     savefigs('{}_phot_vs_spec'.format(survey))
@@ -295,18 +351,13 @@ if args.stage == 2:
 
     for survey in survey_list:
 
-        fig, ax_list, color_list = initialize_plot(survey)
+        fig, ax_list, lens_bin_list, source_bin_list_all, color_list = \
+            initialize_plot(survey, r'$\Delta\Sigma_\mathrm{source \ magn.} ' +
+                            r'/ \Delta\Sigma_{\rm ref}$')
 
-        for lens_bin, ax in zip(np.arange(4), ax_list):
-
-            if lens_bin % 2 == 0:
-                ax.set_ylabel(
-                    r'$\Delta\Sigma_\mathrm{source \ magn.} / ' +
-                    r' \Delta\Sigma_{\rm ref}$')
-
-            for source_bin, color in zip(
-                    np.arange(len(zebu.source_z_bins[survey]) - 1),
-                    color_list):
+        for lens_bin, source_bin_list, ax in zip(
+                lens_bin_list, source_bin_list_all, ax_list):
+            for offset, source_bin in enumerate(source_bin_list):
 
                 table_l_mag, table_r_mag = read_precompute(
                     survey, lens_bin, source_bin, zspec=False,
@@ -319,12 +370,10 @@ if args.stage == 2:
                     source_magnification=False,
                     fiber_assignment=fiber_assignment)
 
-                if len(table_l_mag) == 0:
-                    continue
-
-                plot_difference(ax, color, table_l_mag, table_r_mag,
-                                table_l_nomag, table_r_nomag, survey,
-                                ds_norm=ds_ref[lens_bin], offset=source_bin)
+                plot_difference(ax, color_list[source_bin], table_l_mag,
+                                table_r_mag, table_l_nomag, table_r_nomag,
+                                survey, ds_norm=ds_ref[lens_bin],
+                                offset=source_bin)
 
         adjust_ylim(ax_list)
         savefigs('{}_smag'.format(survey))
@@ -338,18 +387,13 @@ if args.stage == 3:
 
     for survey in survey_list:
 
-        fig, ax_list, color_list = initialize_plot(survey)
+        fig, ax_list, lens_bin_list, source_bin_list_all, color_list = \
+            initialize_plot(survey, r'$\Delta\Sigma_\mathrm{lens \ magn.} / ' +
+                            r' \Delta\Sigma_{\rm ref}$')
 
-        for lens_bin, ax in zip(np.arange(4), ax_list):
-
-            if lens_bin % 2 == 0:
-                ax.set_ylabel(
-                    r'$\Delta\Sigma_\mathrm{lens \ magn.} / ' +
-                    r' \Delta\Sigma_{\rm ref}$')
-
-            for source_bin, color in zip(
-                    np.arange(len(zebu.source_z_bins[survey]) - 1),
-                    color_list):
+        for lens_bin, source_bin_list, ax in zip(
+                lens_bin_list, source_bin_list_all, ax_list):
+            for offset, source_bin in enumerate(source_bin_list):
 
                 table_l_mag, table_r_mag = read_precompute(
                     survey, lens_bin, source_bin, zspec=False,
@@ -362,18 +406,17 @@ if args.stage == 3:
                     source_magnification=source_magnification,
                     fiber_assignment=fiber_assignment)
 
-                if len(table_l_mag) == 0:
-                    continue
+                color = color_list[source_bin]
 
                 ds_lm = lens_magnification_bias(
                     table_l_mag, zebu.alpha_l[lens_bin], camb_results,
                     photo_z_dilution_correction=True)
-                ax.plot(rp * (1 + source_bin * 0.03),
-                        100 * ds_lm / ds_ref[lens_bin], color=color)
+                ax.plot(rp * (1 + offset * 0.05),
+                        100 * ds_lm / ds_ref[lens_bin], color=color, ls='--')
 
                 plot_difference(ax, color, table_l_mag, table_r_mag,
                                 table_l_nomag, table_r_nomag, survey,
-                                ds_norm=ds_ref[lens_bin], offset=source_bin)
+                                ds_norm=ds_ref[lens_bin], offset=offset)
 
         savefigs('{}_lmag'.format(survey))
         plt.close()
