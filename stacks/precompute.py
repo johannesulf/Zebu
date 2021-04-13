@@ -57,6 +57,12 @@ else:
 
 for survey in survey_list:
 
+    z_l_max = zebu.lens_z_bins[args.lens_bin + 1]
+    z_s_max = zebu.source_z_bins[survey][args.source_bin + 1]
+    if z_l_max > z_s_max - 0.25 and not (args.stage == 0 and args.zspec and not
+                                         args.noisy):
+        continue
+
     table_c = zebu.read_mock_data(
         'calibration', args.source_bin, survey=survey,
         magnification=source_magnification)
@@ -86,15 +92,8 @@ for survey in survey_list:
         weight[i] = np.sum(table_c['w'] * table_c['w_sys'] * sigma_crit**-2 *
                            (z_lens[i] < table_c['z_l_max']))
 
-    if np.amax(weight) > 0:
-        weight = weight / np.amax(weight)
-
-    # If correcting for unequal weight distorts weighting dramatically, don't
-    # attempt any re-weighting and assign zero weights.
-    if np.amin(weight) < 1e-2:
-        w_sys = interp1d(z_lens, np.zeros_like(z_lens))
-    else:
-        w_sys = interp1d(z_lens, 1.0 / weight)
+    weight = weight / np.amax(weight)
+    w_sys = interp1d(z_lens, 1.0 / weight)
 
     for catalog_type in ['lens', 'random']:
 
@@ -117,14 +116,6 @@ for survey in survey_list:
             output = output + '_nolmag'
         if not fiber_assignment:
             output = output + '_nofib'
-
-        if np.all(np.isclose(table_l['w_sys'], 0)) or np.all(
-                table_l['z'] > np.amax(table_s['z_l_max'])):
-            output = output + '.txt'
-            fstream = open(output, "w")
-            fstream.write("No suitable lens-source pairs!")
-            fstream.close()
-            continue
 
         output = output + '.hdf5'
 
