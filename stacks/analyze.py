@@ -22,6 +22,9 @@ fiber_assignment = args.stage >= 4
 output = os.path.join('region_{}'.format(args.region),
                       'stage_{}'.format(args.stage))
 
+if not os.path.isdir(output):
+    os.makedirs(output)
+
 if args.stage == 0:
     survey_list = ['gen']
 else:

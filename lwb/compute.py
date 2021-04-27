@@ -1,14 +1,15 @@
 import os
+import fitsio
 import argparse
 import numpy as np
 import multiprocessing
-from astropy.table import Table, vstack
+from astropy.table import Table, vstack, hstack, join
 from dsigma.helpers import dsigma_table
 from dsigma.precompute import precompute_catalog, add_maximum_lens_redshift
 from dsigma.jackknife import add_continous_fields, jackknife_field_centers
 from dsigma.jackknife import add_jackknife_fields, jackknife_resampling
 from dsigma.stacking import excess_surface_density
-from dsigma.surveys import kids
+from dsigma.surveys import des, kids
 from astropy.cosmology import FlatLambdaCDM
 
 parser = argparse.ArgumentParser(
@@ -17,117 +18,161 @@ parser = argparse.ArgumentParser(
 parser.add_argument('survey', help='the lens survey')
 args = parser.parse_args()
 
-# %%
+cosmo = FlatLambdaCDM(100, 0.3)
 
-if args.survey.lower() == 'kids':
+table_l = vstack([
+    Table.read(os.path.join(
+        'boss', 'galaxy_DR12v5_CMASSLOWZTOT_South.fits.gz')),
+    Table.read(os.path.join(
+        'boss', 'galaxy_DR12v5_CMASSLOWZTOT_North.fits.gz'))])
+table_l = dsigma_table(table_l, 'lens', z='Z', ra='RA', dec='DEC',
+                       w_sys=1)
+table_l = table_l[table_l['z'] >= 0.15]
 
-    table_s = Table()
+if args.survey.lower() == 'des':
 
-    for region in [9, 12, 15, 23, 'S']:
-        table_s = vstack([table_s, Table.read(os.path.join(
-            'raw', 'KV450_G{}_reweight_3x4x4_v2_good.cat'.format(region)),
-                                              hdu=1)],
-                         metadata_conflicts='silent')
+    table_s = []
 
-    table_s = table_s[table_s['MASK'] == 0]
-    table_s = dsigma_table(table_s, 'source', survey='KiDS', version='KV450')
+    fname_list = ['mcal-y1a1-combined-riz-unblind-v4-matched.fits',
+                  'y1a1-gold-mof-badregion_BPZ.fits',
+                  'mcal-y1a1-combined-griz-blind-v3-matched_BPZbase.fits']
+    columns_list = [['e1', 'e2', 'R11', 'R12', 'R21', 'R22', 'ra', 'dec',
+                     'flags_select', 'flags_select_1p', 'flags_select_1m',
+                     'flags_select_2p', 'flags_select_2m'], ['Z_MC'],
+                    ['MEAN_Z']]
 
-    z_bins = [0.1, 0.3, 0.5, 0.7, 0.9, 1.2]
-    table_s['z_bin'] = np.digitize(table_s['z'], z_bins) - 1
+    for fname, columns in zip(fname_list, columns_list):
+        table_s.append(Table(fitsio.read(os.path.join('des', fname),
+                                         columns=columns), names=columns))
 
-    nz = np.array([np.genfromtxt(os.path.join(
-        'raw', 'Nz_DIR_z{}t{}.asc'.format(z_min, z_max))).T for
-        z_min, z_max in zip(z_bins[:-1], z_bins[1:])])
+    table_s = hstack(table_s)
+    table_s = dsigma_table(table_s, 'source', survey='DES')
+    table_s['z_bin'] = des.tomographic_redshift_bin(table_s['z'])
 
-    table_s = table_s[(table_s['z_bin'] >= 0) &
-                      (table_s['z_bin'] < len(z_bins) - 1)]
-    table_s = add_maximum_lens_redshift(table_s, dz_min=0.1)
-    table_s['m'] = kids.multiplicative_shear_bias(table_s['z'],
-                                                  version='KV450')
+    for z_bin in range(4):
+        use = table_s['z_bin'] == z_bin
+        R_sel = des.selection_response(table_s[use])
+        table_s['R_11'][use] += 0.5 * np.sum(np.diag(R_sel))
+        table_s['R_22'][use] += 0.5 * np.sum(np.diag(R_sel))
 
+    table_s = table_s[(table_s['flags_select'] == 0) &
+                      (table_s['z_bin'] != -1)]
 
-elif args.survey.lower() == 'cfht':
+    table_c = table_s['z', 'z_true', 'w']
+    table_c['w_sys'] = 0.5 * (table_s['R_11'] + table_s['R_22'])
 
-    table_s = Table.read(os.path.join('raw', 'CFHTLS.csv'))
-    table_c = table_s[np.random.randint(len(table_s), size=100000)]
-    table_s = dsigma_table(table_s, 'source', survey='cfhtls')
-    table_s = table_s[table_s['z'] > 0.25 - 1e-6]
-    table_s = table_s[table_s['z'] < 1.3 + 1e-6]
-    table_s = add_maximum_lens_redshift(table_s, dz_min=0.2)
+    z_s_bins = [0.2, 0.43, 0.63, 0.9, 1.3]
+    precompute_kwargs = {'table_c': table_c}
+    stacking_kwargs = {'tensor_shear_response_correction': True,
+                       'photo_z_dilution_correction': True}
 
-    z_pdf = np.linspace(0.0, 3.5, 71)
-    z_pdf = 0.5 * (z_pdf[1:] + z_pdf[:-1]) + 0.005
+elif args.survey.lower() == 'hsc':
 
-    table_c['w_sys'] = np.ones(len(table_c))
-    table_c['z_true'] = np.zeros(len(table_c))
+    table_s = Table.read(os.path.join('hsc', 'raw', 'hsc_s16a_lensing.fits'))
+    table_s = dsigma_table(table_s, 'source', survey='HSC')
 
-    for i in range(len(table_c)):
-        p = np.array([float(s) for s in table_c['PZ_full'][i].split(',')])
-        p = p / np.sum(p)
-        table_c['z_true'][i] = np.random.choice(z_pdf, p=p)
+    table_c_1 = vstack([
+        Table.read(os.path.join('hsc', 'raw', 'pdf-s17a_wide-9812.cat.fits')),
+        Table.read(os.path.join('hsc', 'raw', 'pdf-s17a_wide-9813.cat.fits'))])
+    for key in table_c_1.colnames:
+        table_c_1.rename_column(key, key.lower())
+    table_c_2 = Table.read(os.path.join(
+        'hsc', 'raw', 'Afterburner_reweighted_COSMOS_photoz_FDFC.fits'))
+    table_c_2.rename_column('S17a_objid', 'id')
+    table_c = join(table_c_1, table_c_2, keys='id')
+    table_c = dsigma_table(table_c, 'calibration', w_sys='SOM_weight',
+                           w='weight_source', z_true='COSMOS_photoz',
+                           survey='HSC')
 
-    table_c = dsigma_table(table_c, 'calibration', z='Z_B', z_true='z_true',
-                           w='weight')
-    table_c = table_c[table_c['z'] > 0.25 - 1e-6]
-    table_c = table_c[table_c['z'] < 1.3 + 1e-6]
-    table_c = add_maximum_lens_redshift(table_c, dz_min=0.105)
+    z_s_bins = np.linspace(0.3, 1.5, 5)
+    precompute_kwargs = {'table_c': table_c}
+    stacking_kwargs = {'scalar_shear_response_correction': True,
+                       'shear_responsivity_correction': True,
+                       'photo_z_dilution_correction': True,
+                       'hsc_selection_bias_correction': True}
+
+elif args.survey.lower() == 'kids':
+
+    table_s = Table.read(os.path.join(
+        'kids', 'KiDS_DR4.1_ugriZYJHKs_SOM_gold_WL_cat.fits'))
+    table_s = dsigma_table(table_s, 'source', survey='KiDS')
+
+    table_s['z_bin'] = kids.tomographic_redshift_bin(table_s['z'],
+                                                     version='DR4')
+    table_s['m'] = kids.multiplicative_shear_bias(table_s['z'], version='DR4')
+    table_s = table_s[table_s['z_bin'] >= 0]
+
+    fname = ('K1000_NS_V1.0.0A_ugriZYJHKs_photoz_SG_mask_LF_svn_309c_2Dbins_' +
+             'v2_SOMcols_Fid_blindC_TOMO{}_Nz.asc')
+    nz = np.array([np.genfromtxt(
+        os.path.join('kids', fname.format(i + 1))).T for i in range(5)])
+    nz[:, 0, :] += 0.025  # in original file, redshifts are lower bin edges
+
+    z_s_bins = np.array([0.1, 0.3, 0.5, 0.7, 0.9, 1.2])
+    precompute_kwargs = {'nz': nz}
+    stacking_kwargs = {'scalar_shear_response_correction': True}
 
 else:
-    raise ValueError("Survey must be 'kids' or 'cfht'.")
+    raise ValueError("Survey must be 'des', 'hsc' or 'kids'.")
 
 # %%
 
-rp_bins = np.logspace(np.log10(0.05), np.log10(15.), 11)
-z_bins = [0.15, 0.31, 0.43, 0.54, 0.70]
+table_s = add_maximum_lens_redshift(table_s, dz_min=0.1)
+if 'table_c' in precompute_kwargs.keys():
+    table_c = add_maximum_lens_redshift(table_c, dz_min=0.1)
 
-for lens_bin in range(4):
+precompute_kwargs.update({
+    'n_jobs': multiprocessing.cpu_count(), 'comoving': True,
+    'cosmology': cosmo})
 
-    table_l = Table.read(os.path.join('raw', '{}_{}_{}_{}.dat'.format(
-        args.survey.upper(), 'LOWZ' if lens_bin < 2 else 'CMASS',
-        z_bins[lens_bin], z_bins[lens_bin + 1])), delimiter=' ',
-                         format='ascii', names=['ra', 'dec', 'z', 'w_sys',
-                                                'w_tot', 'm_star'])
+# %%
 
-    table_r = Table.read(os.path.join('raw', '{}_{}_RANDOMS_{}_{}.dat'.format(
-            args.survey.upper(), 'LOWZ' if lens_bin < 2 else 'CMASS',
-            z_bins[lens_bin], z_bins[lens_bin + 1])), delimiter=' ',
-                         format='ascii', names=['ra', 'dec', 'z'])
+rp_bins = np.logspace(np.log10(0.5), np.log10(50.), 11)
+z_l_bins = np.linspace(0.2, 0.7, 6)
 
-    table_r['w_sys'] = np.ones(len(table_r))
-    table_l['w_sys'] = table_l['w_tot']
+for lens_bin in range(len(z_l_bins) - 1):
 
-    kwargs = {'n_jobs': multiprocessing.cpu_count(), 'comoving': False,
-              'cosmology': FlatLambdaCDM(H0=70, Om0=0.3)}
-    if args.survey.lower() == 'cfht':
-        kwargs['table_c'] = table_c
-    if args.survey.lower() == 'kids':
-        kwargs['nz'] = nz
+    z_l_min = z_l_bins[lens_bin]
+    z_l_max = z_l_bins[lens_bin + 1]
 
-    print('Working on lenses in bin {}...'.format(lens_bin + 1))
-    table_l_pre = precompute_catalog(table_l, table_s, rp_bins, **kwargs)
-    print('Working on randoms in bin {}...'.format(lens_bin + 1))
-    table_r_pre = precompute_catalog(table_r, table_s, rp_bins, **kwargs)
+    for source_bin in range(len(z_s_bins) - 1):
 
-    # Create the jackknife fields.
-    table_l_pre = add_continous_fields(table_l_pre, distance_threshold=2)
-    centers = jackknife_field_centers(table_l_pre, 100)
-    table_l_pre = add_jackknife_fields(table_l_pre, centers)
-    table_r_pre = add_jackknife_fields(table_r_pre, centers)
+        table_l_part = table_l[(z_l_min <= table_l['z']) &
+                               (table_l['z'] < z_l_max)]
 
-    kwargs = {'return_table': True, 'shear_bias_correction': True,
-              'random_subtraction': True,
-              'photo_z_dilution_correction': args.survey.lower() == 'cfht',
-              'table_r': table_r_pre}
+        z_s_min = z_s_bins[source_bin]
+        z_s_max = z_s_bins[source_bin + 1]
+        table_s_part = table_s[(z_s_min <= table_s['z']) &
+                               (table_s['z'] < z_s_max)]
+        if 'table_c' in precompute_kwargs.keys():
+            table_c_part = table_c[(z_s_min <= table_c['z']) &
+                                   (table_c['z'] < z_s_max)]
+            precompute_kwargs['table_c'] = table_c_part
+            table_l_part = table_l_part[table_l_part['z'] < np.amax(
+                table_c_part['z_l_max'])]
 
-    result = excess_surface_density(table_l_pre, **kwargs)
-    kwargs['return_table'] = False
-    ds_cov = jackknife_resampling(
-        excess_surface_density, table_l_pre, **kwargs)
-    result['ds_err'] = np.sqrt(np.diag(ds_cov))
+        if np.amin(table_l_part['z']) >= np.amax(table_s_part['z_l_max']):
+            continue
 
-    fname_base = '{}_{}'.format(args.survey.lower(), lens_bin)
+        table_l_pre = precompute_catalog(table_l_part, table_s_part, rp_bins,
+                                         **precompute_kwargs)
 
-    np.savetxt(os.path.join('results', fname_base + '_cov.csv'), ds_cov)
+        # Create the jackknife fields.
+        table_l_pre = add_continous_fields(table_l_pre, distance_threshold=2)
+        centers = jackknife_field_centers(table_l_pre, 100)
+        table_l_pre = add_jackknife_fields(table_l_pre, centers)
 
-    result.write(os.path.join('results', fname_base + '.csv'),
-                 overwrite=True)
+        stacking_kwargs['return_table'] = True
+        result = excess_surface_density(table_l_pre, **stacking_kwargs)
+        stacking_kwargs['return_table'] = False
+        ds_cov = jackknife_resampling(
+            excess_surface_density, table_l_pre, **stacking_kwargs)
+        result['ds_err'] = np.sqrt(np.diag(ds_cov))
+
+        fname_base = '{}_l{}_s{}'.format(args.survey.lower(), lens_bin,
+                                         source_bin)
+
+        np.savetxt(os.path.join('results', fname_base + '_cov.csv'), ds_cov)
+
+        result.write(os.path.join('results', fname_base + '.csv'),
+                     overwrite=True)
