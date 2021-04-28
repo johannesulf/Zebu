@@ -395,8 +395,8 @@ def apply_observed_shear(table_s, table_s_ref=None, survey=None):
             table_s['g_2'] *= 0.5 * (table_s['R_11'] + table_s['R_22'])
 
         if survey.lower() == 'hsc':
-            table_s['g_1'] *= 1 - table_s['e_rms']**2
-            table_s['g_2'] *= 1 - table_s['e_rms']**2
+            table_s['g_1'] *= 2 * (1 - table_s['e_rms']**2)
+            table_s['g_2'] *= 2 * (1 - table_s['e_rms']**2)
 
     table_s.remove_column('randint')
 
