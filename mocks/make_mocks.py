@@ -304,7 +304,7 @@ def subsample_source_catalog(table_s, table_s_ref=None, survey=None):
         # target redshift distribution
         z = 0.5 * (z_bins[1:] + z_bins[:-1])
         z_0 = 0.2
-        n_t_tot = 10.0 * 60.0**2
+        n_t_tot = 50.0 * 60.0**2
         n_t = z**2 * np.exp(-z / z_0)
         n_t = n_t * n_t_tot / np.sum(n_t * np.diff(z_bins)[0])
 
