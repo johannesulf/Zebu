@@ -21,6 +21,8 @@ parser.add_argument('--zspec', action='store_true',
                     help='use spectroscopic instead of photometric redshfits')
 parser.add_argument('--noisy', action='store_true',
                     help='use noisy shapes')
+parser.add_argument('--runit', action='store_true',
+                    help='use shapes w/o response bias, i.e. unit response')
 parser.add_argument('--region', type=int, help='region of the sky', default=1)
 args = parser.parse_args()
 
@@ -74,6 +76,17 @@ for survey in survey_list:
         table_s['e_1'] = table_s['g_1']
         table_s['e_2'] = table_s['g_2']
 
+    if args.runit and survey != 'hsc':
+        continue
+
+    if args.runit:
+        table_s['e_1'] /= 1 + table_s['m']
+        table_s['e_2'] /= 1 + table_s['m']
+        table_s['m'] = 0
+        table_s['e_1'] /= 2 * (1 - table_s['e_rms']**2)
+        table_s['e_2'] /= 2 * (1 - table_s['e_rms']**2)
+        table_s['e_rms'] = np.sqrt(0.5)
+
     if args.zspec:
         table_c['z'] = table_c['z_true']
         table_s['z'] = table_s['z_true']
@@ -88,7 +101,7 @@ for survey in survey_list:
 
     for i in range(len(z_lens)):
         sigma_crit = critical_surface_density(z_lens[i], table_c['z'],
-                                              cosmology=zebu.cosmo)
+                                              zebu.cosmo)
         weight[i] = np.sum(table_c['w'] * table_c['w_sys'] * sigma_crit**-2 *
                            (z_lens[i] < table_c['z_l_max']))
 
@@ -110,6 +123,8 @@ for survey in survey_list:
             output = output + '_noisy'
         if args.zspec:
             output = output + '_zspec'
+        if args.runit:
+            output = output + '_runit'
         if not source_magnification and not lens_magnification:
             output = output + '_nomag'
         if source_magnification and not lens_magnification:

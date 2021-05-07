@@ -3,7 +3,7 @@
 TEMPLATE=$'#!/bin/bash
 #SBATCH --partition=QUEUE
 #SBATCH --account=QUEUE
-#SBATCH --job-name=pre_stageSTAGE_lLENS_BIN_sSOURCE_BIN_noisy_zspec
+#SBATCH --job-name=pre_stageSTAGE_lLENS_BIN_sSOURCE_BIN_noisy_zspec_runit
 #SBATCH --nodes=1
 #SBATCH --ntasks=40
 #SBATCH --cpus-per-task=1
@@ -15,7 +15,7 @@ TEMPLATE=$'#!/bin/bash
 cd /data/groups/leauthaud/jolange/Zebu/lux
 source init.sh
 cd ../stacks/
-python precompute.py STAGE LENS_BIN SOURCE_BIN --noisy --zspec'
+python precompute.py STAGE LENS_BIN SOURCE_BIN --noisy --zspec --runit'
 
 if [[ $1 != [0-3] ]]; then
   echo "The first command line argument must be an int representing the stage."
@@ -27,6 +27,7 @@ shift
 
 NOISY=false
 ZSPEC=false
+RUNIT=false
 LENS_BIN_MIN=0
 LENS_BIN_MAX=3
 SOURCE_BIN_MIN=0
@@ -41,6 +42,9 @@ while :; do
       ;;
     -z|--zspec)
       ZSPEC=true
+      ;;
+    -r|--runit)
+      RUNIT=true
       ;;
     -o|--overwrite)
       OVERWRITE=true
@@ -114,13 +118,14 @@ echo "lenses: $LENS_BIN_MIN - $LENS_BIN_MAX"
 echo "sources: $SOURCE_BIN_MIN - $SOURCE_BIN_MAX"
 echo "noisy: $NOISY"
 echo "zspec: $ZSPEC"
+echo "runit: $RUNIT"
 echo "queue: $QUEUE"
 
 finished () {
 
   PRE_FINISHED=false
 
-  LOG=log/pre_stage${STAGE}_l${LENS_BIN}_s${SOURCE_BIN}_noisy_zspec.out
+  LOG=log/pre_stage${STAGE}_l${LENS_BIN}_s${SOURCE_BIN}_noisy_zspec_runit.out
 
   if [ "$NOISY" != true ]; then
     LOG="${LOG//_noisy/}"
@@ -128,6 +133,10 @@ finished () {
 
   if [ "$ZSPEC" != true ]; then
     LOG="${LOG//_zspec/}"
+  fi
+
+  if [ "$RUNIT" != true ]; then
+    LOG="${LOG//_runit/}"
   fi
 
   if test -f "$LOG"; then
@@ -189,6 +198,11 @@ if [ "$PROCEED" == 'yes' ]; then
       if [ "$ZSPEC" != true ]; then
         SCRIPT="${SCRIPT//_zspec/}"
         SCRIPT="${SCRIPT// --zspec/}"
+      fi
+
+      if [ "$RUNIT" != true ]; then
+        SCRIPT="${SCRIPT//_runit/}"
+        SCRIPT="${SCRIPT// --runit/}"
       fi
 
       FILE=pre_stage${STAGE}_${LENS_BIN}_${SOURCE_BIN}.sh

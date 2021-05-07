@@ -72,6 +72,7 @@ def read_mock_data(catalog_type, z_bin, survey='gen', region=1,
 
     if catalog_type == 'source':
         table['e_2'] = - table['e_2']
+        table['g_2'] = - table['g_2']
 
     return table
 
