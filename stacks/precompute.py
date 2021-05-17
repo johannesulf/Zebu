@@ -5,9 +5,9 @@ import numpy as np
 import multiprocessing
 from scipy.interpolate import interp1d
 from dsigma.physics import critical_surface_density
-from dsigma.precompute import add_maximum_lens_redshift, precompute_catalog
+from dsigma.precompute import add_maximum_lens_redshift, add_precompute_results
 from dsigma.jackknife import add_continous_fields, jackknife_field_centers
-from dsigma.jackknife import add_jackknife_fields
+from dsigma.jackknife import add_jackknife_fields, compress_jackknife_fields
 
 # %%
 
@@ -86,13 +86,14 @@ for survey in survey_list:
         table_s['e_1'] /= 2 * (1 - table_s['e_rms']**2)
         table_s['e_2'] /= 2 * (1 - table_s['e_rms']**2)
         table_s['e_rms'] = np.sqrt(0.5)
+        table_c['w_sys'] = 1.0
 
     if args.zspec:
         table_c['z'] = table_c['z_true']
         table_s['z'] = table_s['z_true']
 
     for table in [table_s, table_c]:
-        table = add_maximum_lens_redshift(table, dz_min=0.2, z_err_factor=0)
+        add_maximum_lens_redshift(table, dz_min=0.2, z_err_factor=0)
 
     z_lens = np.linspace(zebu.lens_z_bins[args.lens_bin] - 1e-6,
                          zebu.lens_z_bins[args.lens_bin + 1] + 1e-6, 1000)
@@ -135,10 +136,10 @@ for survey in survey_list:
         output = output + '.hdf5'
 
         kwargs = {'cosmology': zebu.cosmo, 'table_c': table_c,
-                  'compress_jackknife_fields': True,
                   'n_jobs': multiprocessing.cpu_count()}
 
-        table_l = precompute_catalog(table_l, table_s, zebu.rp_bins, **kwargs)
+        add_precompute_results(table_l, table_s, zebu.rp_bins, **kwargs)
+        table_l = compress_jackknife_fields(table_l)
 
         table_l.write(output, path=catalog_type,
                       overwrite=(catalog_type == 'lens'),

@@ -10,7 +10,7 @@ TEMPLATE=$'#!/bin/bash
 #SBATCH --time=1-0:00:00
 #SBATCH --mail-type=FAIL
 #SBATCH --mail-user=jolange@ucsc.edu
-#SBATCH --output=log/pre_stageSTAGE_lLENS_BIN_sSOURCE_BIN_noisy_zspec.out
+#SBATCH --output=log/pre_stageSTAGE_lLENS_BIN_sSOURCE_BIN_noisy_zspec_runit.out
 
 cd /data/groups/leauthaud/jolange/Zebu/lux
 source init.sh

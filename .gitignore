@@ -18,3 +18,4 @@ scratch
 lux/env
 stacks/*
 ~stacks/*.py
+*.asc

@@ -5,7 +5,7 @@ import numpy as np
 import multiprocessing
 from astropy.table import Table, vstack, hstack, join
 from dsigma.helpers import dsigma_table
-from dsigma.precompute import precompute_catalog, add_maximum_lens_redshift
+from dsigma.precompute import add_maximum_lens_redshift, add_precompute_results
 from dsigma.jackknife import add_continous_fields, jackknife_field_centers
 from dsigma.jackknife import add_jackknife_fields, jackknife_resampling
 from dsigma.stacking import excess_surface_density
@@ -13,20 +13,19 @@ from dsigma.surveys import des, kids
 from astropy.cosmology import FlatLambdaCDM
 
 parser = argparse.ArgumentParser(
-    description='Calculate the lensing signal for the LWB project.')
+    description='Calculate the lensing signal for a LWB-type analysis.')
 
 parser.add_argument('survey', help='the lens survey')
 args = parser.parse_args()
 
-cosmo = FlatLambdaCDM(100, 0.3)
+cosmology = FlatLambdaCDM(100, 0.3)
 
 table_l = vstack([
     Table.read(os.path.join(
         'boss', 'galaxy_DR12v5_CMASSLOWZTOT_South.fits.gz')),
     Table.read(os.path.join(
         'boss', 'galaxy_DR12v5_CMASSLOWZTOT_North.fits.gz'))])
-table_l = dsigma_table(table_l, 'lens', z='Z', ra='RA', dec='DEC',
-                       w_sys=1)
+table_l = dsigma_table(table_l, 'lens', z='Z', ra='RA', dec='DEC', w_sys=1)
 table_l = table_l[table_l['z'] >= 0.15]
 
 if args.survey.lower() == 'des':
@@ -36,16 +35,17 @@ if args.survey.lower() == 'des':
     fname_list = ['mcal-y1a1-combined-riz-unblind-v4-matched.fits',
                   'y1a1-gold-mof-badregion_BPZ.fits',
                   'mcal-y1a1-combined-griz-blind-v3-matched_BPZbase.fits']
-    columns_list = [['e1', 'e2', 'R11', 'R12', 'R21', 'R22', 'ra', 'dec',
-                     'flags_select', 'flags_select_1p', 'flags_select_1m',
-                     'flags_select_2p', 'flags_select_2m'], ['Z_MC'],
-                    ['MEAN_Z']]
+    columns_list = [['e1', 'e2', 'R11', 'R12', 'R21', 'R22', 'region', 'ra',
+                     'dec', 'flags_select', 'flags_select_1p',
+                     'flags_select_1m', 'flags_select_2p', 'flags_select_2m'],
+                    ['Z_MC'], ['MEAN_Z']]
 
     for fname, columns in zip(fname_list, columns_list):
-        table_s.append(Table(fitsio.read(os.path.join('des', fname),
+        table_s.append(Table(fitsio.read(os.path.join('des', 'raw', fname),
                                          columns=columns), names=columns))
 
     table_s = hstack(table_s)
+    table_s = table_s[table_s['region'] == 2]
     table_s = dsigma_table(table_s, 'source', survey='DES')
     table_s['z_bin'] = des.tomographic_redshift_bin(table_s['z'])
 
@@ -63,7 +63,7 @@ if args.survey.lower() == 'des':
 
     z_s_bins = [0.2, 0.43, 0.63, 0.9, 1.3]
     precompute_kwargs = {'table_c': table_c}
-    stacking_kwargs = {'tensor_shear_response_correction': True,
+    stacking_kwargs = {'matrix_shear_response_correction': True,
                        'photo_z_dilution_correction': True}
 
 elif args.survey.lower() == 'hsc':
@@ -94,22 +94,25 @@ elif args.survey.lower() == 'hsc':
 elif args.survey.lower() == 'kids':
 
     table_s = Table.read(os.path.join(
-        'kids', 'KiDS_DR4.1_ugriZYJHKs_SOM_gold_WL_cat.fits'))
+        'kids', 'raw', 'KiDS_DR4.1_ugriZYJHKs_SOM_gold_WL_cat.fits'))
     table_s = dsigma_table(table_s, 'source', survey='KiDS')
 
     table_s['z_bin'] = kids.tomographic_redshift_bin(table_s['z'],
                                                      version='DR4')
     table_s['m'] = kids.multiplicative_shear_bias(table_s['z'], version='DR4')
     table_s = table_s[table_s['z_bin'] >= 0]
+    table_s['z'] = np.array([0.1, 0.3, 0.5, 0.7, 0.9])[table_s['z_bin']]
 
     fname = ('K1000_NS_V1.0.0A_ugriZYJHKs_photoz_SG_mask_LF_svn_309c_2Dbins_' +
              'v2_SOMcols_Fid_blindC_TOMO{}_Nz.asc')
-    nz = np.array([np.genfromtxt(
-        os.path.join('kids', fname.format(i + 1))).T for i in range(5)])
-    nz[:, 0, :] += 0.025  # in original file, redshifts are lower bin edges
+    table_n = Table()
+    table_n['z'] = np.genfromtxt(os.path.join(
+        'kids', 'raw', fname.format(1)))[:, 0] + 0.025
+    table_n['n'] = np.vstack([np.genfromtxt(os.path.join(
+        'kids', 'raw', fname.format(i + 1)))[:, 1] for i in range(5)]).T
 
     z_s_bins = np.array([0.1, 0.3, 0.5, 0.7, 0.9, 1.2])
-    precompute_kwargs = {'nz': nz}
+    precompute_kwargs = {'table_n': table_n}
     stacking_kwargs = {'scalar_shear_response_correction': True}
 
 else:
@@ -117,13 +120,16 @@ else:
 
 # %%
 
-table_s = add_maximum_lens_redshift(table_s, dz_min=0.1)
+add_maximum_lens_redshift(table_s, dz_min=0.1)
 if 'table_c' in precompute_kwargs.keys():
-    table_c = add_maximum_lens_redshift(table_c, dz_min=0.1)
+    add_maximum_lens_redshift(table_c, dz_min=0.1)
+
+if args.survey.lower() == 'kids':
+    table_s['z_l_max'] = 1000.0
 
 precompute_kwargs.update({
     'n_jobs': multiprocessing.cpu_count(), 'comoving': True,
-    'cosmology': cosmo})
+    'cosmology': cosmology})
 
 # %%
 
@@ -151,22 +157,27 @@ for lens_bin in range(len(z_l_bins) - 1):
             table_l_part = table_l_part[table_l_part['z'] < np.amax(
                 table_c_part['z_l_max'])]
 
+        if len(table_l_part) == 0:
+            continue
+
         if np.amin(table_l_part['z']) >= np.amax(table_s_part['z_l_max']):
             continue
 
-        table_l_pre = precompute_catalog(table_l_part, table_s_part, rp_bins,
-                                         **precompute_kwargs)
+        add_precompute_results(table_l_part, table_s_part, rp_bins,
+                               **precompute_kwargs)
 
         # Create the jackknife fields.
-        table_l_pre = add_continous_fields(table_l_pre, distance_threshold=2)
-        centers = jackknife_field_centers(table_l_pre, 100)
-        table_l_pre = add_jackknife_fields(table_l_pre, centers)
+        table_l_part['n_s_tot'] = np.sum(table_l_part['sum 1'], axis=1)
+        table_l_part = table_l_part[table_l_part['n_s_tot'] > 0]
+        table_l_part = add_continous_fields(table_l_part, distance_threshold=2)
+        centers = jackknife_field_centers(table_l_part, 100)
+        table_l_part = add_jackknife_fields(table_l_part, centers)
 
         stacking_kwargs['return_table'] = True
-        result = excess_surface_density(table_l_pre, **stacking_kwargs)
+        result = excess_surface_density(table_l_part, **stacking_kwargs)
         stacking_kwargs['return_table'] = False
         ds_cov = jackknife_resampling(
-            excess_surface_density, table_l_pre, **stacking_kwargs)
+            excess_surface_density, table_l_part, **stacking_kwargs)
         result['ds_err'] = np.sqrt(np.diag(ds_cov))
 
         fname_base = '{}_l{}_s{}'.format(args.survey.lower(), lens_bin,

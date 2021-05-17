@@ -4,7 +4,6 @@ import numpy as np
 from astropy.table import Table
 from astropy.cosmology import FlatLambdaCDM
 from scipy.spatial import cKDTree
-from dsigma.stacking import excess_surface_density
 
 
 base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -29,9 +28,9 @@ def stacking_kwargs(survey):
     elif survey.lower() in ['des', 'hsc', 'kids']:
         return {'photo_z_dilution_correction': True,
                 'boost_correction': False, 'random_subtraction': True,
-                'shear_bias_correction': survey.lower() != 'des',
-                'shear_responsivity_correction': survey.lower() == 'hsc',
-                'metacalibration_response_correction': survey.lower() == 'des'}
+                'scalar_shear_response_correction': survey.lower() != 'des',
+                'matrix_shear_response_correction': survey.lower() == 'des',
+                'shear_responsivity_correction': survey.lower() == 'hsc'}
     else:
         raise RuntimeError('Unkown lensing survey {}.'.format(survey))
 
