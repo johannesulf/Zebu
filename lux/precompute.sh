@@ -3,19 +3,19 @@
 TEMPLATE=$'#!/bin/bash
 #SBATCH --partition=QUEUE
 #SBATCH --account=QUEUE
-#SBATCH --job-name=pre_stageSTAGE_lLENS_BIN_sSOURCE_BIN_noisy_zspec_runit
+#SBATCH --job-name=pre_stageSTAGE_sSOURCE_BIN_noisy_zspec_runit
 #SBATCH --nodes=1
 #SBATCH --ntasks=40
 #SBATCH --cpus-per-task=1
 #SBATCH --time=1-0:00:00
 #SBATCH --mail-type=FAIL
 #SBATCH --mail-user=jolange@ucsc.edu
-#SBATCH --output=log/pre_stageSTAGE_lLENS_BIN_sSOURCE_BIN_noisy_zspec_runit.out
+#SBATCH --output=log/pre_stageSTAGE_sSOURCE_BIN_noisy_zspec_runit.out
 
 cd /data/groups/leauthaud/jolange/Zebu/lux
 source init.sh
 cd ../stacks/
-python precompute.py STAGE LENS_BIN SOURCE_BIN --noisy --zspec --runit'
+python precompute.py STAGE SOURCE_BIN --noisy --zspec --runit'
 
 if [[ $1 != [0-3] ]]; then
   echo "The first command line argument must be an int representing the stage."
@@ -28,8 +28,6 @@ shift
 NOISY=false
 ZSPEC=false
 RUNIT=false
-LENS_BIN_MIN=0
-LENS_BIN_MAX=3
 SOURCE_BIN_MIN=0
 SOURCE_BIN_MAX=4
 QUEUE=cpuq
@@ -59,24 +57,6 @@ while :; do
         shift
       else
         echo 'ERROR: "--queue" requires a non-empty option argument.'
-        return 1
-      fi
-      ;;
-    --lmin)
-      if [[ $2 == [0-3] ]]; then
-        LENS_BIN_MIN=$2
-        shift
-      else
-        echo 'ERROR: "--lmin" requires an integer less than 4.'
-        return 1
-      fi
-      ;;
-    --lmax)
-      if [[ $2 == [0-3] ]]; then
-        LENS_BIN_MAX=$2
-        shift
-      else
-        echo 'ERROR: "--lmax" requires an integer less than 4.'
         return 1
       fi
       ;;
@@ -114,7 +94,6 @@ fi
 
 echo "Submitting scripts..."
 echo "stage: $STAGE"
-echo "lenses: $LENS_BIN_MIN - $LENS_BIN_MAX"
 echo "sources: $SOURCE_BIN_MIN - $SOURCE_BIN_MAX"
 echo "noisy: $NOISY"
 echo "zspec: $ZSPEC"
@@ -125,7 +104,7 @@ finished () {
 
   PRE_FINISHED=false
 
-  LOG=log/pre_stage${STAGE}_l${LENS_BIN}_s${SOURCE_BIN}_noisy_zspec_runit.out
+  LOG=log/pre_stage${STAGE}_s${SOURCE_BIN}_noisy_zspec_runit.out
 
   if [ "$NOISY" != true ]; then
     LOG="${LOG//_noisy/}"
@@ -152,18 +131,16 @@ N_TOT=0
 N_SUC=0
 
 
-for (( LENS_BIN=$LENS_BIN_MIN; LENS_BIN<=$LENS_BIN_MAX; LENS_BIN++ )); do
-  for (( SOURCE_BIN=$SOURCE_BIN_MIN; SOURCE_BIN<=$SOURCE_BIN_MAX; SOURCE_BIN++ )); do
+for (( SOURCE_BIN=$SOURCE_BIN_MIN; SOURCE_BIN<=$SOURCE_BIN_MAX; SOURCE_BIN++ )); do
 
-    finished
+  finished
 
-    let N_TOT++
+  let N_TOT++
 
-    if $PRE_FINISHED; then
-      let N_SUC++
-    fi
+  if $PRE_FINISHED; then
+    let N_SUC++
+  fi
 
-  done
 done
 
 if $OVERWRITE; then
@@ -173,48 +150,45 @@ else
   echo "Remaining jobs: $(expr $N_TOT - $N_SUC)"
 fi
 
-echo "Proceed?"
+echo "Proceed? (yes/no)"
 
 read PROCEED
 
 if [ "$PROCEED" == 'yes' ]; then
-  for (( LENS_BIN=$LENS_BIN_MIN; LENS_BIN<=$LENS_BIN_MAX; LENS_BIN++ )); do
-    for (( SOURCE_BIN=$SOURCE_BIN_MIN; SOURCE_BIN<=$SOURCE_BIN_MAX; SOURCE_BIN++ )); do
+  for (( SOURCE_BIN=$SOURCE_BIN_MIN; SOURCE_BIN<=$SOURCE_BIN_MAX; SOURCE_BIN++ )); do
 
-      SCRIPT="${TEMPLATE//LENS_BIN/$LENS_BIN}"
-      SCRIPT="${SCRIPT//SOURCE_BIN/$SOURCE_BIN}"
-      SCRIPT="${SCRIPT//STAGE/$STAGE}"
-      SCRIPT="${SCRIPT//QUEUE/$QUEUE}"
+    SCRIPT="${TEMPLATE//STAGE/$STAGE}"
+    SCRIPT="${SCRIPT//SOURCE_BIN/$SOURCE_BIN}"
+    SCRIPT="${SCRIPT//QUEUE/$QUEUE}"
 
-      if [ "$QUEUE" == "leauthaud" ]; then
-        SCRIPT="${SCRIPT//#SBATCH --time=1-0:00:00/#SBATCH --time=7-0:00:00}"
-      fi
+    if [ "$QUEUE" == "leauthaud" ]; then
+      SCRIPT="${SCRIPT//#SBATCH --time=1-0:00:00/#SBATCH --time=7-0:00:00}"
+    fi
 
-      if [ "$NOISY" != true ]; then
-        SCRIPT="${SCRIPT//_noisy/}"
-        SCRIPT="${SCRIPT// --noisy/}"
-      fi
+    if [ "$NOISY" != true ]; then
+      SCRIPT="${SCRIPT//_noisy/}"
+      SCRIPT="${SCRIPT// --noisy/}"
+    fi
 
-      if [ "$ZSPEC" != true ]; then
-        SCRIPT="${SCRIPT//_zspec/}"
-        SCRIPT="${SCRIPT// --zspec/}"
-      fi
+    if [ "$ZSPEC" != true ]; then
+      SCRIPT="${SCRIPT//_zspec/}"
+      SCRIPT="${SCRIPT// --zspec/}"
+    fi
 
-      if [ "$RUNIT" != true ]; then
-        SCRIPT="${SCRIPT//_runit/}"
-        SCRIPT="${SCRIPT// --runit/}"
-      fi
+    if [ "$RUNIT" != true ]; then
+      SCRIPT="${SCRIPT//_runit/}"
+      SCRIPT="${SCRIPT// --runit/}"
+    fi
 
-      FILE=pre_stage${STAGE}_${LENS_BIN}_${SOURCE_BIN}.sh
+    FILE=pre_stage${STAGE}_${LENS_BIN}_${SOURCE_BIN}.sh
 
-      finished
+    finished
 
-      if ! $PRE_FINISHED || $OVERWRITE; then
-        echo "$SCRIPT" > $FILE
-        sbatch $FILE
-        rm $FILE
-      fi
+    if ! $PRE_FINISHED || $OVERWRITE; then
+      echo "$SCRIPT" > $FILE
+      sbatch $FILE
+      rm $FILE
+    fi
 
-    done
   done
 fi
