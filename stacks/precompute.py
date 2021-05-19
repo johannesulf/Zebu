@@ -81,17 +81,22 @@ for survey in survey_list:
             table_s['e_1'] = table_s['g_1']
             table_s['e_2'] = table_s['g_2']
 
-        if args.runit and survey != 'hsc':
-            continue
-
         if args.runit:
-            table_s['e_1'] /= 1 + table_s['m']
-            table_s['e_2'] /= 1 + table_s['m']
-            table_s['m'] = 0
-            table_s['e_1'] /= 2 * (1 - table_s['e_rms']**2)
-            table_s['e_2'] /= 2 * (1 - table_s['e_rms']**2)
-            table_s['e_rms'] = np.sqrt(0.5)
-            table_c['w_sys'] = 1.0
+            if survey == 'des':
+                table_s['e_1'] /= 0.5 * (table_s['R_11'] + table_s['R_22'])
+                table_s['e_2'] /= 0.5 * (table_s['R_11'] + table_s['R_22'])
+                table_s['R_11'] = 1.0
+                table_s['R_22'] = 1.0
+                table_c['w_sys'] = 1.0
+            else:
+                table_s['e_1'] /= 1 + table_s['m']
+                table_s['e_2'] /= 1 + table_s['m']
+                table_s['m'] = 0
+                if survey == 'hsc':
+                    table_s['e_1'] /= 2 * (1 - table_s['e_rms']**2)
+                    table_s['e_2'] /= 2 * (1 - table_s['e_rms']**2)
+                    table_s['e_rms'] = np.sqrt(0.5)
+                table_c['w_sys'] = 1.0
 
         if args.zspec:
             table_c['z'] = table_c['z_true']
