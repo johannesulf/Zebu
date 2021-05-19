@@ -158,8 +158,8 @@ def read_precompute(survey, lens_bin, source_bin, zspec=False, noisy=False,
 
         table_l_all = vstack([table_l, table_l_all])
         table_r_all = vstack([table_r, table_r_all])
-        table_l_all.meta['rp_bins'] = table_l.meta['rp_bins']
-        table_r_all.meta['rp_bins'] = table_r.meta['rp_bins']
+        table_l_all.meta['bins'] = table_l.meta['bins']
+        table_r_all.meta['bins'] = table_r.meta['bins']
 
     if source_bin == 'all':
         table_l_all = compress_jackknife_fields(table_l_all)
@@ -276,12 +276,7 @@ table_l_ref = []
 table_r_ref = []
 ds_ref = []
 
-for i in range(2):
-    table_l_ref.append(0)
-    table_r_ref.append(0)
-    ds_ref.append(0)
-
-for lens_bin in range(2, len(zebu.lens_z_bins) - 1):
+for lens_bin in range(len(zebu.lens_z_bins) - 1):
 
     table_l, table_r = read_precompute(
         'gen', lens_bin, 'all', zspec=True, lens_magnification=False,
@@ -296,7 +291,7 @@ for lens_bin in range(2, len(zebu.lens_z_bins) - 1):
 rp = np.sqrt(zebu.rp_bins[1:] * zebu.rp_bins[:-1])
 
 if args.stage == 0:
-    for lens_bin in range(2, len(zebu.lens_z_bins) - 1):
+    for lens_bin in range(len(zebu.lens_z_bins) - 1):
         plt.plot(rp, rp * ds_ref[lens_bin],
                  label=r'${:.1f} \leq z_l < {:.1f}$'.format(
             zebu.lens_z_bins[lens_bin], zebu.lens_z_bins[lens_bin + 1]))
@@ -322,9 +317,6 @@ for survey in survey_list:
     for lens_bin, source_bin_list, ax in zip(
             lens_bin_list, source_bin_list_all, ax_list):
         for offset, source_bin in enumerate(source_bin_list):
-
-            if lens_bin <= 1:
-                continue
 
             table_l, table_r = read_precompute(
                 survey, lens_bin, source_bin, zspec=False,
@@ -352,9 +344,6 @@ for survey in survey_list:
     for lens_bin, source_bin_list, ax in zip(
             lens_bin_list, source_bin_list_all, ax_list):
         for offset, source_bin in enumerate(source_bin_list):
-
-            if lens_bin <= 1:
-                continue
 
             table_l_phot, table_r_phot = read_precompute(
                 survey, lens_bin, source_bin, zspec=False,
@@ -385,9 +374,6 @@ if args.stage == 1:
         survey, r'Bias', has_source_bins=False)
 
     for lens_bin, ax in zip(lens_bin_list, ax_list):
-
-        if lens_bin <= 1:
-            continue
 
         table_l_normal, table_r_normal = read_precompute(
             survey, lens_bin, 'all', zspec=True, runit=False,
