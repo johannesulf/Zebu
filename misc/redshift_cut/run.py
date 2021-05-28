@@ -9,7 +9,7 @@ from dsigma.physics import critical_surface_density
 
 # %%
 
-fig, ax_list = plt.subplots(figsize=(3.33, 6), nrows=3, sharex=True,
+fig, ax_list = plt.subplots(figsize=(7, 2), ncols=3, sharex=True,
                             sharey=True)
 survey_list = ['DES', 'HSC', 'KiDS']
 z_l_list = [0.2, 0.4, 0.6, 0.8]
@@ -58,7 +58,7 @@ for ax, survey in zip(ax_list, survey_list):
         sigma_crit = critical_surface_density(z_l, table_s['z'],
                                               cosmology=zebu.cosmo)
 
-        dz_list = np.linspace(0, 1, 100)
+        dz_list = np.linspace(0, 0.9, 100)
         error = np.zeros(len(dz_list))
 
         for i, dz in enumerate(dz_list):
@@ -77,13 +77,13 @@ for ax, survey in zip(ax_list, survey_list):
         ax.plot(dz_list, error[0] / error, color=color,
                 label=r'$z_l = {:.1f}$'.format(z_l) if survey == 'HSC' else '')
 
-        ax.set_ylabel(r'Relative S/N')
+    ax.set_xlabel(r'$\Delta z_{\rm min}$')
 
     if survey == 'HSC':
         ax.legend(loc='lower left', frameon=False)
 
-ax_list[-1].set_xlabel(r'$\Delta z_{\rm min}$')
+ax_list[0].set_ylabel(r'Relative S/N')
 plt.tight_layout(pad=0.3)
-plt.subplots_adjust(hspace=0)
+plt.subplots_adjust(wspace=0)
 plt.savefig('redshift_cut.pdf')
 plt.savefig('redshift_cut.png', dpi=300)
