@@ -206,7 +206,7 @@ def polyval(x, beta, beta_cov):
 
 def plot_difference(ax, color, table_l_1, table_r_1, table_l_2, table_r_2,
                     survey, survey_2=None, ds_norm=1.0, label=None,
-                    offset=0, lens_bin=0, plot_fit=True):
+                    offset=0, lens_bin=0, plot_fit=False):
 
     if len(table_l_1) * len(table_r_1) * len(table_l_2) * len(table_r_2) == 0:
         print('Warning: Received empty result to plot.')
@@ -232,7 +232,7 @@ def plot_difference(ax, color, table_l_1, table_r_1, table_l_2, table_r_2,
     dds_err = np.sqrt(np.diag(dds_cov))
     plotline, caps, barlinecols = ax.errorbar(
         rp * (1 + offset * 0.05), 100 * dds, yerr=100 * dds_err, label=label,
-        fmt='.', ms=0, color=color, zorder=offset + 100)
+        fmt='o', ms=2, color=color, zorder=offset + 100)
     plt.setp(barlinecols[0], capstyle='round')
 
     if plot_fit:
@@ -386,7 +386,7 @@ if args.stage == 1:
             source_magnification=source_magnification,
             fiber_assignment=fiber_assignment)
 
-        plot_difference(ax, 'black', table_l_normal, table_r_normal,
+        plot_difference(ax, 'royalblue', table_l_normal, table_r_normal,
                         table_l_runit, table_r_runit, survey,
                         ds_norm=ds_ref[lens_bin], plot_fit=False)
 

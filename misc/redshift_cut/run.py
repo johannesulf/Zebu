@@ -52,13 +52,14 @@ for ax, survey in zip(ax_list, survey_list):
             'KiDS_DR4.1_ugriZYJHKs_SOM_gold_WL_cat.fits'))
 
     table_s = dsigma_table(table_s, 'source', survey=survey)
+    table_s = table_s[table_s['z'] < zebu.source_z_bins[survey.lower()][-1]]
 
     for z_l, color in zip(z_l_list, color_list):
 
         sigma_crit = critical_surface_density(z_l, table_s['z'],
                                               cosmology=zebu.cosmo)
 
-        dz_list = np.linspace(0, 0.9, 100)
+        dz_list = np.linspace(0, 0.9, 91)
         error = np.zeros(len(dz_list))
 
         for i, dz in enumerate(dz_list):
@@ -69,7 +70,7 @@ for ax, survey in zip(ax_list, survey_list):
             e_t = 0.5 * (table_s['e_1'] + table_s['e_2'])
 
             if np.sum(w_ls[use]) == 0:
-                error[i] = np.nan
+                error[i] = np.inf
             else:
                 error[i] = (np.sqrt(np.sum(
                     w_ls_sigma_crit[use]**2 * e_t[use]**2)) / np.sum(w_ls[use]))
@@ -78,6 +79,8 @@ for ax, survey in zip(ax_list, survey_list):
                 label=r'$z_l = {:.1f}$'.format(z_l) if survey == 'HSC' else '')
 
     ax.set_xlabel(r'$\Delta z_{\rm min}$')
+    ax.set_xlim(np.amin(dz_list), np.amax(dz_list))
+    ax.set_ylim(ymin=0)
 
     if survey == 'HSC':
         ax.legend(loc='lower left', frameon=False)
