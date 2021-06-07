@@ -1,7 +1,7 @@
 import os
 import camb
 import numpy as np
-from astropy.table import Table
+from astropy.table import Table, vstack
 from astropy.cosmology import FlatLambdaCDM
 from scipy.spatial import cKDTree
 
@@ -9,6 +9,7 @@ from scipy.spatial import cKDTree
 base_dir = os.path.dirname(os.path.abspath(__file__))
 cosmo = FlatLambdaCDM(Om0=0.286, H0=100)
 rp_bins = 0.2 * np.logspace(0, 2, 21)
+theta_bins = 3 * np.logspace(0, 2, 21)
 
 lens_z_bins = np.linspace(0.1, 0.9, 5)
 source_z_bins = {
@@ -37,6 +38,12 @@ def stacking_kwargs(survey):
 
 def read_mock_data(catalog_type, z_bin, survey='gen', region=1,
                    magnification=False, fiber_assignment=False):
+
+    if z_bin == 'all':
+        return vstack([read_mock_data(
+            catalog_type, source_bin, survey=survey, region=region,
+            magnification=magnification, fiber_assignment=fiber_assignment)
+                  for source_bin in range(4 if survey.lower != 'kids' else 5)])
 
     if catalog_type not in ['source', 'lens', 'calibration', 'random']:
         raise RuntimeError('Unkown catalog type: {}.'.format(catalog_type))

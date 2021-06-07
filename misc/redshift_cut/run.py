@@ -9,11 +9,11 @@ from dsigma.physics import critical_surface_density
 
 # %%
 
-fig, ax_list = plt.subplots(figsize=(7, 2), ncols=3, sharex=True,
+fig, ax_list = plt.subplots(figsize=(7, 1.7), ncols=3, sharex=True,
                             sharey=True)
 survey_list = ['DES', 'HSC', 'KiDS']
 z_l_list = [0.2, 0.4, 0.6, 0.8]
-color_list = plt.get_cmap('plasma')([0.0, 0.25, 0.5, 0.75])
+color_list = plt.get_cmap('plasma')(np.linspace(0.0, 0.9, len(z_l_list)))
 
 
 for ax, survey in zip(ax_list, survey_list):
@@ -59,7 +59,7 @@ for ax, survey in zip(ax_list, survey_list):
         sigma_crit = critical_surface_density(z_l, table_s['z'],
                                               cosmology=zebu.cosmo)
 
-        dz_list = np.linspace(0, 0.9, 91)
+        dz_list = np.linspace(0, 0.9, 91) - 0.005
         error = np.zeros(len(dz_list))
 
         for i, dz in enumerate(dz_list):
@@ -81,6 +81,7 @@ for ax, survey in zip(ax_list, survey_list):
     ax.set_xlabel(r'$\Delta z_{\rm min}$')
     ax.set_xlim(np.amin(dz_list), np.amax(dz_list))
     ax.set_ylim(ymin=0)
+    ax.set_xlim(xmin=0)
 
     if survey == 'HSC':
         ax.legend(loc='lower left', frameon=False)

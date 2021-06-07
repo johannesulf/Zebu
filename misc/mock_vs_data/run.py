@@ -7,9 +7,6 @@ from astropy.table import Table
 
 # %%
 
-source_bin = 1
-survey = 'kids'
-
 table_s_mock = {}
 
 for survey in ['des', 'hsc', 'kids']:
