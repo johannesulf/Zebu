@@ -61,4 +61,4 @@ footprint.ax.text(0, np.deg2rad(+32), 'DESI', color='grey',
                   horizontalalignment='center', verticalalignment='bottom')
 
 footprint.savefig('footprint.pdf')
-footprint.savefig('footprint.png', dpi=300)
+footprint.savefig('footprint.png', dpi=300, transparent=True)

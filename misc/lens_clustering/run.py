@@ -1,69 +1,102 @@
+import os
 import zebu
 import numpy as np
 import multiprocessing
-from astropy import units as u
-from astropy.table import Table
+from scipy import constants
+import matplotlib as mpl
 import matplotlib.pyplot as plt
-
-from Corrfunc.mocks.DDtheta_mocks import DDtheta_mocks
-from Corrfunc.utils import convert_3d_counts_to_cf
+from Corrfunc.mocks import DDrppi_mocks
+from Corrfunc.utils import convert_rp_pi_counts_to_wp
 
 # %%
 
-theta_bins = np.logspace(np.log10(1), np.log10(100), 21) * u.arcmin
+rp_bins = np.logspace(-1.5, 1.477, 26)
+pi_max = 40
 
 
-def angular_correlation_function(table_l, table_r, theta_bins):
+def projected_correlation_function(table_l, table_r, rp_bins, pi_max):
 
     n_l = len(table_l)
     n_r = len(table_r)
 
     n = multiprocessing.cpu_count()
+    c = constants.c / 1000.0
 
-    ll = DDtheta_mocks(True, n, theta_bins.to(u.deg).value, table_l['ra'],
-                       table_l['dec'])['npairs']
-    rr = DDtheta_mocks(True, n, theta_bins.to(u.deg).value, table_r['ra'],
-                       table_r['dec'])['npairs']
-    lr = DDtheta_mocks(False, n, theta_bins.to(u.deg).value, table_l['ra'],
-                       table_l['dec'], RA2=table_r['ra'],
-                       DEC2=table_r['dec'])['npairs']
+    ll = DDrppi_mocks(True, 2, n, pi_max, rp_bins, table_l['ra'],
+                      table_l['dec'], table_l['z'] * c)['npairs']
+    rr = DDrppi_mocks(True, 2, n, pi_max, rp_bins, table_r['ra'],
+                      table_r['dec'], table_r['z'].astype(np.float64) *
+                      c)['npairs']
+    lr = DDrppi_mocks(False, 2, n, pi_max, rp_bins, table_l['ra'],
+                      table_l['dec'], table_l['z'] * c,
+                      RA2=table_r['ra'], DEC2=table_r['dec'],
+                      CZ2=table_r['z'].astype(np.float64) * c)['npairs']
 
-    w_ll = convert_3d_counts_to_cf(n_l, n_l, n_r, n_r, ll, lr, lr, rr)
+    wp = convert_rp_pi_counts_to_wp(n_l, n_l, n_r, n_r, ll, lr, lr, rr,
+                                    len(rp_bins) - 1, pi_max)
 
-    return w_ll
-
-# %%
-
-
-w_ll = []
-
-for i in range(4):
-    table_l = zebu.read_raw_data(1, 'lens', i)
-    table_r = zebu.read_raw_data(1, 'random', i)
-    w_ll.append(angular_correlation_function(table_l, table_r, theta_bins))
+    return wp
 
 # %%
 
-theta = np.sqrt(theta_bins[1:] * theta_bins[:-1]).to(u.arcmin).value
 
-table = Table()
-table['theta_min'] = theta_bins.to(u.arcmin).value[:-1]
-table['theta_max'] = theta_bins.to(u.arcmin).value[1:]
+wp_list = []
 
 for i in range(4):
-    table['w_{}'.format(i + 1)] = w_ll[i]
-    plt.plot(theta, w_ll[i] * theta, label='lens bin {}'.format(i + 1))
+
+    table_l = zebu.read_mock_data('lens', i)
+    table_r = zebu.read_mock_data('random', i)
+    wp_list.append(projected_correlation_function(
+        table_l, table_r, rp_bins, pi_max))
+
+# %%
+
+rp = np.sqrt(rp_bins[1:] * rp_bins[:-1])
+
+
+z_bins = zebu.lens_z_bins
+color_list = plt.get_cmap('plasma')(np.linspace(0.0, 0.9, len(z_bins) - 1))
+cmap = mpl.colors.ListedColormap(color_list)
+sm = plt.cm.ScalarMappable(cmap=cmap)
+sm._A = []
+cb = plt.colorbar(sm, pad=0.0, ticks=np.linspace(0, 1, len(z_bins)))
+cb.ax.set_yticklabels(['{:g}'.format(z) for z in z_bins])
+cb.ax.minorticks_off()
+cb.set_label(r'Lens redshift $z_l$')
+
+rp_min = 0.2
+
+for offset, wp, color in zip(np.arange(4), wp_list, color_list):
+    use = rp > rp_min
+    plt.plot(rp[use] * (1 + offset * 0.05), rp[use] * wp[use], color=color)
+
+for i in range(4):
+    z_min = zebu.lens_z_bins[i]
+    z_max = zebu.lens_z_bins[i + 1]
+
+    if i == 2:
+        z_min = 0.6
+        z_max = 0.8
+    if i == 3:
+        z_min = 0.8
+        z_max = 1.05
+
+    wp_file = os.path.join(
+        'WP', '{}_N_CLUSTERING_wcompEdWsys_z1z2_{:g}-{:g}'.format(
+            'BGS_ANY' if i < 2 else 'LRG', z_min, z_max) +
+        '_angup-wp-logrp-pi-NJN-120.txt')
+    wp_obs = np.genfromtxt(wp_file)[:, 1]
+    wp_err = np.genfromtxt(wp_file)[:, 2]
+    plotline, caps, barlinecols = plt.errorbar(
+        rp[use] * (1 + i * 0.05), rp[use] * wp_obs[use], fmt='.',
+        color=color_list[i], yerr=wp_err[use] * rp[use])
+    plt.setp(barlinecols[0], capstyle='round')
 
 plt.xscale('log')
-plt.xlabel(r'Angle $\theta [\mathrm{arcmin}]$')
-plt.ylabel(r'Clustering $\theta w [\mathrm{arcmin}]$')
-plt.legend(loc='upper left', frameon=False)
-plt.xlim(np.amin(theta_bins.to(u.arcmin).value),
-         np.amax(theta_bins.to(u.arcmin).value))
+plt.xlabel(r'$r_p [h^{-1} \, \mathrm{Mpc}]$')
+plt.ylabel(r'Clustering $r_p \times w_p [h^{-2} \, \mathrm{Mpc}^2]$')
 plt.xscale('log')
 plt.tight_layout(pad=0.3)
-plt.savefig('clustering.pdf')
-plt.savefig('clustering.png', dpi=300)
+plt.savefig('lens_clustering.pdf')
+plt.savefig('lens_clustering.png', dpi=300)
 plt.close()
-
-table.write('clustering.csv')

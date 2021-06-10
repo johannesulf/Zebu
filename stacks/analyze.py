@@ -8,6 +8,7 @@ import matplotlib.ticker as ticker
 from astropy.table import Table, vstack
 
 from dsigma.stacking import excess_surface_density, lens_magnification_bias
+from dsigma.stacking import boost_factor
 from dsigma.jackknife import jackknife_resampling, compress_jackknife_fields
 
 parser = argparse.ArgumentParser()
@@ -183,23 +184,28 @@ def read_precompute(survey, lens_bin, source_bin, zspec=False, noisy=False,
 
 
 def difference(table_l, table_r=None, table_l_2=None, table_r_2=None,
-               survey_1=None, survey_2=None):
+               survey_1=None, survey_2=None, boost=False):
 
     for survey in [survey_1, survey_2]:
         if survey not in ['gen', 'hsc', 'kids', 'des']:
             raise RuntimeError('Unkown survey!')
 
-    ds_1 = excess_surface_density(table_l, table_r=table_r,
-                                  **zebu.stacking_kwargs(survey_1))
-    ds_2 = excess_surface_density(table_l_2, table_r=table_r_2,
-                                  **zebu.stacking_kwargs(survey_2))
+    if not boost:
+        ds_1 = excess_surface_density(table_l, table_r=table_r,
+                                      **zebu.stacking_kwargs(survey_1))
+        ds_2 = excess_surface_density(table_l_2, table_r=table_r_2,
+                                      **zebu.stacking_kwargs(survey_2))
 
-    return ds_1 - ds_2
+        return ds_1 - ds_2
+    else:
+        b_1 = boost_factor(table_l, table_r=table_r)
+        b_2 = boost_factor(table_l_2, table_r=table_r_2)
+        return b_1 - b_2
 
 
 def plot_difference(ax, color, table_l_1, table_r_1, table_l_2, table_r_2,
                     survey, survey_2=None, ds_norm=1.0, label=None,
-                    offset=0, lens_bin=0):
+                    offset=0, lens_bin=0, boost=False):
 
     if len(table_l_1) * len(table_r_1) * len(table_l_2) * len(table_r_2) == 0:
         print('Warning: Received empty result to plot.')
@@ -210,10 +216,10 @@ def plot_difference(ax, color, table_l_1, table_r_1, table_l_2, table_r_2,
 
     dds = difference(
         table_l_1, table_r=table_r_1, table_l_2=table_l_2, table_r_2=table_r_2,
-        survey_1=survey, survey_2=survey_2) / ds_norm
+        survey_1=survey, survey_2=survey_2, boost=boost) / ds_norm
     dds_cov = jackknife_resampling(
         difference, table_l_1, table_r=table_r_1, table_l_2=table_l_2,
-        table_r_2=table_r_2, survey_1=survey, survey_2=survey_2)
+        table_r_2=table_r_2, survey_1=survey, survey_2=survey_2, boost=boost)
     if hasattr(ds_norm, 'shape'):
         dds_cov = dds_cov / np.outer(ds_norm, ds_norm)
     else:
@@ -242,7 +248,7 @@ def adjust_ylim(ax_list, yabsmin=1.2):
 
 def savefigs(name):
     plt.savefig(os.path.join(output, name + '.pdf'))
-    plt.savefig(os.path.join(output, name + '.png'), dpi=300)
+    plt.savefig(os.path.join(output, name + '.png'), dpi=300, transparent=True)
 
 # %%
 
@@ -440,7 +446,7 @@ if args.stage == 1:
 if args.stage == 2:
 
     fig, ax_list, lens_bin_list, source_bin_list, color_list = \
-        initialize_plot()
+        initialize_plot(ylabel='Bias')
 
     for survey, ax in zip(survey_list, ax_list):
         for offset, color, lens_bin in zip(
@@ -466,6 +472,39 @@ if args.stage == 2:
     plt.tight_layout(pad=0.3)
     plt.subplots_adjust(wspace=0)
     savefigs('source_magnification')
+    plt.close()
+
+# %%
+
+if args.stage == 2:
+
+    fig, ax_list, lens_bin_list, source_bin_list, color_list = \
+        initialize_plot(ylabel='Bias')
+
+    for survey, ax in zip(survey_list, ax_list):
+        for offset, color, lens_bin in zip(
+                np.arange(4), color_list, lens_bin_list):
+
+            table_l_normal, table_r_normal = read_precompute(
+                survey, lens_bin, 'all', zspec=False,
+                lens_magnification=lens_magnification,
+                source_magnification=source_magnification,
+                fiber_assignment=fiber_assignment)
+            table_l_nomag, table_r_nomag = read_precompute(
+                survey, lens_bin, 'all', zspec=False,
+                lens_magnification=lens_magnification,
+                source_magnification=False,
+                fiber_assignment=fiber_assignment)
+
+            plot_difference(ax, color, table_l_normal, table_r_normal,
+                            table_l_nomag, table_r_nomag, survey,
+                            offset=offset, boost=True)
+
+    ax_list[1].set_title('Impact of magnification on boost estimator')
+    plt.ylim(-4, +4)
+    plt.tight_layout(pad=0.3)
+    plt.subplots_adjust(wspace=0)
+    savefigs('boost_magnification_bias')
     plt.close()
 
 # %%
