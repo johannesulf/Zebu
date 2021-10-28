@@ -1,10 +1,14 @@
 import os
+import sys
 import argparse
 import numpy as np
 import healpy as hp
 from scipy.spatial import cKDTree
+from scipy.spatial.transform import Rotation
 from scipy.interpolate import splev, splrep
 from astropy.table import Table, vstack
+from astropy.coordinates import SkyCoord
+from astropy import units as u
 
 z_source_bins = {
     'generic': [0.5, 0.7, 0.9, 1.1, 1.5],
@@ -13,12 +17,114 @@ z_source_bins = {
     'kids': [0.1, 0.3, 0.5, 0.7, 0.9, 1.2]}
 
 
+def mean_of_coordinates(ra, dec):
+
+    vec = hp.ang2vec(ra, dec, lonlat=True)
+    ra_center, dec_center = hp.vec2ang(np.mean(vec, axis=0), lonlat=True)
+
+    return ra_center[0], dec_center[0]
+
+
 def main(args):
 
     output = 'region_{}'.format(args.region)
 
     if not os.path.isdir(output):
         os.makedirs(output)
+
+    if args.stage == 4:
+
+        for survey, lens_bins in zip(['bright', 'dark'], [[0, 1], [2, 3]]):
+
+            table_l = vstack([Table.read(os.path.join(
+                    output, 'l{}_nofib.hdf5'.format(lens_bin))) for lens_bin
+                in lens_bins])
+
+            table_l.rename_column('ra', 'RA')
+            table_l.rename_column('dec', 'DEC')
+            table_l.rename_column('z', 'Z')
+            table_l.keep_columns(['RA', 'DEC', 'Z'])
+            table_l['TARGETID'] = np.arange(len(table_l))
+            table_l['NUMOBS_INIT'] = np.zeros(len(table_l), dtype=int)
+            table_l['NUMOBS_MORE'] = np.ones(len(table_l), dtype=int)
+            table_l['DESI_TARGET'] = 1
+            table_l['PRIORITY'] = 3200
+            table_l['OBSCONDITIONS'] = 15
+            table_l['SUBPRIORITY'] = np.random.random(len(table_l))
+            table_l['TARGETID'] = np.arange(len(table_l))
+            fname = os.path.join(output, 'targets_{}.fits'.format(survey))
+            if not os.path.exists(fname) or args.overwrite:
+                table_l.write(fname, overwrite=True)
+
+            table_t = Table.read('{}_tiles_ngc.fits'.format(survey))
+            table_t['RUNDATE'] = '2021-04-06T00:39:37'
+            table_t['FIELDROT'] = 1.0
+            table_t['FA_HA'] = 0.0
+            table_t['OBSCONDITIONS'] = 15
+            table_t['IN_DESI'] = 1
+
+            ra_t, dec_t = mean_of_coordinates(table_t['RA'], table_t['DEC'])
+            c_t = SkyCoord(ra_t, dec_t, unit='deg')
+            vec_t = hp.ang2vec(ra_t, dec_t, lonlat=True)
+
+            ra_l, dec_l = mean_of_coordinates(table_l['RA'], table_l['DEC'])
+            c_l = SkyCoord(ra_l, dec_l, unit='deg')
+            vec_l = hp.ang2vec(ra_l, dec_l, lonlat=True)
+
+            rotation_axis = np.cross(vec_t, vec_l)
+            rotation_angle = c_l.separation(c_t).to(u.rad).value
+
+            rotmat = Rotation.from_rotvec(
+                rotation_angle * rotation_axis).as_matrix()
+
+            table_t['RA'], table_t['DEC'] = hp.rotator.rotateDirection(
+                rotmat, table_t['RA'], table_t['DEC'], lonlat=True)
+            table_t['RA'] = np.where(table_t['RA'] < 0, table_t['RA'] + 360,
+                                     table_t['RA'])
+
+            c_t = SkyCoord(table_t['RA'], table_t['DEC'], unit='deg')
+            c_l = SkyCoord(table_l['RA'], table_l['DEC'], unit='deg')
+
+            sep2d = c_t.match_to_catalog_sky(c_l)[1]
+            table_t = table_t[sep2d < 1.6 * u.deg]
+
+            table_t['PROGRAM'] = 'DARK'
+
+            fname = os.path.join(output, 'tiles_{}.fits'.format(survey))
+            if not os.path.exists(fname) or args.overwrite:
+                table_t.write(fname, overwrite=True)
+
+            fname = os.path.join(output, 'targeted_{}.fits'.format(survey))
+            if os.path.exists(fname):
+                table_t = Table.read(fname)
+                assert np.all(np.diff(table_t['TARGETID']) >= 0)
+                bitweight = table_t['BITWEIGHT0']
+                n_obs = np.zeros(len(table_t), dtype=int)
+                obs = np.zeros(len(table_t), dtype=bool)
+
+                for i in range(64):
+                    n_obs += bitweight % 2
+                    if i == 0:
+                        obs = n_obs == 1
+                    bitweight = bitweight // 2
+
+                table_l = Table.read(os.path.join(
+                    output, 'l{}_nofib.hdf5'.format(lens_bins[0])))
+                table_l = table_l[obs[:len(table_l)]]
+                table_l['w_sys'] = 64.0 / n_obs[obs][:len(table_l)]
+                table_l.write(os.path.join(
+                    output, 'l{}.hdf5'.format(lens_bins[0])),
+                              overwrite=args.overwrite)
+
+                table_l = Table.read(os.path.join(
+                    output, 'l{}_nofib.hdf5'.format(lens_bins[1])))
+                table_l = table_l[obs[-len(table_l):]]
+                table_l['w_sys'] = 64.0 / n_obs[obs][-len(table_l):]
+                table_l.write(os.path.join(
+                    output, 'l{}.hdf5'.format(lens_bins[1])),
+                              overwrite=args.overwrite)
+
+        sys.exit()
 
     print('Reading raw buzzard catalog...')
     nside = 8
