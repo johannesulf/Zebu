@@ -70,3 +70,7 @@ f082eae402da600764f58a60d478e7bf  ./s3_hsc.hdf5
 6877f31c616341f56ae1a866232ab745  ./s3_kids_nomag.hdf5
 767121df42e1bab7ff0b78aaf2f8f0a1  ./s4_kids.hdf5
 039f0e66815989ff18f992cf23d3be14  ./s4_kids_nomag.hdf5
+d484410b8b78eb379badd8249235f937  ./l0.hdf5
+e754605650cb77afe71d3ae505c29ec2  ./l1.hdf5
+1c54797edb4da263a2ce9659cb9d29a0  ./l2.hdf5
+a7bca9ed627b4f05cfe2f658a3df19af  ./l3.hdf5

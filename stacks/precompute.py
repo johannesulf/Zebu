@@ -26,6 +26,8 @@ parser.add_argument('--noisy', action='store_true',
                     help='use noisy shapes')
 parser.add_argument('--runit', action='store_true',
                     help='use shapes w/o response bias, i.e. unit response')
+parser.add_argument('--noiip', action='store_true',
+                    help='ignore IIP systematic weights (for stage >= 4)')
 parser.add_argument('--region', type=int, help='region of the sky', default=1)
 args = parser.parse_args()
 
@@ -125,6 +127,8 @@ for survey in survey_list:
             table_l = zebu.read_mock_data(
                 catalog_type, lens_bin, magnification=lens_magnification,
                 fiber_assignment=fiber_assignment)
+            if args.stage >= 4 and args.noiip:
+                table_l['w_sys'] = 1.0
             table_l['w_sys'] *= w_sys(table_l['z'])
 
             add_jackknife_fields(table_l, centers)
@@ -144,6 +148,8 @@ for survey in survey_list:
                 output = output + '_nolmag'
             if not fiber_assignment:
                 output = output + '_nofib'
+            if args.noiip:
+                output = output + '_noiip'
 
             output = output + '.hdf5'
 

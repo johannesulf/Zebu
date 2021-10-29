@@ -3,19 +3,19 @@
 TEMPLATE=$'#!/bin/bash
 #SBATCH --partition=QUEUE
 #SBATCH --account=QUEUE
-#SBATCH --job-name=pre_stageSTAGE_sSOURCE_BIN_noisy_zspec_runit
+#SBATCH --job-name=pre_stageSTAGE_sSOURCE_BIN_noisy_zspec_runit_noiip
 #SBATCH --nodes=1
 #SBATCH --ntasks=40
 #SBATCH --cpus-per-task=1
 #SBATCH --time=1-0:00:00
 #SBATCH --mail-type=FAIL
 #SBATCH --mail-user=jolange@ucsc.edu
-#SBATCH --output=log/pre_stageSTAGE_sSOURCE_BIN_noisy_zspec_runit.out
+#SBATCH --output=log/pre_stageSTAGE_sSOURCE_BIN_noisy_zspec_runit_noiip.out
 
 cd /data/groups/leauthaud/jolange/Zebu/lux
 source init.sh
 cd ../stacks/
-python precompute.py STAGE SOURCE_BIN --noisy --zspec --runit'
+python precompute.py STAGE SOURCE_BIN --noisy --zspec --runit --noiip'
 
 if [[ $1 != [0-3] ]]; then
   echo "The first command line argument must be an int representing the stage."
@@ -28,6 +28,7 @@ shift
 NOISY=false
 ZSPEC=false
 RUNIT=false
+NOIIP=false
 SOURCE_BIN_MIN=0
 SOURCE_BIN_MAX=4
 QUEUE=cpuq
@@ -43,6 +44,9 @@ while :; do
       ;;
     -r|--runit)
       RUNIT=true
+      ;;
+    -i|--noiip)
+      NOIIP=true
       ;;
     -o|--overwrite)
       OVERWRITE=true
@@ -98,6 +102,7 @@ echo "sources: $SOURCE_BIN_MIN - $SOURCE_BIN_MAX"
 echo "noisy: $NOISY"
 echo "zspec: $ZSPEC"
 echo "runit: $RUNIT"
+echo "noiip: $NOIIP"
 echo "queue: $QUEUE"
 
 finished () {
@@ -178,6 +183,11 @@ if [ "$PROCEED" == 'yes' ]; then
     if [ "$RUNIT" != true ]; then
       SCRIPT="${SCRIPT//_runit/}"
       SCRIPT="${SCRIPT// --runit/}"
+    fi
+
+    if [ "$NOIIP" != true ]; then
+      SCRIPT="${SCRIPT//_noiip/}"
+      SCRIPT="${SCRIPT// --noiip/}"
     fi
 
     FILE=pre_stage${STAGE}_${LENS_BIN}_${SOURCE_BIN}.sh
