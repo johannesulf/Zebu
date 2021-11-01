@@ -132,7 +132,7 @@ def initialize_plot(survey=None, ylabel=None):
 
 def read_precompute(survey, lens_bin, source_bin, zspec=False, noisy=False,
                     lens_magnification=False, source_magnification=False,
-                    fiber_assignment=False, runit=False):
+                    fiber_assignment=False, iip_weights=True, runit=False):
 
     table_l_all = Table()
     table_r_all = Table()
@@ -164,6 +164,8 @@ def read_precompute(survey, lens_bin, source_bin, zspec=False, noisy=False,
                                'performed.')
         if not fiber_assignment:
             path += '_nofib'
+        if fiber_assignment and not iip_weights:
+            path += '_noiip'
 
         if not os.path.isfile(path + '.hdf5'):
             continue
@@ -621,4 +623,101 @@ if args.stage == 3 and args.full:
                                 ds_norm=ds_ref[lens_bin], offset=offset)
 
         savefigs('{}_lmag'.format(survey))
+        plt.close()
+
+# %%
+
+if args.stage == 4:
+
+    fig, ax_list, lens_bin_list, source_bin_list, color_list = \
+        initialize_plot(ylabel='Bias')
+
+    for survey, ax in zip(survey_list, ax_list):
+        for offset, color, lens_bin in zip(
+                np.arange(4), color_list, lens_bin_list):
+
+            table_l_normal, table_r_normal = read_precompute(
+                survey, lens_bin, 'all', zspec=False,
+                lens_magnification=lens_magnification,
+                source_magnification=source_magnification,
+                fiber_assignment=True)
+            table_l_nofib, table_r_nofib = read_precompute(
+                survey, lens_bin, 'all', zspec=False,
+                lens_magnification=lens_magnification,
+                source_magnification=source_magnification,
+                fiber_assignment=False)
+
+            plot_difference(ax, color, table_l_normal, table_r_normal,
+                            table_l_nofib, table_r_nofib, survey,
+                            ds_norm=ds_ref[lens_bin], offset=offset)
+
+    ax_list[1].set_title('Impact of fiber collisions')
+    plt.ylim(-7, +7)
+    plt.tight_layout(pad=0.5)
+    plt.subplots_adjust(wspace=0)
+    savefigs('fiber_collisions')
+    plt.close()
+
+if args.stage == 4:
+
+    fig, ax_list, lens_bin_list, source_bin_list, color_list = \
+        initialize_plot(ylabel='Bias')
+
+    for survey, ax in zip(survey_list, ax_list):
+        for offset, color, lens_bin in zip(
+                np.arange(4), color_list, lens_bin_list):
+
+            table_l_normal, table_r_normal = read_precompute(
+                survey, lens_bin, 'all', zspec=False,
+                lens_magnification=lens_magnification,
+                source_magnification=source_magnification,
+                fiber_assignment=True, iip_weights=False)
+            table_l_nofib, table_r_nofib = read_precompute(
+                survey, lens_bin, 'all', zspec=False,
+                lens_magnification=lens_magnification,
+                source_magnification=source_magnification,
+                fiber_assignment=False)
+
+            plot_difference(ax, color, table_l_normal, table_r_normal,
+                            table_l_nofib, table_r_nofib, survey,
+                            ds_norm=ds_ref[lens_bin], offset=offset)
+
+    ax_list[1].set_title('Impact of fiber collisions (no correction)')
+    plt.ylim(-50, +50)
+    plt.tight_layout(pad=0.3)
+    plt.subplots_adjust(wspace=0)
+    savefigs('fiber_collisions_noiip')
+    plt.close()
+
+# %%
+
+if args.stage == 4 and args.full:
+
+    for survey in survey_list:
+
+        fig, ax_list, lens_bin_list, source_bin_list_all, color_list = \
+            initialize_plot(survey)
+
+        for lens_bin, source_bin_list, ax in zip(
+                lens_bin_list, source_bin_list_all, ax_list):
+            for offset, source_bin in enumerate(source_bin_list):
+
+                table_l_fib, table_r_fib = read_precompute(
+                    survey, lens_bin, source_bin, zspec=False,
+                    lens_magnification=lens_magnification,
+                    source_magnification=source_magnification,
+                    fiber_assignment=False)
+                table_l_nofib, table_r_nofib = read_precompute(
+                    survey, lens_bin, source_bin, zspec=False,
+                    lens_magnification=lens_magnification,
+                    source_magnification=source_magnification,
+                    fiber_assignment=True)
+
+                plot_difference(ax, color_list[source_bin], table_l_fib,
+                                table_r_fib, table_l_nofib, table_r_nofib,
+                                survey, ds_norm=ds_ref[lens_bin],
+                                offset=source_bin)
+
+        adjust_ylim(ax_list)
+        savefigs('{}_fib'.format(survey))
         plt.close()
