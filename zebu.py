@@ -43,7 +43,8 @@ def read_mock_data(catalog_type, z_bin, survey='gen', region=1,
         return vstack([read_mock_data(
             catalog_type, source_bin, survey=survey, region=region,
             magnification=magnification, fiber_assignment=fiber_assignment)
-                  for source_bin in range(4 if survey.lower != 'kids' else 5)])
+                       for source_bin in range(5 if survey.lower() == 'kids'
+                                               else 4)])
 
     if catalog_type not in ['source', 'lens', 'calibration', 'random']:
         raise RuntimeError('Unkown catalog type: {}.'.format(catalog_type))

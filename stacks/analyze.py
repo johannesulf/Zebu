@@ -380,6 +380,43 @@ if args.stage == 1 or args.full:
 
 # %%
 
+if args.stage == 1 or args.full:
+
+    fig, ax_list, lens_bin_list, source_bin_list, color_list = \
+        initialize_plot()
+
+    for survey, ax in zip(survey_list, ax_list):
+        for offset, color, lens_bin in zip(
+                np.arange(4), color_list, lens_bin_list):
+
+            table_l_zphot, table_r_zphot = read_precompute(
+                survey, lens_bin, 'all', zspec=False,
+                lens_magnification=lens_magnification,
+                source_magnification=source_magnification,
+                fiber_assignment=fiber_assignment)
+            table_l_zphot['sum w_ls e_t sigma_crit f_bias'] = \
+                table_l_zphot['sum w_ls e_t sigma_crit']
+            table_r_zphot['sum w_ls e_t sigma_crit f_bias'] = \
+                table_r_zphot['sum w_ls e_t sigma_crit']
+            table_l_zspec, table_r_zspec = read_precompute(
+                survey, lens_bin, 'all', zspec=True,
+                lens_magnification=lens_magnification,
+                source_magnification=source_magnification,
+                fiber_assignment=fiber_assignment)
+
+            plot_difference(ax, color, table_l_zphot, table_r_zphot,
+                            table_l_zspec, table_r_zspec, survey,
+                            ds_norm=ds_ref[lens_bin], offset=offset)
+
+    ax_list[1].set_title('Photometric redshift dilution (no correction)')
+    plt.ylim(-60, +60)
+    plt.tight_layout(pad=0.3)
+    plt.subplots_adjust(wspace=0)
+    savefigs('redshift_dilution_no_correction')
+    plt.close()
+
+# %%
+
 if args.full:
     for survey in survey_list:
 
