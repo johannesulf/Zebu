@@ -605,7 +605,7 @@ if args.stage == 3:
 
             ds_lm = lens_magnification_bias(
                 table_l_normal, zebu.alpha_l[lens_bin], camb_results,
-                photo_z_dilution_correction=True)
+                photo_z_correction=True)
             ax.plot(rp * (1 + offset * 0.05),
                     100 * ds_lm / ds_ref[lens_bin], color=color, ls='--')
 
