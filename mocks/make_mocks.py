@@ -1,14 +1,13 @@
 import os
 import sys
+import fitsio
 import argparse
 import numpy as np
 import healpy as hp
+from tqdm import tqdm
 from scipy.spatial import cKDTree
-from scipy.spatial.transform import Rotation
 from scipy.interpolate import splev, splrep
 from astropy.table import Table, vstack
-from astropy.coordinates import SkyCoord
-from astropy import units as u
 
 z_source_bins = {
     'generic': [0.5, 0.7, 0.9, 1.1, 1.5],
@@ -17,17 +16,9 @@ z_source_bins = {
     'kids': [0.1, 0.3, 0.5, 0.7, 0.9, 1.2]}
 
 
-def mean_of_coordinates(ra, dec):
-
-    vec = hp.ang2vec(ra, dec, lonlat=True)
-    ra_center, dec_center = hp.vec2ang(np.mean(vec, axis=0), lonlat=True)
-
-    return ra_center[0], dec_center[0]
-
-
 def main(args):
 
-    output = 'region_{}'.format(args.region)
+    output = 'mocks'
 
     if not os.path.isdir(output):
         os.makedirs(output)
@@ -55,44 +46,6 @@ def main(args):
             fname = os.path.join(output, 'targets_{}.fits'.format(survey))
             if not os.path.exists(fname) or args.overwrite:
                 table_l.write(fname, overwrite=True)
-
-            table_t = Table.read('{}_tiles_ngc.fits'.format(survey))
-            table_t['RUNDATE'] = '2021-04-06T00:39:37'
-            table_t['FIELDROT'] = 1.0
-            table_t['FA_HA'] = 0.0
-            table_t['OBSCONDITIONS'] = 15
-            table_t['IN_DESI'] = 1
-
-            ra_t, dec_t = mean_of_coordinates(table_t['RA'], table_t['DEC'])
-            c_t = SkyCoord(ra_t, dec_t, unit='deg')
-            vec_t = hp.ang2vec(ra_t, dec_t, lonlat=True)
-
-            ra_l, dec_l = mean_of_coordinates(table_l['RA'], table_l['DEC'])
-            c_l = SkyCoord(ra_l, dec_l, unit='deg')
-            vec_l = hp.ang2vec(ra_l, dec_l, lonlat=True)
-
-            rotation_axis = np.cross(vec_t, vec_l)
-            rotation_angle = c_l.separation(c_t).to(u.rad).value
-
-            rotmat = Rotation.from_rotvec(
-                rotation_angle * rotation_axis).as_matrix()
-
-            table_t['RA'], table_t['DEC'] = hp.rotator.rotateDirection(
-                rotmat, table_t['RA'], table_t['DEC'], lonlat=True)
-            table_t['RA'] = np.where(table_t['RA'] < 0, table_t['RA'] + 360,
-                                     table_t['RA'])
-
-            c_t = SkyCoord(table_t['RA'], table_t['DEC'], unit='deg')
-            c_l = SkyCoord(table_l['RA'], table_l['DEC'], unit='deg')
-
-            sep2d = c_t.match_to_catalog_sky(c_l)[1]
-            table_t = table_t[sep2d < 1.6 * u.deg]
-
-            table_t['PROGRAM'] = 'DARK'
-
-            fname = os.path.join(output, 'tiles_{}.fits'.format(survey))
-            if not os.path.exists(fname) or args.overwrite:
-                table_t.write(fname, overwrite=True)
 
             fname = os.path.join(output, 'targeted_{}.fits'.format(survey))
             if os.path.exists(fname):
@@ -130,10 +83,10 @@ def main(args):
     nside = 8
     pixel = np.arange(hp.nside2npix(nside))
     ra_pixel, dec_pixel = hp.pix2ang(nside, pixel, nest=True, lonlat=True)
-    pixel_use = pixel[ra_dec_in_region(ra_pixel, dec_pixel, args.region)]
+    pixel_use = pixel[ra_dec_in_mock(ra_pixel, dec_pixel)]
 
     table_b = Table()
-    for pixel in pixel_use:
+    for pixel in tqdm(pixel_use):
         table_b = vstack([table_b, read_buzzard_catalog(
             pixel, mag_lensed=(args.stage >= 2))])
     table_b = table_b.filled()
@@ -147,29 +100,24 @@ def main(args):
 
     if args.stage in [0, 3]:
 
-        sample = ['BGS', 'BGS', 'LRG', 'LRG']
-        z_min = [0.1, 0.3, 0.5, 0.7]
-        z_max = [0.3, 0.5, 0.7, 0.9]
+        for sample in ['bgs', 'lrg']:
 
-        for lens_bin in range(4):
-
-            print('Reading lens catalog for z-bin {}...'.format(lens_bin))
-            if lens_bin <= 1:
+            if sample == 'bgs':
                 table_l = table_b[is_BGS(table_b)]
             else:
                 table_l = table_b[is_LRG(table_b)]
             table_l.rename_column('z_true', 'z')
-            table_l = table_l[(z_min[lens_bin] <= table_l['z']) &
-                              (table_l['z'] < z_max[lens_bin])]
             table_l['w_sys'] = 1.0
             if args.stage == 0:
                 table_l['w_sys'] = table_l['w_sys'] * table_l['mu']
-            print('Writing lens catalog for z-bin {}...'.format(lens_bin))
+            print('Writing lens catalog for {}...'.format(sample.upper()))
             table_l.keep_columns(['z', 'ra', 'dec', 'mag', 'w_sys'])
-            fname = 'l{}_nofib'.format(lens_bin)
+            fname = '{}_nofib'.format(sample)
             if args.stage == 0:
                 fname = fname + '_nomag'
             fname = fname + '.hdf5'
+            for key in table_l.colnames:
+                table_l[key] = table_l[key].astype(np.float32)
             table_l.write(os.path.join(output, fname),
                           overwrite=args.overwrite, path='catalog',
                           serialize_meta=True)
@@ -177,12 +125,12 @@ def main(args):
             if args.stage != 0:
                 continue
 
-            print('Reading random catalog for z-bin {}...'.format(lens_bin))
-            table_r = read_random_catalog(args.region, sample[lens_bin])
-            table_r = table_r[(z_min[lens_bin] <= table_r['z']) &
-                              (table_r['z'] < z_max[lens_bin])]
-            print('Writing random catalog for z-bin {}...'.format(lens_bin))
-            table_r.write(os.path.join(output, 'r{}.hdf5'.format(lens_bin)),
+            print('Reading random catalog for {}...'.format(sample.upper()))
+            table_r = read_random_catalog(sample)
+            print('Writing random catalog for {}...'.format(sample.upper()))
+            for key in table_r.colnames:
+                table_r[key] = table_r[key].astype(np.float32)
+            table_r.write(os.path.join(output, '{}_rand.hdf5'.format(sample)),
                           overwrite=args.overwrite, path='catalog')
 
     if args.stage in [0, 1, 2]:
@@ -194,6 +142,9 @@ def main(args):
             table_s = apply_shape_noise(table_s, 0.28)
             table_s = apply_photometric_redshift(table_s, None)
             table_s['w'] = table_s['mu']
+
+            for key in table_s.colnames:
+                table_s[key] = table_s[key].astype(np.float32)
 
             z_bins = [0.5, 0.7, 0.9, 1.1, 1.5]
 
@@ -257,6 +208,9 @@ def main(args):
                 if args.stage < 2:
                     table_s['w'] = table_s['w'] * table_s['mu']
 
+                for key in table_s.colnames:
+                    table_s[key] = table_s[key].astype(np.float32)
+
                 for source_bin in range(len(z_bins) - 1):
 
                     print('Writing source catalog for z-bin {}...'.format(
@@ -288,112 +242,101 @@ def read_buzzard_catalog(pixel, mag_lensed=False, coord_lensed=True):
 
     path = os.path.join('/', 'project', 'projectdirs', 'desi', 'mocks',
                         'buzzard', 'buzzard_v2.0', 'buzzard-4',
-                        'i25_lensing_cat', '8')
+                        'addgalspostprocess', 'truth')
 
-    path = os.path.join(path, '{}'.format(pixel // 100), '{}'.format(pixel))
-    fname = 'Buzzard_v2.0_lensed-8-{}.fits'.format(pixel)
+    fname = 'Chinchilla-4_cam_rs_scat_shift_lensed.{}.fits'.format(pixel)
 
-    table = Table.read(os.path.join(path, fname))
+    table = Table(fitsio.read(os.path.join(path, fname),
+                              columns=['GAMMA1', 'GAMMA2', 'Z', 'MU']))
     table.rename_column('GAMMA1', 'gamma_1')
     table.rename_column('GAMMA2', 'gamma_2')
     table.rename_column('Z', 'z_true')
     table.rename_column('MU', 'mu')
 
-    if mag_lensed:
-        table['mag'] = np.hstack((table['LMAG'], table['LMAG_WISE']))
-    else:
-        table['mag'] = np.hstack((table['TMAG'], table['TMAG_WISE']))
-
     if coord_lensed:
-        table.rename_column('RA', 'ra')
-        table.rename_column('DEC', 'dec')
+        table['ra'] = fitsio.read(
+            os.path.join(path, fname), columns=['RA'])['RA']
+        table['dec'] = fitsio.read(
+            os.path.join(path, fname), columns=['DEC'])['DEC']
     else:
+        pos = fitsio.read(
+            os.path.join(path, fname), columns=['PX', 'PY', 'PZ'])
         table['ra'], table['dec'] = hp.vec2ang(
-            np.array([table['PX'], table['PY'], table['PZ']]).T,
+            np.array([pos['PX'], pos['PY'], pos['PZ']]).T,
             lonlat=True)
 
-    table.keep_columns(
-        ['z_true', 'ra', 'dec', 'mag', 'gamma_1', 'gamma_2', 'mu'])
+    if mag_lensed:
+        s = fitsio.read(os.path.join(path, fname), columns=['SIZE'])['SIZE']
+    else:
+        s = fitsio.read(os.path.join(path, fname), columns=['TSIZE'])['TSIZE']
+
+    path = os.path.join('/', 'project', 'projectdirs', 'desi', 'mocks',
+                        'buzzard', 'buzzard_v2.0', 'buzzard-4',
+                        'addgalspostprocess', 'surveymags')
+    fname = 'Chinchilla-4-aux.{}.fits'.format(pixel)
+
+    if mag_lensed:
+        mag = fitsio.read(os.path.join(path, fname), columns=['LMAG'])['LMAG']
+    else:
+        mag = fitsio.read(os.path.join(path, fname), columns=['TMAG'])['TMAG']
+
+    table['mag'] = mag[:, [1, 2, 3, 4, 5, -2, -1]]
+
+    f_r = 10**((table['mag'][:, 1] - 22.5)/-2.5)
+    f_z = 10**((table['mag'][:, 3] - 22.5)/-2.5)
+
+    rf = 0.105
+    f_z_fib = f_z / (1 - np.exp(-1)) * (1 - np.exp(-rf / s))
+    table['z_fib_mag'] = 22.5 - 2.5 * np.log10(f_z_fib)
+
+    rf = 0.275
+    f_r_fib = f_r / (1 - np.exp(-1)) * (1 - np.exp(-rf / s))
+    table['r_fib_mag'] = 22.5 - 2.5 * np.log10(f_r_fib)
 
     table.meta = {}
+
+    for key in table.colnames:
+        table[key] = table[key].astype(np.float32)
 
     return table
 
 
-def read_random_catalog(region, sample, magnification=False):
+def read_random_catalog(sample):
 
     path = os.path.join('/', 'project', 'projectdirs', 'desi', 'mocks',
                         'buzzard', 'buzzard_v2.0', 'buzzard-4',
-                        'DESI_tracers_i25')
+                        'addgalspostprocess', 'desi_targets')
+    fname = '{}_rand.fits'.format(sample)
 
-    if sample == 'BGS':
-        z_min, z_max = 0.1, 0.5
-    elif sample == 'LRG':
-        z_min, z_max = 0.5, 0.9
-    else:
-        raise RuntimeError('Unknown lens sample {}.'.format(sample))
+    table = Table(fitsio.read(os.path.join(path, fname),
+                              columns=['ra', 'dec', 'redshift']))
 
-    table_r = vstack([Table.read(os.path.join(
-        path, 'buzzard_{}_rand.{:02}.fits'.format(sample, i + 1))) for i in
-        range(9)])
+    table.rename_column('redshift', 'z')
+    table = table[ra_dec_in_mock(table['ra'], table['dec'])]
 
-    table_r.rename_column('RA', 'ra')
-    table_r.rename_column('DEC', 'dec')
-    table_r['z'] = table_r['Z_COSMO'] + table_r['DZ_RSD']
-    table_r.keep_columns(['ra', 'dec', 'z'])
+    table.meta = {}
 
-    use = ra_dec_in_region(table_r['ra'], table_r['dec'], region)
-    use = use & (z_min <= table_r['z']) & (table_r['z'] < z_max)
+    for key in table.colnames:
+        table[key] = table[key].astype(np.float32)
 
-    table_r.meta = {}
-
-    return table_r[use]
+    return table
 
 
-def ra_dec_in_region(ra, dec, region):
+def ra_dec_in_mock(ra, dec):
 
     nside = 8
     pix = hp.ang2pix(nside, np.array(ra), np.array(dec), nest=True,
                      lonlat=True)
 
-    pix_reg = [
-        [340, 341, 395, 396, 398, 399, 416, 417, 418, 419, 420, 421, 422, 424,
-         425, 426, 637, 638, 639],
-        [64, 65, 66, 67, 68, 72, 343, 349, 351, 423, 427, 428, 429, 430, 431,
-         432, 434, 435, 440],
-        [69, 70, 71, 73, 74, 75, 76, 77, 78, 80, 81, 82, 96, 97, 98, 441, 442,
-         443, 446],
-        [79, 83, 86, 88, 89, 90, 91, 92, 99, 100, 101, 102, 103, 105, 107, 108,
-         109, 110, 112],
-        [93, 94, 95, 111, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122,
-         123, 124, 125, 126, 127],
-        [391, 397, 400, 401, 402, 403, 404, 405, 406, 408, 409, 410, 483, 488,
-         489, 490, 701, 702, 703],
-        [128, 129, 130, 136, 407, 411, 412, 413, 414, 415, 433, 436, 486, 487,
-         491, 492, 493, 494, 498],
-        [131, 132, 133, 134, 135, 137, 138, 139, 140, 141, 142, 160, 161, 162,
-         437, 438, 439, 444, 445],
-        [84, 85, 87, 143, 152, 154, 155, 163, 164, 165, 166, 167, 168, 169,
-         170, 171, 172, 176, 447],
-        [158, 173, 174, 175, 177, 178, 179, 180, 181, 182, 183, 184, 185, 186,
-         187, 188, 189, 190, 191],
-        [144, 145, 146, 147, 148, 149, 150, 153, 232, 495, 499, 504, 505, 506,
-         507, 508, 509, 510, 511],
-        [151, 156, 157, 159, 234, 235, 237, 238, 239, 248, 249, 250, 251, 254],
-        [262, 263, 265, 266, 267, 268, 269, 270, 288, 289, 290, 291, 296, 468,
-         759, 764, 765, 766, 767],
-        [261, 272, 273, 274, 275, 280, 352, 353, 354, 559, 565, 566, 567, 569,
-         570, 571, 572, 573, 574],
-        [192, 193, 194, 271, 282, 292, 293, 294, 295, 297, 298, 299, 300, 301,
-         302, 304, 306, 469, 471],
-        [0, 2, 276, 277, 278, 279, 281, 283, 284, 285, 286, 305, 355, 356, 358,
-         360, 361, 362, 364, 575],
-        [195, 196, 197, 198, 199, 208, 209, 210, 211, 212, 303, 307, 312, 313,
-         314, 315, 316, 318, 319],
-        [3, 8, 9, 10, 11, 12, 14, 32, 33, 34, 35, 36, 40, 287, 308, 309, 310,
-         311, 317]]
+    pix_use = [5, 6, 7, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
+               23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 35, 36, 37, 38, 39,
+               48, 49, 50, 51, 52, 53, 54, 55, 69, 70, 71, 73, 74, 75, 76, 77,
+               78, 79, 80, 82, 83, 88, 89, 90, 91, 96, 97, 98, 99, 100, 101,
+               102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114,
+               115, 120, 121, 122, 123, 373, 374, 375, 377, 378, 379, 380, 381,
+               382, 383]
 
-    return np.isin(pix, pix_reg[region - 1])
+    return np.isin(pix, pix_use)
 
 
 def subsample_source_catalog(table_s, table_s_ref=None, survey=None):
@@ -687,7 +630,47 @@ def read_real_calibration_catalog(survey):
 
 
 def is_BGS(table):
-    bgs = table['mag'][:, table.meta['bands'].index('r')] < 20
+
+    g = table['mag'][:, table.meta['bands'].index('g')]
+    r = table['mag'][:, table.meta['bands'].index('r')]
+    z = table['mag'][:, table.meta['bands'].index('z')]
+    w1 = table['mag'][:, table.meta['bands'].index('w1')]
+    r_fib = table['r_fib_mag']
+    r_off = 0.05
+    # BASS r-mag offset with DECaLS.
+    offset = 0.04
+
+    bgs = np.ones(len(table), dtype=bool)
+
+    bgs &= g - r > -1
+    bgs &= g - r < 4
+    bgs &= r - z > -1
+    bgs &= r - z < 4
+
+    fmc = np.zeros(len(table), dtype=bool)
+    fmc |= ((r_fib < (2.9 + 1.2 + 1.0) + r) & (r < 17.8))
+    fmc |= ((r_fib < 22.9) & (r < 20.0) & (r > 17.8))
+    fmc |= ((r_fib < 2.9 + r) & (r > 20))
+
+    bgs &= fmc
+
+    is_bright = np.ones(len(table), dtype=bool)
+    is_bright &= r < 19.5 + offset + r_off
+    is_bright &= r > 12.0 - r_off
+    is_bright &= r_fib > 15.0
+
+    is_faint = np.ones(len(table), dtype=bool)
+    is_faint &= r < 20.22
+    is_faint &= r > 19.5 + offset + r_off
+
+    # D. Schlegel - ChangHoon H. color selection to get a high redshift
+    # success rate.
+    schlegel_color = (z - w1) - 1.2 * (g - r - offset) + 1.2
+    is_faint &= (r_fib < 20.75 + offset) | (
+        (r_fib < 21.5 + offset) & (schlegel_color > 0.0))
+
+    bgs &= (is_bright | is_faint)
+
     return bgs
 
 
@@ -697,18 +680,16 @@ def is_LRG(table):
     r = table['mag'][:, table.meta['bands'].index('r')]
     z = table['mag'][:, table.meta['bands'].index('z')]
     w1 = table['mag'][:, table.meta['bands'].index('w1')]
+    z_fib = table['z_fib_mag']
 
-    lrg = np.ones(len(g), dtype=bool)
+    lrg = np.ones(len(table), dtype=bool)
 
-    lrg &= z < 20.4
-    lrg &= z > 18.0
-    lrg &= r - z < 2.5
-    lrg &= r - z > 0.8
-    lrg &= 1.7 * (r - z) - (r - w1) < 0.6
-    lrg &= 1.7 * (r - z) - (r - w1) > -1.0
-    lrg &= z < 17.05 + 2 * (r - z)
-    lrg &= z > 15.00 + 2 * (r - z)
-    lrg &= (z < r - 1.2) | (r < g - 1.7)
+    lrg &= z - w1 > 0.8 * (r - z) - 0.6  # non-stellar cut
+    lrg &= z_fib < 21.61   # faint limit
+    lrg &= (g - w1 > 2.9) | (r - w1 > 1.8)  # low-z cuts
+    lrg &= (((r - w1 > (w1 - 17.14) * 1.8 + 0.4) &
+             (r - w1 > (w1 - 16.33) * 1.)) |
+            (r - w1 > 3.3 + 0.275))  # double sliding cuts and high-z extension
 
     return lrg
 
@@ -716,8 +697,6 @@ def is_LRG(table):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='build mock challenge')
     parser.add_argument('stage', help='stage of the survey', type=int)
-    parser.add_argument('--region', help='region of the sky', type=int,
-                        default=1)
     parser.add_argument('--overwrite', help='overwrite existing data',
                         action='store_true')
     args = parser.parse_args()
