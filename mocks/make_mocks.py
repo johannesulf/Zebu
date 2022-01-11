@@ -384,7 +384,7 @@ def subsample_source_catalog(table_s, table_s_ref=None, survey=None):
         mag_dig = np.minimum(np.maximum(mag_dig, 0), len(mag_bins) - 2)
         mag_dig_ref = np.minimum(np.maximum(mag_dig_ref, 0), len(mag_bins) - 2)
 
-        use_all = np.zeros(len(table_s), dtype=np.bool)
+        use_all = np.zeros(len(table_s), dtype=bool)
 
         for i in range(len(z_bins) - 1):
 
