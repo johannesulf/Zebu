@@ -33,6 +33,8 @@ ra_p, dec_p, vertices = skm.healpix.getGrid(nside, return_vertices=True,
 pix_inner = []
 for p in pix:
     neighbors = hp.get_all_neighbours(nside, p, nest=True)
+    neighbors = neighbors[neighbors != -1]
+    neighbors = hp.get_all_neighbours(nside, neighbors, nest=True).flatten()
     if np.all([n in pix or n == -1 for n in neighbors]):
         pix_inner.append(p)
 
@@ -70,48 +72,33 @@ for table_t in [table_t_bright, table_t_dark]:
     table_t['RA'] = np.where(table_t['RA'] < 0, table_t['RA'] + 360,
                              table_t['RA'])
 
-pix_lens_buzzard = []
-for i in range(len(in_buzzard)):
-    if not in_inner_buzzard[i]:
-        continue
-    hmap = np.zeros(hp.nside2npix(nside), dtype=bool)
-    hmap[i] = True
-    hmap = hp.ud_grade(hmap, 128, order_in='NESTED', order_out='NESTED')
-    ra, dec = hp.pix2ang(128, np.arange(len(hmap))[hmap], nest=True,
-                         lonlat=True)
-    c_t = SkyCoord(table_t_dark['RA'], table_t_dark['DEC'], unit='deg')
-    c_p = SkyCoord(ra, dec, unit='deg')
-    sep2d = c_p.match_to_catalog_sky(c_t)[1]
-    if np.all(sep2d < 1.605 * u.deg):
-        pix_lens_buzzard.append(i)
+hmap = hp.ud_grade(in_inner_buzzard, 512,
+                   order_in='NESTED', order_out='NESTED')
+ra, dec = hp.pix2ang(512, np.arange(len(hmap))[hmap], nest=True,
+                     lonlat=True)
+c_p = SkyCoord(ra, dec, unit='deg')
 
-in_lens_buzzard = np.array([i in pix_lens_buzzard for i in range(
-    hp.nside2npix(nside))])
+c_t = SkyCoord(table_t_bright['RA'], table_t_bright['DEC'], unit='deg')
+sep2d = c_t.match_to_catalog_sky(c_p)[1]
+table_t_bright = table_t_bright[sep2d < 2 * u.deg]
 
-pix_source_buzzard = []
-for p in pix_lens_buzzard:
-    neighbors = hp.get_all_neighbours(nside, p, nest=True)
-    for n in neighbors:
-        if n not in pix_source_buzzard:
-            pix_source_buzzard.append(n)
-
-in_source_buzzard = np.array([i in pix_source_buzzard for i in range(
-    hp.nside2npix(nside))])
+c_t = SkyCoord(table_t_dark['RA'], table_t_dark['DEC'], unit='deg')
+sep2d = c_t.match_to_catalog_sky(c_p)[1]
+table_t_dark = table_t_dark[sep2d < 2 * u.deg]
 
 fig = plt.figure(figsize=(7.0, 3.5))
 crit = skm.stdDistortion
 proj = skm.Albers.optimize(ra_p[in_buzzard], dec_p[in_buzzard], crit=crit)
 footprint = skm.Map(proj, facecolor='white', ax=fig.gca())
-footprint.vertex(vertices[in_buzzard], facecolor='black')
-footprint.vertex(vertices[in_source_buzzard], facecolor='darkgrey')
-footprint.vertex(vertices[in_lens_buzzard], facecolor='grey')
+footprint.vertex(vertices[in_buzzard], facecolor='grey')
+footprint.vertex(vertices[in_inner_buzzard], facecolor='darkgrey')
 footprint.scatter(table_t_dark['RA'], table_t_dark['DEC'], s=0.1)
 footprint.focus(ra_p[in_buzzard], dec_p[in_buzzard])
 footprint.savefig('footprint.pdf')
 footprint.savefig('footprint.png', dpi=300)
 
-np.savetxt('lens_pixels.txt', pix_lens_buzzard, fmt='%d')
-np.savetxt('source_pixels.txt', pix_source_buzzard, fmt='%d')
+np.savetxt('pixels.txt', np.arange(len(in_inner_buzzard))[in_inner_buzzard],
+           fmt='%d')
 table_t_bright['PROGRAM'] = 'DARK'
 table_t_dark['PROGRAM'] = 'DARK'
 table_t_bright.write('bright_tiles_mock.fits', overwrite=True)
