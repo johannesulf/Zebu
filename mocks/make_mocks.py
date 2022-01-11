@@ -353,9 +353,9 @@ def subsample_source_catalog(table_s, table_s_ref=None, survey=None):
         # target redshift distribution
         z = 0.5 * (z_bins[1:] + z_bins[:-1])
         z_0 = 0.2
-        n_t_tot = 50.0 * 60.0**2
+        n_t_tot = 30.0 * 60.0**2
         n_t = z**2 * np.exp(-z / z_0)
-        n_t = n_t * n_t_tot / np.sum(n_t * np.diff(z_bins)[0])
+        n_t *= n_t_tot / np.sum(n_t * np.diff(z_bins)[0])
 
         # downsample input catalog
         z_dig = np.digitize(table_s['z_true'], z_bins) - 1
@@ -665,7 +665,7 @@ def is_BGS(table):
 
     # D. Schlegel - ChangHoon H. color selection to get a high redshift
     # success rate.
-    schlegel_color = (z - w1) - 1.2 * (g - r - offset) + 1.2
+    schlegel_color = (z - w1) - 1.2 * (g - (r - offset)) + 1.2
     is_faint &= (r_fib < 20.75 + offset) | (
         (r_fib < 21.5 + offset) & (schlegel_color > 0.0))
 
