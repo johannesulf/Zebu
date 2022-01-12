@@ -25,11 +25,10 @@ def main(args):
 
     if args.stage == 4:
 
-        for survey, lens_bins in zip(['bright', 'dark'], [[0, 1], [2, 3]]):
+        for sample in ['bgs', 'lrg']:
 
-            table_l = vstack([Table.read(os.path.join(
-                    output, 'l{}_nofib.hdf5'.format(lens_bin))) for lens_bin
-                in lens_bins])
+            table_l = Table.read(os.path.join(
+                    output, '{}_nofib.hdf5'.format(sample)))
 
             table_l.rename_column('ra', 'RA')
             table_l.rename_column('dec', 'DEC')
@@ -43,11 +42,11 @@ def main(args):
             table_l['OBSCONDITIONS'] = 15
             table_l['SUBPRIORITY'] = np.random.random(len(table_l))
             table_l['TARGETID'] = np.arange(len(table_l))
-            fname = os.path.join(output, 'targets_{}.fits'.format(survey))
+            fname = os.path.join(output, 'targets_{}.fits'.format(sample))
             if not os.path.exists(fname) or args.overwrite:
                 table_l.write(fname, overwrite=True)
 
-            fname = os.path.join(output, 'targeted_{}.fits'.format(survey))
+            fname = os.path.join(output, 'targeted_{}.fits'.format(sample))
             if os.path.exists(fname):
                 table_t = Table.read(fname)
                 assert np.all(np.diff(table_t['TARGETID']) >= 0)
@@ -62,19 +61,9 @@ def main(args):
                     bitweight = bitweight // 2
 
                 table_l = Table.read(os.path.join(
-                    output, 'l{}_nofib.hdf5'.format(lens_bins[0])))
-                table_l = table_l[obs[:len(table_l)]]
+                    output, '{}_nofib.hdf5'.format(sample)))
                 table_l['w_sys'] = 64.0 / n_obs[obs][:len(table_l)]
-                table_l.write(os.path.join(
-                    output, 'l{}.hdf5'.format(lens_bins[0])),
-                              overwrite=args.overwrite)
-
-                table_l = Table.read(os.path.join(
-                    output, 'l{}_nofib.hdf5'.format(lens_bins[1])))
-                table_l = table_l[obs[-len(table_l):]]
-                table_l['w_sys'] = 64.0 / n_obs[obs][-len(table_l):]
-                table_l.write(os.path.join(
-                    output, 'l{}.hdf5'.format(lens_bins[1])),
+                table_l.write(os.path.join(output, '{}.hdf5'.format(sample)),
                               overwrite=args.overwrite)
 
         sys.exit()
@@ -94,8 +83,10 @@ def main(args):
         nside, degrees=True) * len(pixel_use)
     table_b.meta['bands'] = ['g', 'r', 'i', 'z', 'y', 'w1', 'w2']
     np.random.seed(0)
-    table_b['random_1'] = np.random.random(size=len(table_b))
-    table_b['random_2'] = np.random.random(size=len(table_b))
+    table_b['random_1'] = np.random.random(
+        size=len(table_b)).astype(np.float32)
+    table_b['random_2'] = np.random.random(
+        size=len(table_b)).astype(np.float32)
     table_b['randint'] = np.random.randint(3, size=len(table_b))
 
     if args.stage in [0, 3]:
@@ -111,7 +102,8 @@ def main(args):
             if args.stage == 0:
                 table_l['w_sys'] = table_l['w_sys'] * table_l['mu']
             print('Writing lens catalog for {}...'.format(sample.upper()))
-            table_l.keep_columns(['z', 'ra', 'dec', 'mag', 'w_sys'])
+            table_l.keep_columns(['z', 'ra', 'dec', 'ra_true', 'dec_true',
+                                  'mag', 'w_sys'])
             fname = '{}_nofib'.format(sample)
             if args.stage == 0:
                 fname = fname + '_nomag'
@@ -132,6 +124,8 @@ def main(args):
                 table_r[key] = table_r[key].astype(np.float32)
             table_r.write(os.path.join(output, '{}_rand.hdf5'.format(sample)),
                           overwrite=args.overwrite, path='catalog')
+
+    table_b.remove_columns(['ra_true', 'dec_true'])
 
     if args.stage in [0, 1, 2]:
 
@@ -178,12 +172,11 @@ def main(args):
                 table_c_ref = read_real_calibration_catalog(survey)
 
                 print('Assigning photometric redshifts...')
-                table_s = apply_photometric_redshift(
-                    table_b, table_c_ref)
+                table_b = apply_photometric_redshift(table_b, table_c_ref)
 
                 print('Downsampling to target density...')
                 table_s = subsample_source_catalog(
-                    table_s, table_s_ref=table_s_ref, survey=survey)
+                    table_b, table_s_ref=table_s_ref, survey=survey)
 
                 print('Calculating observed shear...')
                 table_s = apply_observed_shear(
@@ -253,17 +246,15 @@ def read_buzzard_catalog(pixel, mag_lensed=False, coord_lensed=True):
     table.rename_column('Z', 'z_true')
     table.rename_column('MU', 'mu')
 
-    if coord_lensed:
-        table['ra'] = fitsio.read(
-            os.path.join(path, fname), columns=['RA'])['RA']
-        table['dec'] = fitsio.read(
-            os.path.join(path, fname), columns=['DEC'])['DEC']
-    else:
-        pos = fitsio.read(
-            os.path.join(path, fname), columns=['PX', 'PY', 'PZ'])
-        table['ra'], table['dec'] = hp.vec2ang(
-            np.array([pos['PX'], pos['PY'], pos['PZ']]).T,
-            lonlat=True)
+    table['ra'] = fitsio.read(
+        os.path.join(path, fname), columns=['RA'])['RA']
+    table['dec'] = fitsio.read(
+        os.path.join(path, fname), columns=['DEC'])['DEC']
+    pos = fitsio.read(
+        os.path.join(path, fname), columns=['PX', 'PY', 'PZ'])
+    table['ra_true'], table['dec_true'] = hp.vec2ang(
+        np.array([pos['PX'], pos['PY'], pos['PZ']]).T,
+        lonlat=True)
 
     if mag_lensed:
         s = fitsio.read(os.path.join(path, fname), columns=['SIZE'])['SIZE']
@@ -297,6 +288,8 @@ def read_buzzard_catalog(pixel, mag_lensed=False, coord_lensed=True):
 
     for key in table.colnames:
         table[key] = table[key].astype(np.float32)
+
+    table = table[(0.0 <= table['z_true']) & (table['z_true'] < 2.0)]
 
     return table
 
@@ -469,8 +462,7 @@ def apply_shape_noise(table_s, sigma):
 
 def apply_photometric_redshift(table_s, table_c_ref):
 
-    table_s = table_s[(0.0 <= table_s['z_true']) & (table_s['z_true'] < 2.0)]
-    table_s['z'] = np.zeros(len(table_s)) - 99
+    table_s['z'] = np.zeros(len(table_s), dtype=np.float32) - 99
 
     if table_c_ref is None:
 
@@ -510,8 +502,6 @@ def apply_photometric_redshift(table_s, table_c_ref):
                 cdf_fine, table_s['random_2'][use])]
 
             table_s['z'][use] = z
-
-    table_s.remove_column('random_2')
 
     return table_s
 

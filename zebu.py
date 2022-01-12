@@ -36,25 +36,29 @@ def stacking_kwargs(survey):
         raise RuntimeError('Unkown lensing survey {}.'.format(survey))
 
 
-def read_mock_data(catalog_type, z_bin, survey='gen', region=1,
-                   magnification=False, fiber_assignment=False):
+def read_mock_data(catalog_type, z_bin, survey='gen', magnification=False,
+                   fiber_assignment=False, unlensed_coordinates=False):
 
     if z_bin == 'all':
         return vstack([read_mock_data(
-            catalog_type, source_bin, survey=survey, region=region,
-            magnification=magnification, fiber_assignment=fiber_assignment)
+            catalog_type, source_bin, survey=survey,
+            magnification=magnification, fiber_assignment=fiber_assignment,
+            unlensed_coordinates=unlensed_coordinates)
                        for source_bin in range(5 if survey.lower() == 'kids'
                                                else 4)])
 
     if catalog_type not in ['source', 'lens', 'calibration', 'random']:
         raise RuntimeError('Unkown catalog type: {}.'.format(catalog_type))
 
-    path = os.path.join(base_dir, 'mocks', 'region_{}'.format(region))
-
-    fname = '{}{}'.format(catalog_type[0], z_bin)
+    path = os.path.join(base_dir, 'mocks', 'mocks')
 
     if catalog_type in ['source', 'calibration']:
+        fname = '{}{}'.format(catalog_type[0], z_bin)
         fname = fname + '_{}'.format(survey.lower())
+    else:
+        fname = 'bgs' if z_bin in [0, 1] else 'lrg'
+        if catalog_type == 'random':
+            fname += '_rand'
 
     if not fiber_assignment and catalog_type == 'lens':
         fname = fname + '_nofib'
@@ -80,6 +84,13 @@ def read_mock_data(catalog_type, z_bin, survey='gen', region=1,
     if catalog_type == 'source':
         table['e_2'] = - table['e_2']
         table['g_2'] = - table['g_2']
+
+    if catalog_type in ['lens', 'random']:
+        table = table[(table['z'] >= lens_z_bins[z_bin]) &
+                      (table['z'] < lens_z_bins[z_bin + 1])]
+
+    for key in table.colnames:
+        table[key] = table[key].astype(np.float64)
 
     return table
 
