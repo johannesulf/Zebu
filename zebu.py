@@ -92,6 +92,10 @@ def read_mock_data(catalog_type, z_bin, survey='gen', magnification=False,
     for key in table.colnames:
         table[key] = table[key].astype(np.float64)
 
+    if unlensed_coordinates:
+        table['ra'] = table['ra_true']
+        table['dec'] = table['dec_true']
+
     return table
 
 

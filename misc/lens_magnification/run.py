@@ -89,7 +89,7 @@ for i in range(3):
 
     path = os.path.join(
         zebu.base_dir, 'stacks', 'region_1', 'precompute',
-        'l{}_s{}_gen_zspec_nosmag.hdf5'.format(lens_bin, source_bin))
+        'l{}_s{}_gen_zspec_nomag_nofib.hdf5'.format(lens_bin, source_bin))
 
     table_l = Table.read(path, path='lens')
     table_r = Table.read(path, path='random')

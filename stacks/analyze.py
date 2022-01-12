@@ -13,7 +13,6 @@ from dsigma.jackknife import jackknife_resampling, compress_jackknife_fields
 
 parser = argparse.ArgumentParser()
 parser.add_argument('stage', type=int, help='stage of the analysis')
-parser.add_argument('--region', type=int, help='region of the sky', default=1)
 parser.add_argument('--full', action='store_true',
                     help='whether plot everyting')
 args = parser.parse_args()
@@ -21,8 +20,7 @@ args = parser.parse_args()
 source_magnification = args.stage >= 2
 lens_magnification = args.stage >= 3
 fiber_assignment = args.stage >= 4
-output = os.path.join('region_{}'.format(args.region),
-                      'stage_{}'.format(args.stage))
+output = 'stage_{}'.format(args.stage)
 
 # %%
 
@@ -96,7 +94,7 @@ def initialize_plot(survey=None, ylabel=None):
     else:
         z_bins = zebu.lens_z_bins
 
-    color_list = plt.get_cmap('plasma')(np.linspace(0.0, 0.9, len(z_bins) - 1))
+    color_list = plt.get_cmap('plasma')(np.linspace(0.0, 0.8, len(z_bins) - 1))
     cmap = mpl.colors.ListedColormap(color_list)
     sm = plt.cm.ScalarMappable(cmap=cmap)
     sm._A = []
@@ -144,8 +142,8 @@ def read_precompute(survey, lens_bin, source_bin, zspec=False, noisy=False,
 
     for source_bin in source_bin_all:
 
-        path = os.path.join('region_{}'.format(args.region), 'precompute',
-                            'l{}_s{}_{}'.format(lens_bin, source_bin, survey))
+        path = os.path.join(
+            'precompute', 'l{}_s{}_{}'.format(lens_bin, source_bin, survey))
 
         if noisy:
             path += '_noisy'
@@ -268,6 +266,19 @@ for lens_bin in range(len(zebu.lens_z_bins) - 1):
     table_r_ref.append(table_r)
     ds_ref.append(excess_surface_density(
         table_l, table_r=table_r, **zebu.stacking_kwargs('gen')))
+
+    fname = 'shear.csv'
+
+    if os.path.exists(os.path.join(output, fname)):
+        table = Table.read(os.path.join(output, fname))
+    else:
+        table = Table()
+        table['rp'] = rp
+
+    table['ds_{}'.format(lens_bin)] = ds_ref[-1]
+
+    table.write(os.path.join(output, fname), overwrite=True)
+
 
 # %%
 

@@ -151,10 +151,8 @@ def main(args):
                 table_s_z_bin.write(os.path.join(
                     output, 's{}_gen_nomag.hdf5'.format(source_bin)),
                                     overwrite=args.overwrite,
-                                    serialize_meta=True,
-                                    path='catalog')
-                table_c = table_s_z_bin[np.random.randint(len(table_s_z_bin),
-                                                          size=100000)]
+                                    serialize_meta=True, path='catalog')
+                table_c = table_s_z_bin[::100]
                 table_c.meta = {}
                 table_c.write(os.path.join(output, 'c{}_gen_nomag.hdf5'.format(
                     source_bin)), overwrite=args.overwrite, path='catalog',
@@ -219,8 +217,7 @@ def main(args):
                         os.path.join(output, fname), overwrite=args.overwrite,
                         path='catalog', serialize_meta=True)
                     fname = 'c' + fname[1:]
-                    table_c = table_s_z_bin[
-                        np.random.randint(len(table_s_z_bin), size=1000000)]
+                    table_c = table_s_z_bin[::100]
                     table_c.meta = {'bands': table_c.meta['bands']}
                     table_c.write(
                         os.path.join(output, fname), overwrite=args.overwrite,
@@ -290,6 +287,7 @@ def read_buzzard_catalog(pixel, mag_lensed=False, coord_lensed=True):
         table[key] = table[key].astype(np.float32)
 
     table = table[(0.0 <= table['z_true']) & (table['z_true'] < 2.0)]
+    table = table[ra_dec_in_mock(table['ra'], table['dec'])]
 
     return table
 

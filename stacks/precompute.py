@@ -2,12 +2,12 @@ import os
 import zebu
 import argparse
 import numpy as np
+import healpy as hp
 import multiprocessing
 from scipy.interpolate import interp1d
 from dsigma.physics import critical_surface_density
 from dsigma.precompute import add_maximum_lens_redshift, add_precompute_results
-from dsigma.jackknife import add_continous_fields, jackknife_field_centers
-from dsigma.jackknife import add_jackknife_fields, compress_jackknife_fields
+from dsigma.jackknife import compress_jackknife_fields
 
 # This is necessary for lux because otherwise the temporary directory is on
 # disk and not in memory.
@@ -28,23 +28,14 @@ parser.add_argument('--runit', action='store_true',
                     help='use shapes w/o response bias, i.e. unit response')
 parser.add_argument('--noiip', action='store_true',
                     help='ignore IIP systematic weights (for stage >= 4)')
-parser.add_argument('--region', type=int, help='region of the sky', default=1)
 args = parser.parse_args()
 
 # %%
 
-output_directory = os.path.join('region_{}'.format(args.region), 'precompute')
+output_directory = 'precompute'
 
 if not os.path.exists(output_directory):
     os.makedirs(output_directory)
-
-try:
-    centers = np.genfromtxt(os.path.join(output_directory, 'centers.csv'))
-except OSError:
-    table_l = zebu.read_mock_data('random', 0)
-    table_l = add_continous_fields(table_l, distance_threshold=1)
-    centers = jackknife_field_centers(table_l, n_jk=100)
-    np.savetxt(os.path.join(output_directory, 'centers.csv'), centers)
 
 # %%
 
@@ -66,14 +57,17 @@ for survey in survey_list:
 
     for lens_bin in range(3, -1, -1):
 
-        z_l_max = zebu.lens_z_bins[lens_bin + 1]
+        z_l_min = zebu.lens_z_bins[lens_bin]
         z_s_max = zebu.source_z_bins[survey][args.source_bin + 1]
-        if z_l_max > z_s_max - 0.25 and not (
+        if z_l_min > z_s_max - 0.2001 and not (
                 args.stage == 0 and args.zspec and not args.noisy):
             continue
 
         table_c = zebu.read_mock_data(
             'calibration', args.source_bin, survey=survey,
+            magnification=source_magnification)
+        table_c_all = zebu.read_mock_data(
+            'calibration', 'all', survey=survey,
             magnification=source_magnification)
         table_s = zebu.read_mock_data(
             'source', args.source_bin, survey=survey,
@@ -89,7 +83,6 @@ for survey in survey_list:
                 table_s['e_2'] /= 0.5 * (table_s['R_11'] + table_s['R_22'])
                 table_s['R_11'] = 1.0
                 table_s['R_22'] = 1.0
-                table_c['w_sys'] = 1.0
             else:
                 table_s['e_1'] /= 1 + table_s['m']
                 table_s['e_2'] /= 1 + table_s['m']
@@ -98,13 +91,14 @@ for survey in survey_list:
                     table_s['e_1'] /= 2 * (1 - table_s['e_rms']**2)
                     table_s['e_2'] /= 2 * (1 - table_s['e_rms']**2)
                     table_s['e_rms'] = np.sqrt(0.5)
-                table_c['w_sys'] = 1.0
+            table_c['w_sys'] = 1.0
+            table_c_all['w_sys'] = 1.0
 
         if args.zspec:
             table_c['z'] = table_c['z_true']
             table_s['z'] = table_s['z_true']
 
-        for table in [table_s, table_c]:
+        for table in [table_s, table_c, table_c_all]:
             add_maximum_lens_redshift(table, dz_min=0.2, z_err_factor=0)
 
         z_lens = np.linspace(zebu.lens_z_bins[lens_bin] - 1e-6,
@@ -113,11 +107,11 @@ for survey in survey_list:
         weight = np.zeros_like(z_lens)
 
         for i in range(len(z_lens)):
-            sigma_crit = critical_surface_density(z_lens[i], table_c['z'],
-                                                  zebu.cosmo, comoving=True)
+            sigma_crit = critical_surface_density(
+                z_lens[i], table_c_all['z'], zebu.cosmo, comoving=True)
             weight[i] = np.sum(
-                table_c['w'] * table_c['w_sys'] * sigma_crit**-2 *
-                (z_lens[i] < table_c['z_l_max']))
+                table_c_all['w'] * table_c_all['w_sys'] * sigma_crit**-2 *
+                (z_lens[i] < table_c_all['z_l_max']))
 
         weight = weight / np.amax(weight)
         w_sys = interp1d(z_lens, 1.0 / weight)
@@ -131,7 +125,9 @@ for survey in survey_list:
                 table_l['w_sys'] = 1.0
             table_l['w_sys'] *= w_sys(table_l['z'])
 
-            add_jackknife_fields(table_l, centers)
+            table_l['field_jk'] = hp.ang2pix(
+                8, table_l['ra'], table_l['dec'], nest=True, lonlat=True)
+            print(np.unique(table_l['field_jk'], return_counts=True))
 
             output = os.path.join(output_directory, 'l{}_s{}_{}'.format(
                 lens_bin, args.source_bin, survey))

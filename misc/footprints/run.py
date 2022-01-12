@@ -6,7 +6,6 @@ from astropy.coordinates import SkyCoord
 from astropy import units as u
 
 fig = plt.figure(figsize=(7, 3.5))
-proj = skm.Hammer()
 footprint = skm.Map(skm.Hammer(), facecolor='white', ax=fig.gca())
 sep = 30
 footprint.grid(sep=sep)
