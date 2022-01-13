@@ -5,6 +5,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
 #SBATCH --constraint=haswell
+#SBATCH --acount=desi
 
 source /project/projectdirs/desi/software/desi_environment.sh master
 module swap fiberassign/2.3.0
