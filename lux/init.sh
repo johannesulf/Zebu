@@ -1,5 +1,5 @@
 module load openmpi
-module load python/3.6.7
+module load python
 module load blas
 module load intel/impi
 module load intel/ifort
