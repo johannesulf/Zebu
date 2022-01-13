@@ -292,7 +292,7 @@ if args.stage == 0:
 
     plt.title("no shape noise, no photo-z's, all sources")
     plt.xscale('log')
-    plt.xlabel(r'Projected Radius $r_p \, [h^{-1} \, \mathrm{Mpc}]$')
+    plt.xlabel(r'Projected radius $r_p \, [h^{-1} \, \mathrm{Mpc}]$')
     plt.ylabel(r'$r_p \Delta \Sigma \, [10^6 M_\odot / \mathrm{pc}]$')
     plt.legend(loc='upper left')
     plt.tight_layout(pad=0.3)

@@ -97,9 +97,8 @@ footprint.focus(ra_p[in_buzzard], dec_p[in_buzzard])
 footprint.savefig('footprint.pdf')
 footprint.savefig('footprint.png', dpi=300)
 
-np.savetxt('pixels.txt', np.arange(len(in_inner_buzzard))[in_inner_buzzard],
-           fmt='%d')
-table_t_bright['PROGRAM'] = 'DARK'
-table_t_dark['PROGRAM'] = 'DARK'
+print('Mock Pixels: {}'.format(
+    np.arange(len(in_inner_buzzard))[in_inner_buzzard]))
+
 table_t_bright.write('bright_tiles_mock.fits', overwrite=True)
 table_t_dark.write('dark_tiles_mock.fits', overwrite=True)
