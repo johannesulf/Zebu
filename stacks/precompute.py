@@ -125,7 +125,7 @@ for survey in survey_list:
                 table_l['w_sys'] = 1.0
             table_l['w_sys'] *= w_sys(table_l['z'])
 
-            table_l = table_l[table_l['z'] < np.amax(table_s['z_l_max'])]
+            table_l = table_l[table_l['z'] < np.amax(table_c['z_l_max'])]
 
             table_l['field_jk'] = hp.ang2pix(
                 8, table_l['ra'], table_l['dec'], nest=True, lonlat=True)
