@@ -125,9 +125,10 @@ for survey in survey_list:
                 table_l['w_sys'] = 1.0
             table_l['w_sys'] *= w_sys(table_l['z'])
 
+            table_l = table_l[table_l['z'] < np.amax(table_s['z_l_max'])]
+
             table_l['field_jk'] = hp.ang2pix(
                 8, table_l['ra'], table_l['dec'], nest=True, lonlat=True)
-            print(np.unique(table_l['field_jk'], return_counts=True))
 
             output = os.path.join(output_directory, 'l{}_s{}_{}'.format(
                 lens_bin, args.source_bin, survey))
