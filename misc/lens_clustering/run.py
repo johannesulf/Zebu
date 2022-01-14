@@ -2,7 +2,6 @@ import os
 import zebu
 import numpy as np
 import multiprocessing
-from scipy import constants
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 from Corrfunc.mocks import DDrppi_mocks
@@ -20,17 +19,17 @@ def projected_correlation_function(table_l, table_r, rp_bins, pi_max):
     n_r = len(table_r)
 
     n = multiprocessing.cpu_count()
-    c = constants.c / 1000.0
 
     ll = DDrppi_mocks(True, 2, n, pi_max, rp_bins, table_l['ra'],
-                      table_l['dec'], table_l['z'] * c)['npairs']
+                      table_l['dec'], table_l['d_com'],
+                      is_comoving_dist=True)['npairs']
     rr = DDrppi_mocks(True, 2, n, pi_max, rp_bins, table_r['ra'],
-                      table_r['dec'], table_r['z'].astype(np.float64) *
-                      c)['npairs']
+                      table_r['dec'], table_r['d_com'],
+                      is_comoving_dist=True)['npairs']
     lr = DDrppi_mocks(False, 2, n, pi_max, rp_bins, table_l['ra'],
-                      table_l['dec'], table_l['z'] * c,
+                      table_l['dec'], table_l['d_com'],
                       RA2=table_r['ra'], DEC2=table_r['dec'],
-                      CZ2=table_r['z'].astype(np.float64) * c)['npairs']
+                      CZ2=table_r['d_com'], is_comoving_dist=True)['npairs']
 
     wp = convert_rp_pi_counts_to_wp(n_l, n_l, n_r, n_r, ll, lr, lr, rr,
                                     len(rp_bins) - 1, pi_max)
@@ -46,6 +45,8 @@ for i in range(4):
 
     table_l = zebu.read_mock_data('lens', i)
     table_r = zebu.read_mock_data('random', i)
+    table_l['d_com'] = zebu.cosmo.comoving_distance(table_l['z']).value
+    table_r['d_com'] = zebu.cosmo.comoving_distance(table_r['z']).value
     wp_list.append(projected_correlation_function(
         table_l, table_r, rp_bins, pi_max))
 
@@ -55,7 +56,7 @@ rp = np.sqrt(rp_bins[1:] * rp_bins[:-1])
 
 
 z_bins = zebu.lens_z_bins
-color_list = plt.get_cmap('plasma')(np.linspace(0.0, 0.9, len(z_bins) - 1))
+color_list = plt.get_cmap('plasma')(np.linspace(0.0, 0.8, len(z_bins) - 1))
 cmap = mpl.colors.ListedColormap(color_list)
 sm = plt.cm.ScalarMappable(cmap=cmap)
 sm._A = []
