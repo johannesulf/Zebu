@@ -267,19 +267,6 @@ for lens_bin in range(len(zebu.lens_z_bins) - 1):
     ds_ref.append(excess_surface_density(
         table_l, table_r=table_r, **zebu.stacking_kwargs('gen')))
 
-    fname = 'shear.csv'
-
-    if os.path.exists(os.path.join(output, fname)):
-        table = Table.read(os.path.join(output, fname))
-    else:
-        table = Table()
-        table['rp'] = rp
-
-    table['ds_{}'.format(lens_bin)] = ds_ref[-1]
-
-    table.write(os.path.join(output, fname), overwrite=True)
-
-
 # %%
 
 rp = np.sqrt(zebu.rp_bins[1:] * zebu.rp_bins[:-1])
@@ -296,8 +283,7 @@ if args.stage == 0:
     plt.ylabel(r'$r_p \Delta \Sigma \, [10^6 M_\odot / \mathrm{pc}]$')
     plt.legend(loc='upper left')
     plt.tight_layout(pad=0.3)
-    if args.pdf:
-        plt.savefig(os.path.join(output, 'reference.pdf'))
+    plt.savefig(os.path.join(output, 'reference.pdf'))
     plt.savefig(os.path.join(output, 'reference.png'), dpi=300)
     plt.close()
 

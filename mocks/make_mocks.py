@@ -132,6 +132,7 @@ def main(args):
         if args.stage == 0:
             print('Making tailored source catalog...')
             table_s = subsample_source_catalog(table_b)
+            table_s.remove_column('random_2')
             table_s = apply_observed_shear(table_s)
             table_s = apply_shape_noise(table_s, 0.28)
             table_s = apply_photometric_redshift(table_s, None)
@@ -175,6 +176,7 @@ def main(args):
                 print('Downsampling to target density...')
                 table_s = subsample_source_catalog(
                     table_b, table_s_ref=table_s_ref, survey=survey)
+                table_s.remove_column('random_2')
 
                 print('Calculating observed shear...')
                 table_s = apply_observed_shear(
