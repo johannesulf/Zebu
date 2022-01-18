@@ -1,11 +1,11 @@
 import numpy as np
+from tqdm import tqdm
 from astropy.table import Table
 from make_mocks import read_buzzard_catalog, is_BGS, is_LRG
 
 # %%
 
-pixel_list = [340, 341, 395, 396, 398, 399, 416, 417, 418, 419, 420, 421, 422,
-              424, 425, 426, 637, 638, 639]
+pixel_list = [5, 6, 7, 9, 10, 11, 12, 13, 14, 15]
 mu_list = [0.90, 0.95, 1.00, 1.05, 1.10]
 
 # %%
@@ -20,7 +20,7 @@ for i in range(4):
     table_m[-1]['n'] = np.zeros((len(pixel_list), len(mu_list)))
 
 
-for i, pixel in enumerate(pixel_list):
+for i, pixel in tqdm(enumerate(pixel_list)):
     table_b = read_buzzard_catalog(pixel)
     table_b.meta['bands'] = ['g', 'r', 'i', 'z', 'y', 'w1', 'w2']
     for j, mu in enumerate(mu_list):
