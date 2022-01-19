@@ -62,7 +62,8 @@ def main(args):
 
                 table_l = Table.read(os.path.join(
                     output, '{}_nofib.hdf5'.format(sample)))
-                table_l['w_sys'] = 64.0 / n_obs[obs][:len(table_l)]
+                table_l = table_l[obs]
+                table_l['w_sys'] = 64.0 / n_obs[obs]
                 table_l.write(os.path.join(output, '{}.hdf5'.format(sample)),
                               overwrite=args.overwrite)
 

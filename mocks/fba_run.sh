@@ -18,7 +18,9 @@ mv ../misc/mock_footprint/bright_tiles_mock.fits mocks/bright/tiles.fits
 mv ../misc/mock_footprint/dark_tiles_mock.fits mocks/dark/tiles.fits
 fba_run --targets mocks/bright/targets.fits --footprint mocks/bright/tiles.fits --dir mocks/bright --rundate '2021-04-06T00:39:37'
 fba_run --targets mocks/dark/targets.fits --footprint mocks/dark/tiles.fits --dir mocks/dark --rundate '2021-04-06T00:39:37'
+cd ..
 srun -N 8 -c 8 -C haswell -A desi --qos=interactive -t 0:30:0 LSS/bin/mpi_bitweights --mtl Zebu/mocks/mocks/bright/targets.fits --tiles Zebu/mocks/mocks/bright/tiles.fits --format fits --outdir Zebu/mocks/mocks/bright --realizations 64
 srun -N 8 -c 8 -C haswell -A desi --qos=interactive -t 0:30:0 LSS/bin/mpi_bitweights --mtl Zebu/mocks/mocks/dark/targets.fits --tiles Zebu/mocks/mocks/dark/tiles.fits --format fits --outdir Zebu/mocks/mocks/dark --realizations 64
+cd Zebu/mocks
 mv mocks/bright/targeted.fits mocks/targeted_bright.fits
 mv mocks/dark/targeted.fits mocks/targeted_dark.fits
