@@ -611,7 +611,7 @@ if args.stage == 3:
                             ds_norm=ds_ref[lens_bin], offset=offset)
 
     ax_list[1].set_title('Lens magnification')
-    plt.ylim(-5, +50)
+    plt.ylim(-2, +25)
     plt.tight_layout(pad=0.3)
     plt.subplots_adjust(wspace=0)
     savefigs('lens_magnification')

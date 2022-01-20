@@ -64,7 +64,7 @@ for i in range(3):
     source_bin = 3 - i
 
     path = os.path.join(
-        zebu.base_dir, 'stacks', 'region_1', 'precompute',
+        zebu.base_dir, 'stacks', 'precompute',
         'l{}_s{}_gen_zspec_nomag_nofib.hdf5'.format(lens_bin, source_bin))
 
     table_l = Table.read(path, path='lens')
@@ -77,7 +77,7 @@ for i in range(3):
 
     ds_lm = lens_magnification_bias(
         table_l, zebu.alpha_l[lens_bin], camb_results,
-        photo_z_dilution_correction=True)
+        photo_z_correction=True)
 
     plt.plot(rp, rp * ds_lm, label=r'${:.1f} \leq z_s < {:.1f}$'.format(
         zebu.source_z_bins['gen'][source_bin],

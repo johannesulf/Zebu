@@ -5,7 +5,10 @@ from make_mocks import read_buzzard_catalog, is_BGS, is_LRG
 
 # %%
 
-pixel_list = [5, 6, 7, 9, 10, 11, 12, 13, 14, 15]
+pixel_list = [5, 6, 7, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
+              23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 35, 36, 37, 38, 39,
+              48, 49, 50, 51, 52, 53, 54, 55, 69, 70, 71, 73, 74, 75, 76, 77,
+              78]
 
 # %%
 
@@ -27,6 +30,7 @@ for i, pixel in enumerate(tqdm(pixel_list)):
 
         use = table_mag['z_true'] > z_bins[j]
         use &= table_mag['z_true'] < z_bins[j + 1]
+        use &= np.abs(table_mag['mu'] - 1) < 0.1
 
         if j < 2:
             target_mag = is_BGS(table_mag)
@@ -42,4 +46,4 @@ for i, pixel in enumerate(tqdm(pixel_list)):
 
 # %%
 
-table_m.write('magnification.hdf5', overwrite=True)
+table_m.write('magnification.hdf5', overwrite=True, path='data')
