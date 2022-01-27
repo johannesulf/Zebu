@@ -1,7 +1,6 @@
 import zebu
 import healpy
 import numpy as np
-from astropy.table import vstack
 from dsigma.precompute import photo_z_dilution_factor
 from dsigma.precompute import add_maximum_lens_redshift
 import matplotlib.pyplot as plt
@@ -12,8 +11,7 @@ from scipy.interpolate import interp1d
 for survey, color in zip(['DES', 'HSC', 'KiDS'],
                          ['red', 'royalblue', 'purple']):
 
-    table_c = vstack([zebu.read_mock_data('calibration', i, survey=survey)
-                      for i in range(4 if survey != 'KiDS' else 5)])[::3]
+    table_c = zebu.read_mock_data('calibration', 'all', survey=survey)
 
     table_c_plus = table_c.copy()
     table_c_minus = table_c.copy()
@@ -30,6 +28,9 @@ for survey, color in zip(['DES', 'HSC', 'KiDS'],
             add_maximum_lens_redshift(table_c, dz_min=dz_min)
             add_maximum_lens_redshift(table_c_plus, dz_min=dz_min)
             add_maximum_lens_redshift(table_c_minus, dz_min=dz_min)
+
+            if z_l > np.amax(table_c['z_l_max']):
+                continue
 
             f_bias = photo_z_dilution_factor(z_l, table_c, zebu.cosmo)
             f_bias_plus = photo_z_dilution_factor(z_l, table_c_plus,
@@ -55,8 +56,8 @@ for offset, survey, color in zip([0, 1, 2], ['DES', 'HSC', 'KiDS'],
              color=color)
 
 plt.title(r'Requirement for $1\%$ Calibration')
-plt.xlabel(r'Lens-Source Separation $\Delta z_{\rm min}$')
-plt.ylabel(r'Lens Redshift $z_l$')
+plt.xlabel(r'Lens-source separation $\Delta z_{\rm min}$')
+plt.ylabel(r'Lens sedshift $z_l$')
 plt.tight_layout(pad=0.3)
 plt.savefig('mean_redshift_requirement.pdf')
 plt.savefig('mean_redshift_requirement.png', dpi=300)
@@ -64,73 +65,62 @@ plt.close()
 
 # %%
 
-nside = 59
+nside = 42
 print('Area: {:.2f} sq. deg'.format(
     healpy.pixelfunc.nside2pixarea(nside, degrees=True)))
 
-for survey, color in zip(['DES', 'HSC', 'KiDS'],
-                         ['red', 'royalblue', 'purple']):
-    table_s = vstack([zebu.read_mock_data('source', i, survey=survey)
-                      for i in range(4 if survey != 'KiDS' else 5)])
-    table_s['pix'] = healpy.ang2pix(nside, table_s['ra'], table_s['dec'],
-                                    lonlat=True)
+for dz_min in [0.0, 0.2, 0.4]:
+    for survey, color in zip(['DES', 'HSC', 'KiDS'],
+                             ['red', 'royalblue', 'purple']):
+        table_s = zebu.read_mock_data('source', 'all', survey=survey)
+        table_s['w_sys'] = 1.0
+        add_maximum_lens_redshift(table_s, dz_min=dz_min)
+        table_s['pix'] = healpy.ang2pix(nside, table_s['ra'], table_s['dec'],
+                                        lonlat=True)
 
-    # remove incomplete pixels close to the mock edge
-    all_pixs = np.unique(table_s['pix'])
-    use_pixs = np.zeros(0, dtype=int)
+        # remove incomplete pixels close to the mock edge
+        all_pixs = np.unique(table_s['pix'])
+        use_pixs = np.zeros(0, dtype=int)
 
-    for pix in all_pixs:
-        near_pixs = healpy.pixelfunc.get_all_neighbours(nside, pix)
-        if np.all(np.isin(near_pixs, all_pixs)):
-            use_pixs = np.append(use_pixs, pix)
+        for pix in all_pixs:
+            near_pixs = healpy.pixelfunc.get_all_neighbours(nside, pix)
+            if np.all(np.isin(near_pixs, all_pixs)):
+                use_pixs = np.append(use_pixs, pix)
 
-    table_s = table_s[np.isin(table_s['pix'], use_pixs)]
+        table_s = table_s[np.isin(table_s['pix'], use_pixs)]
 
-    # reweight pencil beams such that they reproduce photo-z distribution
-    table_s['z_dig'] = np.digitize(
-        table_s['z'], np.linspace(np.amin(zebu.source_z_bins[survey.lower()]),
-                                  np.amax(zebu.source_z_bins[survey.lower()]),
-                                  31)) - 1
-    table_s['w_sys'] = 1.0
+        z_l_all = np.linspace(0.1, 0.9, 9)
+        f_bias_acc = np.zeros(len(z_l_all))
 
-    for pix in np.unique(table_s['pix']):
-        use = table_s['pix'] == pix
-        table_s['w_sys'][use] = (
-            np.bincount(table_s['z_dig'], minlength=30) / float(len(use)) /
-            np.bincount(table_s['z_dig'][use], minlength=30) *
-            float(np.sum(use)))[table_s['z_dig'][use]]
+        for i, z_l in enumerate(z_l_all):
 
-    z_l_all = np.linspace(0.3, 0.7, 3)
-    dz_min_all = np.linspace(0.0, 0.4, 10)
-    f_bias_acc = np.zeros((len(z_l_all), len(dz_min_all)))
-
-    for i, z_l in enumerate(z_l_all):
-        print(z_l)
-        for k, dz_min in enumerate(dz_min_all):
-
-            add_maximum_lens_redshift(table_s, dz_min=dz_min)
+            if z_l > np.amax(table_s['z_l_max']):
+                continue
 
             f_bias_all = photo_z_dilution_factor(z_l, table_s, zebu.cosmo)
             f_bias = []
 
-            for pix in np.unique(table_s['pix'])[:50]:
+            for pix in np.unique(table_s['pix'])[:30]:
                 use = (table_s['pix'] == pix) & (table_s['z_l_max'] > z_l)
                 f_bias.append(photo_z_dilution_factor(z_l, table_s[use],
                                                       zebu.cosmo))
 
-            f_bias_acc[i, k] = np.std(f_bias) / f_bias_all
+            f_bias_acc[i] = np.std(f_bias) / f_bias_all
 
-    for i, ls in enumerate(['-', '--', ':']):
-        f_bias_acc_interp = interp1d(dz_min_all, f_bias_acc[i], kind='cubic')
-        dz_min_plot = np.linspace(0.0, 0.4, 100)
-        plt.plot(dz_min_plot, f_bias_acc_interp(dz_min_plot), ls=ls,
-                 label=r'$z_l = {:.1f}$'.format(z_l_all[i]) if survey == 'DES'
-                 else None, color=color)
+        use = f_bias_acc > 0
+        f_bias_acc_interp = interp1d(z_l_all[use], f_bias_acc[use],
+                                     kind='cubic', bounds_error=False)
+        z_l_plot = np.linspace(np.amin(z_l_all), np.amax(z_l_all), 100)
+        plt.plot(z_l_plot, f_bias_acc_interp(z_l_plot), label=survey,
+                 color=color)
 
-plt.legend(loc='best')
-plt.xlabel(r'Lens-Source Separation $\Delta z_{\rm min}$')
-plt.ylabel(r'Calibration Accuracy $\sigma_{f_{\rm bias}} / f_{\rm bias}$')
-plt.tight_layout(pad=0.3)
-plt.xlim(0.0, 0.4)
-plt.savefig('f_bias_accuracy_1sqdeg.pdf')
-plt.savefig('f_bias_accuracy_1sqdeg.png', dpi=300)
+    plt.legend(loc='best')
+    plt.xlabel(r'Lens redshift $z_l$')
+    plt.ylabel(r'Calibration precision $\sigma_{f_{\rm bias}} / f_{\rm bias}$')
+    plt.tight_layout(pad=0.3)
+    plt.xlim(np.amin(z_l_all), np.amax(z_l_all))
+    plt.savefig('f_bias_accuracy_2sqdeg_dzmin{}.pdf'.format(
+        str(dz_min).replace('.', 'p')))
+    plt.savefig('f_bias_accuracy_2sqdeg_dzmin{}.png'.format(
+        str(dz_min).replace('.', 'p')), dpi=300)
+    plt.close()

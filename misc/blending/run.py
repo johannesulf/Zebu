@@ -1,74 +1,74 @@
 import os
 import zebu
 import numpy as np
-import multiprocessing
-from astropy import units as u
 from astropy.table import Table
+import matplotlib as mpl
 import matplotlib.pyplot as plt
-
-from Corrfunc.mocks.DDtheta_mocks import DDtheta_mocks
-from Corrfunc.utils import convert_3d_counts_to_cf
-
-# %%
-
-theta_bins = np.logspace(np.log10(1), np.log10(100), 21) * u.arcmin
-
-
-def angular_correlation_function(table_1, table_2, table_r, theta_bins):
-
-    n_1 = len(table_1)
-    n_2 = len(table_2)
-    n_r = len(table_r)
-
-    n = multiprocessing.cpu_count()
-
-    d1d2 = DDtheta_mocks(
-        False, n, theta_bins, table_1['ra'], table_1['dec'], RA2=table_2['ra'],
-        DEC2=table_2['dec'])['npairs']
-    d1r = DDtheta_mocks(
-        False, n, theta_bins, table_1['ra'], table_1['dec'], RA2=table_r['ra'],
-        DEC2=table_r['dec'])['npairs']
-    d2r = DDtheta_mocks(
-        False, n, theta_bins, table_2['ra'], table_2['dec'], RA2=table_r['ra'],
-        DEC2=table_r['dec'])['npairs']
-    rr = DDtheta_mocks(
-        True, 4, theta_bins, table_r['ra'], table_r['dec'])['npairs']
-
-    return convert_3d_counts_to_cf(n_1, n_2, n_r, n_r, d1d2, d1r, d2r, rr)
+from dsigma.precompute import add_precompute_results
+from dsigma.physics import critical_surface_density
 
 # %%
 
 w = []
 table_s = Table.read(os.path.join(
-    zebu.base_dir, 'mocks', 'region_1', 'ra_dec_sample.hdf5'))
-z_l = 0.5 * (zebu.lens_z_bins[1:] + zebu.lens_z_bins[:-1])
+    zebu.base_dir, 'mocks', 'mocks', 'i_band_sample.hdf5'))
+table_s['z'] = 10.0
+table_s['z_l_max'] = 10.0
+table_s['e_1'] = 0.0
+table_s['e_2'] = 0.0
+table_s = table_s[table_s['w'] < 100]
 
-# %%
+for key in table_s.colnames:
+    table_s[key] = table_s[key].astype(float)
 
-for i in range(4):
-    theta_bins = np.rad2deg(
-        zebu.rp_bins / zebu.cosmo.comoving_distance(z_l[i]).value)
+w = []
+
+for i in range(len(zebu.lens_z_bins) - 1):
     table_l = zebu.read_mock_data('lens', i)
     table_r = zebu.read_mock_data('random', i)
     if i == 0:
         table_l = table_l[::10]
         table_r = table_r[::10]
-    w.append(angular_correlation_function(
-        table_s, table_l, table_r, theta_bins))
+    if i < 2:
+        table_s_use = table_s[::10]
+    else:
+        table_s_use = table_s
+    table_l['w_sys'] = critical_surface_density(
+        table_l['z'], 10.0, cosmology=zebu.cosmo)**2
+    table_r['w_sys'] = critical_surface_density(
+        table_r['z'], 10.0, cosmology=zebu.cosmo)**2
+    add_precompute_results(
+        table_l, table_s_use, zebu.rp_bins, cosmology=zebu.cosmo,
+        progress_bar=True)
+    add_precompute_results(
+        table_r, table_s_use, zebu.rp_bins, cosmology=zebu.cosmo,
+        progress_bar=True)
+    w.append(np.mean(table_l['sum w_ls'].data *
+                     table_l['w_sys'].data[:, None], axis=0) /
+             np.mean(table_r['sum w_ls'].data *
+                     table_r['w_sys'].data[:, None], axis=0) - 1)
 
 # %%
 
 rp = np.sqrt(zebu.rp_bins[1:] * zebu.rp_bins[:-1])
+z_bins = zebu.lens_z_bins
+color_list = plt.get_cmap('plasma')(np.linspace(0.0, 0.8, len(z_bins) - 1))
+cmap = mpl.colors.ListedColormap(color_list)
+sm = plt.cm.ScalarMappable(cmap=cmap)
+sm._A = []
+cb = plt.colorbar(sm, pad=0.0, ticks=np.linspace(0, 1, len(z_bins)))
+cb.ax.set_yticklabels(['{:g}'.format(z) for z in z_bins])
+cb.ax.minorticks_off()
+cb.set_label(r'Lens redshift $z_l$')
 
-for i in range(4):
-    plt.plot(rp, w[i], label='lens bin {}'.format(i + 1))
+for i, color in enumerate(color_list):
+    plt.plot(rp, w[i], color=color)
 
 plt.xscale('log')
-plt.xlabel(r'Projected Radius $r_p \, [h^{-1} \, \mathrm{Mpc}]$')
-plt.ylabel(r'Angular Clustering $w$')
-plt.legend(loc='upper right', frameon=False)
+plt.xlabel(r'Projected radius $r_p \, [h^{-1} \, \mathrm{Mpc}]$')
+plt.ylabel(r'Angular clustering $w_i$')
 plt.xscale('log')
-plt.tight_layout(pad=0.3)
+plt.tight_layout(pad=0.8)
 plt.savefig('clustering.pdf')
 plt.savefig('clustering.png', dpi=300)
 plt.close()
