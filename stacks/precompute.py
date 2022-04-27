@@ -87,7 +87,7 @@ for survey in survey_list:
             add_maximum_lens_redshift(table, dz_min=0.2)
 
         z_lens = np.linspace(zebu.lens_z_bins[lens_bin] - 1e-6,
-                             zebu.lens_z_bins[lens_bin + 1] + 1e-6, 1000)
+                             zebu.lens_z_bins[lens_bin + 1] + 1e-6, 30)
 
         weight = np.zeros_like(z_lens)
 
@@ -99,7 +99,7 @@ for survey in survey_list:
                 (z_lens[i] < table_c['z_l_max']))
 
         weight = weight / np.amax(weight)
-        w_sys = interp1d(z_lens, 1.0 / weight)
+        w_sys = interp1d(z_lens, 1.0 / weight, kind='cubic')
 
         table_l = zebu.read_mock_data(
             'lens', lens_bin, magnification=lens_magnification,
