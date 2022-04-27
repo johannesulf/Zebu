@@ -9,16 +9,17 @@ from scipy.spatial import cKDTree
 from scipy.interpolate import splev, splrep
 from astropy.table import Table, vstack
 
-z_source_bins = {
+Z_SOURCE_BINS = {
     'generic': [0.5, 0.7, 0.9, 1.1, 1.5],
     'des': [0.2, 0.43, 0.63, 0.9, 1.3],
     'hsc': [0.3, 0.6, 0.9, 1.2, 1.5],
     'kids': [0.1, 0.3, 0.5, 0.7, 0.9, 1.2]}
+SUBSAMPLES = 'abcdefghij'
 
 
 def main(args):
 
-    output = 'mocks'
+    output = 'mocks_' + args.subsample
 
     if not os.path.isdir(output):
         os.makedirs(output)
@@ -73,7 +74,7 @@ def main(args):
     nside = 8
     pixel = np.arange(hp.nside2npix(nside))
     ra_pixel, dec_pixel = hp.pix2ang(nside, pixel, nest=True, lonlat=True)
-    pixel_use = pixel[ra_dec_in_mock(ra_pixel, dec_pixel)]
+    pixel_use = pixel[ra_dec_in_mock(ra_pixel, dec_pixel, args.subsample)]
 
     table_b = Table()
     for pixel in tqdm(pixel_use):
@@ -119,7 +120,7 @@ def main(args):
                 continue
 
             print('Reading random catalog for {}...'.format(sample.upper()))
-            table_r = read_random_catalog(sample)
+            table_r = read_random_catalog(sample, args.subsample)
             print('Writing random catalog for {}...'.format(sample.upper()))
             for key in table_r.colnames:
                 table_r[key] = table_r[key].astype(np.float32)
@@ -163,7 +164,7 @@ def main(args):
         else:
             for survey in ['des', 'hsc', 'kids']:
 
-                z_bins = z_source_bins[survey]
+                z_bins = Z_SOURCE_BINS[survey]
 
                 print('Making {}-like source catalog...'.format(survey))
 
@@ -295,7 +296,7 @@ def read_buzzard_catalog(pixel, mag_lensed=False, coord_lensed=True):
     return table
 
 
-def read_random_catalog(sample):
+def read_random_catalog(sample, subsample):
 
     path = os.path.join('/', 'project', 'projectdirs', 'desi', 'mocks',
                         'buzzard', 'buzzard_v2.0', 'buzzard-4',
@@ -306,7 +307,7 @@ def read_random_catalog(sample):
                               columns=['ra', 'dec', 'redshift']))
 
     table.rename_column('redshift', 'z')
-    table = table[ra_dec_in_mock(table['ra'], table['dec'])]
+    table = table[ra_dec_in_mock(table['ra'], table['dec'], subsample)]
 
     table.meta = {}
 
@@ -316,7 +317,7 @@ def read_random_catalog(sample):
     return table
 
 
-def ra_dec_in_mock(ra, dec):
+def ra_dec_in_mock(ra, dec, subsample=None):
 
     nside = 8
     pix = hp.ang2pix(nside, np.array(ra), np.array(dec), nest=True,
@@ -329,6 +330,9 @@ def ra_dec_in_mock(ra, dec):
                102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114,
                115, 120, 121, 122, 123, 373, 374, 375, 377, 378, 379, 380, 381,
                382, 383]
+    if subsample is not None:
+        pix_use = np.array_split(pix_use, len(SUBSAMPLES))[
+            SUBSAMPLES.find(subsample)]
 
     return np.isin(pix, pix_use)
 
@@ -363,7 +367,7 @@ def subsample_source_catalog(table_s, table_s_ref=None, survey=None):
         else:
             band = 'r'
 
-        z_bins = z_source_bins[survey]
+        z_bins = Z_SOURCE_BINS[survey]
 
         mag_bins = np.linspace(18.0, 26.0, 81)
         mag_dig = np.digitize(
@@ -426,7 +430,7 @@ def apply_observed_shear(table_s, table_s_ref=None, survey=None):
         if survey.lower() == 'kids':
             m = np.array([-0.017, -0.008, -0.015, 0.010, 0.006])
             z_dig = np.digitize(
-                table_s['z'], z_source_bins[survey.lower()]) - 1
+                table_s['z'], Z_SOURCE_BINS[survey.lower()]) - 1
             table_s['m'] = m[z_dig]
 
         if survey.lower() in ['hsc', 'kids']:
@@ -515,7 +519,7 @@ def read_real_source_catalog(survey):
     if survey.lower() in ['kids', 'hsc']:
         fname = '{}_mag.fits'.format(survey.lower())
     elif survey.lower() == 'des':
-        fname = 'des_metacal_mag.fits'
+        fname = 'desy1_metacal_mag.fits'
     else:
         raise RuntimeError('Unkown survey {}.'.format(survey))
 
@@ -589,7 +593,7 @@ def read_real_calibration_catalog(survey):
     if survey.lower() in ['kids', 'hsc']:
         fname = '{}_cal.fits'.format(survey.lower())
     elif survey.lower() == 'des':
-        fname = 'des_metacal_cal.fits'
+        fname = 'desy1_metacal_cal.fits'
     else:
         raise RuntimeError('Unkown survey {}.'.format(survey))
 
@@ -688,6 +692,8 @@ def is_LRG(table):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='build mock challenge')
     parser.add_argument('stage', help='stage of the survey', type=int)
+    parser.add_argument('subsample', help='which subsample',
+                        choices=SUBSAMPLES)
     parser.add_argument('--overwrite', help='overwrite existing data',
                         action='store_true')
     args = parser.parse_args()

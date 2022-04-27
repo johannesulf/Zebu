@@ -1,6 +1,7 @@
 import os
 import camb
 import numpy as np
+import healpy as hp
 from astropy.table import Table, vstack
 from astropy.cosmology import FlatLambdaCDM
 from scipy.spatial import cKDTree
@@ -20,15 +21,18 @@ source_z_bins = {
 
 alpha_l = [0.818, 1.658, 2.568, 1.922]
 
+MAP_IA = None
+RED_IA = None
+
 
 def stacking_kwargs(survey):
 
     if survey.lower() == 'gen':
         return {'photo_z_dilution_correction': True,
-                'boost_correction': True, 'random_subtraction': True}
+                'boost_correction': False, 'random_subtraction': False}
     elif survey.lower() in ['des', 'hsc', 'kids']:
         return {'photo_z_dilution_correction': True,
-                'boost_correction': False, 'random_subtraction': True,
+                'boost_correction': False, 'random_subtraction': False,
                 'scalar_shear_response_correction': survey.lower() != 'des',
                 'matrix_shear_response_correction': survey.lower() == 'des',
                 'shear_responsivity_correction': survey.lower() == 'hsc'}
@@ -37,20 +41,22 @@ def stacking_kwargs(survey):
 
 
 def read_mock_data(catalog_type, z_bin, survey='gen', magnification=False,
-                   fiber_assignment=False, unlensed_coordinates=False):
+                   fiber_assignment=False, unlensed_coordinates=False,
+                   intrinsic_alignment=False):
 
     if z_bin == 'all':
         return vstack([read_mock_data(
             catalog_type, source_bin, survey=survey,
             magnification=magnification, fiber_assignment=fiber_assignment,
-            unlensed_coordinates=unlensed_coordinates)
+            unlensed_coordinates=unlensed_coordinates,
+            intrinsic_alignment=intrinsic_alignment)
                        for source_bin in range(5 if survey.lower() == 'kids'
                                                else 4)])
 
     if catalog_type not in ['source', 'lens', 'calibration', 'random']:
         raise RuntimeError('Unkown catalog type: {}.'.format(catalog_type))
 
-    path = os.path.join(base_dir, 'mocks', 'mocks')
+    path = os.path.join(base_dir, 'mocks', 'mocks_a')
 
     if catalog_type in ['source', 'calibration']:
         fname = '{}{}'.format(catalog_type[0], z_bin)
@@ -95,6 +101,23 @@ def read_mock_data(catalog_type, z_bin, survey='gen', magnification=False,
     if unlensed_coordinates:
         table['ra'] = table['ra_true']
         table['dec'] = table['dec_true']
+
+    if catalog_type == 'source' and intrinsic_alignment:
+        global MAP_IA
+        global RED_IA
+        if MAP_IA is None:
+            MAP_IA = Table.read(os.path.join(path, 'ia.hdf5'), path='ia')
+            RED_IA = Table.read(os.path.join(path, 'ia.hdf5'), path='z')
+        for i in range(len(RED_IA)):
+            select = ((table['z'] >= RED_IA['z_min'][i]) &
+                      (table['z'] < RED_IA['z_max'][i]))
+            pix = hp.ang2pix(2048, table['ra'][select], table['dec'][select],
+                             lonlat=True)
+            row = np.searchsorted(MAP_IA['pix'], pix)
+            table['e_1'][select] += MAP_IA['e_1'][:, i][row]
+            table['e_2'][select] -= MAP_IA['e_2'][:, i][row]
+            table['g_1'][select] += MAP_IA['e_1'][:, i][row]
+            table['g_2'][select] -= MAP_IA['e_2'][:, i][row]
 
     return table
 
