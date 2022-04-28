@@ -74,7 +74,9 @@ def read_mock_data(catalog_type, z_bin, survey='gen', magnification=False,
 
     fname = fname + '.hdf5'
 
-    table = Table.read(os.path.join(path, fname))
+    table = vstack([Table.read(os.path.join(
+        base_dir, 'mocks', 'mocks_' + subsample, fname)) for subsample
+        in 'abcdefghij'], metadata_conflicts='silent')
 
     if catalog_type == 'calibration':
         if survey.lower() == 'des':

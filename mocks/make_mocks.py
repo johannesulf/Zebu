@@ -26,10 +26,12 @@ def main(args):
 
     if args.stage == 4:
 
-        for sample in ['bgs', 'lrg']:
+        for target in ['bgs', 'lrg']:
 
-            table_l = Table.read(os.path.join(
-                    output, '{}_nofib.hdf5'.format(sample)))
+            output = 'bright' if target == 'bgs' else 'dark'
+            table_l = vstack([Table.read(os.path.join(
+                    'mocks_' + subsample,  '{}_nofib.hdf5'.format(target))) for
+                    subsample in SUBSAMPLES])
 
             table_l.rename_column('ra', 'RA')
             table_l.rename_column('dec', 'DEC')
@@ -43,12 +45,12 @@ def main(args):
             table_l['OBSCONDITIONS'] = 15
             table_l['SUBPRIORITY'] = np.random.random(len(table_l))
             table_l['TARGETID'] = np.arange(len(table_l))
-            fname = os.path.join(output, 'targets_{}.fits'.format(sample))
-            if not os.path.exists(fname) or args.overwrite:
-                table_l.write(fname, overwrite=True)
+            fpath = os.path.join(output, 'targets.fits')
+            if not os.path.exists(fpath) or args.overwrite:
+                table_l.write(fpath, overwrite=True)
 
-            fname = os.path.join(output, 'targeted_{}.fits'.format(sample))
-            if os.path.exists(fname):
+            fpath = os.path.join(output, 'targeted_{}.fits'.format(target))
+            if os.path.exists(fpath):
                 table_t = Table.read(fname)
                 assert np.all(np.diff(table_t['TARGETID']) >= 0)
                 bitweight = table_t['BITWEIGHT0']
@@ -65,8 +67,13 @@ def main(args):
                     output, '{}_nofib.hdf5'.format(sample)))
                 table_l = table_l[obs]
                 table_l['w_sys'] = 64.0 / n_obs[obs]
-                table_l.write(os.path.join(output, '{}.hdf5'.format(sample)),
-                              overwrite=args.overwrite)
+                for subsample in SUBSAMPLES:
+                    output = 'mocks_' + subsample
+                    table_l_sub = table_l[ra_dec_in_mock(
+                        table_l['ra'], table_l['dec'], subsample)]
+                    table_l_sub.write(
+                        os.path.join(output, '{}.hdf5'.format(sample)),
+                        overwrite=args.overwrite)
 
         sys.exit()
 
