@@ -103,7 +103,7 @@ for survey in survey_list:
 
         table_l = zebu.read_mock_data(
             'lens', lens_bin, magnification=lens_magnification,
-            fiber_assignment=fiber_assignment)[::10]
+            fiber_assignment=fiber_assignment)
         if args.stage >= 4 and args.noiip:
             table_l['w_sys'] = 1.0
         table_l['w_sys'] *= w_sys(table_l['z'])
