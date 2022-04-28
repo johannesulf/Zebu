@@ -133,7 +133,7 @@ for survey in survey_list:
         fname = fname + '.hdf5'
 
         kwargs = {'cosmology': zebu.cosmo, 'table_c': table_c,
-                  'n_jobs': multiprocessing.cpu_count(), 'progress_bar': True}
+                  'n_jobs': multiprocessing.cpu_count(), 'progress_bar': False}
 
         add_precompute_results(table_l, table_s, zebu.rp_bins, **kwargs)
         table_l = compress_jackknife_fields(table_l)
