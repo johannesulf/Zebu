@@ -146,7 +146,7 @@ for survey in survey_list:
         table_l = compress_jackknife_fields(table_l)
 
         table_l.write(os.path.join(directory, fname),
-                      path='lens' if not args.overwrite else 'random',
+                      path='lens' if not args.random else 'random',
                       overwrite=True, append=True)
 
 print('Finished successfully!')
