@@ -27,6 +27,8 @@ parser.add_argument('--runit', action='store_true',
                     help='use shapes w/o response bias, i.e. unit response')
 parser.add_argument('--noiip', action='store_true',
                     help='ignore IIP systematic weights (for stage >= 4)')
+parser.add_argument('--random', action='store_true',
+                    help='whether to calculate randoms instead of lenses')
 args = parser.parse_args()
 
 # %%
@@ -101,9 +103,14 @@ for survey in survey_list:
         weight = weight / np.amax(weight)
         w_sys = interp1d(z_lens, 1.0 / weight, kind='cubic')
 
-        table_l = zebu.read_mock_data(
-            'lens', lens_bin, magnification=lens_magnification,
-            fiber_assignment=fiber_assignment)
+        if not args.random:
+            table_l = zebu.read_mock_data(
+                'lens', lens_bin, magnification=lens_magnification,
+                fiber_assignment=fiber_assignment)
+        else:
+            table_l = zebu.read_mock_data(
+                'random', lens_bin, magnification=lens_magnification,
+                fiber_assignment=fiber_assignment)[::10]
         if args.stage >= 4 and args.noiip:
             table_l['w_sys'] = 1.0
         table_l['w_sys'] *= w_sys(table_l['z'])
@@ -138,7 +145,8 @@ for survey in survey_list:
         add_precompute_results(table_l, table_s, zebu.rp_bins, **kwargs)
         table_l = compress_jackknife_fields(table_l)
 
-        table_l.write(os.path.join(directory, fname), path='lens',
-                      overwrite=True)
+        table_l.write(os.path.join(directory, fname),
+                      path='lens' if not args.overwrite else 'random',
+                      overwrite=True, append=True)
 
 print('Finished successfully!')
