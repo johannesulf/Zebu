@@ -49,9 +49,9 @@ def main(args):
             if not os.path.exists(fpath) or args.overwrite:
                 table_l.write(fpath, overwrite=True)
 
-            fpath = os.path.join(output, 'targeted_{}.fits'.format(target))
+            fpath = os.path.join(output, 'targeted.fits'.format(target))
             if os.path.exists(fpath):
-                table_t = Table.read(fname)
+                table_t = Table.read(fpath)
                 assert np.all(np.diff(table_t['TARGETID']) >= 0)
                 bitweight = table_t['BITWEIGHT0']
                 n_obs = np.zeros(len(table_t), dtype=int)
@@ -63,8 +63,9 @@ def main(args):
                         obs = n_obs == 1
                     bitweight = bitweight // 2
 
-                table_l = Table.read(os.path.join(
-                    output, '{}_nofib.hdf5'.format(sample)))
+                table_l = vstack([Table.read(os.path.join(
+                    'mocks_' + subsample,  '{}_nofib.hdf5'.format(target))) for
+                    subsample in SUBSAMPLES])
                 table_l = table_l[obs]
                 table_l['w_sys'] = 64.0 / n_obs[obs]
                 for subsample in SUBSAMPLES:
@@ -72,8 +73,8 @@ def main(args):
                     table_l_sub = table_l[ra_dec_in_mock(
                         table_l['ra'], table_l['dec'], subsample)]
                     table_l_sub.write(
-                        os.path.join(output, '{}.hdf5'.format(sample)),
-                        overwrite=args.overwrite)
+                        os.path.join(output, '{}.hdf5'.format(target)),
+                        overwrite=args.overwrite, path='catalog')
 
         sys.exit()
 
