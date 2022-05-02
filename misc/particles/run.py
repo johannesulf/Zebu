@@ -226,19 +226,22 @@ plt.savefig('shear_ptcl_diff.png', dpi=300)
 
 # %%
 
-lens_bin = 2
-fname = 'ds_diff_cov_{}.csv'.format(lens_bin)
-ds_diff_cov = np.genfromtxt(fname, delimiter=',')
+print('Mean difference on large scales...')
 
+for lens_bin in range(4):
 
-def get_mean(y, cov):
-    pre = np.linalg.inv(cov)
-    w = np.sum(pre, axis=-1)
-    return np.average(y, weights=w), np.sqrt(1.0 / np.sum(pre))
+    fname = 'ds_diff_cov_{}.csv'.format(lens_bin)
+    ds_diff_cov = np.genfromtxt(fname, delimiter=',')
 
+    def get_mean(y, cov):
+        pre = np.linalg.inv(cov)
+        w = np.sum(pre, axis=-1)
+        return np.average(y, weights=w), np.sqrt(1.0 / np.sum(pre))
 
-ds = results['ds_{}'.format(lens_bin)]
-ds_diff = results['ds_diff_{}'.format(lens_bin)] / ds
-ds_diff_cov = ds_diff_cov / np.outer(ds, ds)
+    ds = results['ds_{}'.format(lens_bin)]
+    ds_diff = results['ds_diff_{}'.format(lens_bin)] / ds
+    ds_diff_cov = ds_diff_cov / np.outer(ds, ds)
+    diff_mean, diff_mean_err = get_mean(ds_diff[-10:], ds_diff_cov[-10:, -10:])
 
-print(get_mean(ds_diff[-10:], ds_diff_cov[-10:, -10:]))
+    print('Lens bin {}: {:.1f}% +/- {:.1f}%'.format(
+        lens_bin, 100 * diff_mean, 100 * diff_mean_err))

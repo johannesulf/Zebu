@@ -461,3 +461,33 @@ if args.stage == 4:
     plt.subplots_adjust(wspace=0)
     savefigs('fiber_collisions_residual')
     plt.close()
+
+# %%
+
+if args.stage == 5:
+
+    fig, axarr = initialize_plot('Bias')
+
+    for survey, ax in zip(survey_list, axarr):
+        for lens_bin, color in enumerate(color_list):
+
+            table_l_ia = read_precompute(
+                survey, lens_bin, zspec=False,
+                lens_magnification=lens_magnification,
+                source_magnification=source_magnification,
+                fiber_assignment=fiber_assignment, intrinsic_alignment=True)
+            table_l_noia = read_precompute(
+                survey, lens_bin, zspec=False,
+                lens_magnification=lens_magnification,
+                source_magnification=source_magnification,
+                fiber_assignment=fiber_assignment)
+
+            plot_difference(ax, color, table_l_ia, table_l_noia, survey,
+                            ds_norm=ds_ref[lens_bin], offset=lens_bin)
+
+    axarr[1].set_title('Intrinsic alignment')
+    plt.ylim(-1, +1)
+    plt.tight_layout(pad=0.3)
+    plt.subplots_adjust(wspace=0)
+    savefigs('intrinsic_alignment')
+    plt.close()
