@@ -43,6 +43,7 @@ if not os.path.exists(directory):
 source_magnification = args.stage >= 2
 lens_magnification = args.stage >= 3
 fiber_assignment = args.stage >= 4
+intrinsic_alignment = args.stage >= 5
 
 if args.stage == 0:
     survey_list = ['gen']
@@ -59,7 +60,8 @@ for survey in survey_list:
             magnification=source_magnification)
         table_s = zebu.read_mock_data(
             'source', 'all', survey=survey,
-            magnification=source_magnification)
+            magnification=source_magnification,
+            intrinsic_alignment=intrinsic_alignment)
 
         if not args.noisy:
             table_s['e_1'] = table_s['g_1']

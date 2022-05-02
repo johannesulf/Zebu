@@ -56,8 +56,6 @@ def read_mock_data(catalog_type, z_bin, survey='gen', magnification=False,
     if catalog_type not in ['source', 'lens', 'calibration', 'random']:
         raise RuntimeError('Unkown catalog type: {}.'.format(catalog_type))
 
-    path = os.path.join(base_dir, 'mocks', 'mocks_a')
-
     if catalog_type in ['source', 'calibration']:
         fname = '{}{}'.format(catalog_type[0], z_bin)
         fname = fname + '_{}'.format(survey.lower())
@@ -107,14 +105,16 @@ def read_mock_data(catalog_type, z_bin, survey='gen', magnification=False,
     if catalog_type == 'source' and intrinsic_alignment:
         global MAP_IA
         global RED_IA
+        path = os.path.join(base_dir, 'mocks')
         if MAP_IA is None:
             MAP_IA = Table.read(os.path.join(path, 'ia.hdf5'), path='ia')
             RED_IA = Table.read(os.path.join(path, 'ia.hdf5'), path='z')
         for i in range(len(RED_IA)):
             select = ((table['z'] >= RED_IA['z_min'][i]) &
                       (table['z'] < RED_IA['z_max'][i]))
-            pix = hp.ang2pix(2048, table['ra'][select], table['dec'][select],
-                             lonlat=True)
+            pix = hp.ang2pix(
+                2048, table['ra_true'][select], table['dec_true'][select],
+                lonlat=True)
             row = np.searchsorted(MAP_IA['pix'], pix)
             table['e_1'][select] += MAP_IA['e_1'][:, i][row]
             table['e_2'][select] -= MAP_IA['e_2'][:, i][row]
