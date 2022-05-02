@@ -8,56 +8,15 @@ import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
 from astropy.table import Table, vstack
 from dsigma.helpers import dsigma_table
+from dsigma.jackknife import compress_jackknife_fields
 from dsigma.precompute import add_precompute_results
 from dsigma.stacking import excess_surface_density
 
 # %%
-"""
-ptcl = vstack([Table.read(os.path.join(
-    'files', 'downsampled_particles.{}.fits'.format(i))) for i in
-    range(64)])
-ra, dec = hp.vec2ang(np.vstack([ptcl['PX'], ptcl['PY'], ptcl['PZ']]).T,
-                     lonlat=True)
-
-ptcl['ra'] = ra
-ptcl['dec'] = dec
-ptcl.keep_columns(['ra', 'dec', 'Z_COS'])
-
-# %%
-
-select = (ptcl['ra'] > 0) & (ptcl['ra'] < 180) & (ptcl['dec'] > 0)
-ptcl = ptcl[select]
-
-# %%
-
-from matplotlib.colors import LogNorm
-
-plt.hist2d(ptcl['ra'], ptcl['dec'], bins=300, norm=LogNorm())
-
-# %%
-
-plt.hist(ptcl['Z_COS'], bins=100)
-print(np.amax(ptcl['Z_COS']))
-
-# %%
-
-from astropy import units as u
-
-cosmo = zebu.cosmo
-
-v = np.pi / 3 * zebu.cosmo.comoving_distance(1.0)**3
-rho_c = cosmo.critical_density(0)
-print((v * rho_c).to(u.Msun) * cosmo.Om0)
-print(len(ptcl) * 7.82e12)
-"""
-# %%
 
 
-def delta_sigma_from_sigma(rp_bins, sigma, z, n):
+def delta_sigma_from_sigma(rp_bins, sigma, w, n):
 
-    z_bins = np.linspace(np.amin(z), np.amax(z), 100)
-    w = interp1d(z_bins, zebu.cosmo.comoving_distance(z_bins).value**-2,
-                 kind='cubic')(z)
     sigma = np.average(sigma, axis=0, weights=w)
     ds = np.zeros_like(sigma)
     w = np.diff(rp_bins**2)
@@ -97,11 +56,19 @@ if args.compute:
     for lens_bin in range(len(zebu.lens_z_bins) - 1):
         table_l = zebu.read_mock_data(
             'lens', lens_bin, unlensed_coordinates=True)
-        table_r = zebu.read_mock_data('random', lens_bin)[::20]
+        table_r = zebu.read_mock_data('random', lens_bin)[::5]
         table_l['field_jk'] = hp.ang2pix(
             8, table_l['ra'], table_l['dec'], nest=True, lonlat=True)
         table_r['field_jk'] = hp.ang2pix(
             8, table_r['ra'], table_r['dec'], nest=True, lonlat=True)
+        z_bins = np.linspace(zebu.lens_z_bins[lens_bin],
+                             zebu.lens_z_bins[lens_bin + 1], 100)
+        table_l['w_sys'] = interp1d(
+            z_bins, zebu.cosmo.comoving_distance(z_bins).value**-2,
+            kind='cubic')(table_l['z'])
+        table_r['w_sys'] = interp1d(
+            z_bins, zebu.cosmo.comoving_distance(z_bins).value**-2,
+            kind='cubic')(table_r['z'])
 
         rp_bins = []
         rp_bins.append([1e-6, zebu.rp_bins[0]])
@@ -113,8 +80,8 @@ if args.compute:
 
         rp_bins = np.concatenate(rp_bins)
 
-        sigma_l = np.zeros((len(table_l), len(rp_bins) - 1))
-        sigma_r = np.zeros((len(table_r), len(rp_bins) - 1))
+        table_l['sigma'] = np.zeros((len(table_l), len(rp_bins) - 1))
+        table_r['sigma'] = np.zeros((len(table_r), len(rp_bins) - 1))
 
         for i in range(10):
             dz = (zebu.lens_z_bins[lens_bin + 1] -
@@ -130,16 +97,19 @@ if args.compute:
             table_l_select = add_precompute_results(
                 table_l[select_l], table_s[select_s], rp_bins,
                 cosmology=zebu.cosmo, progress_bar=True, n_jobs=4)
-            sigma_l[select_l] = (
+            table_l['sigma'][select_l] = (
                 table_l_select['sum 1'] * 7.935e12 * downsample /
                 (np.pi * np.diff(rp_bins**2)))
 
             table_r_select = add_precompute_results(
                 table_r[select_r], table_s[select_s], rp_bins,
-                cosmology=zebu.cosmo, progress_bar=True, n_jobs=2)
-            sigma_r[select_r] = (
+                cosmology=zebu.cosmo, progress_bar=True, n_jobs=4)
+            table_r['sigma'][select_r] = (
                 table_r_select['sum 1'] * 7.935e12 * downsample /
                 (np.pi * np.diff(rp_bins**2)))
+
+        table_l = compress_jackknife_fields(table_l)
+        table_r = compress_jackknife_fields(table_r)
 
         fname = 'l{}'.format(lens_bin) + '_gen_zspec_nomag_nofib.hdf5'
         fpath = os.path.join(zebu.base_dir, 'stacks', 'precompute', fname)
@@ -150,10 +120,10 @@ if args.compute:
         for field_jk in np.unique(table_l['field_jk']):
             select = table_l['field_jk'] != field_jk
             ds_particles = delta_sigma_from_sigma(
-                rp_bins, sigma_l[select], table_l['z'][select], n)
+                rp_bins, table_l['sigma'][select], table_l['w_sys'][select], n)
             select = table_r['field_jk'] != field_jk
             ds_particles -= delta_sigma_from_sigma(
-                rp_bins, sigma_r[select], table_r['z'][select], n)
+                rp_bins, table_r['sigma'][select], table_r['w_sys'][select], n)
             select_l_shear = table_l_shear['field_jk'] != field_jk
             select_r_shear = table_r_shear['field_jk'] != field_jk
             ds_shear = excess_surface_density(
@@ -170,8 +140,10 @@ if args.compute:
 
         ds_diff = np.mean(ds_diff, axis=0)
         rp = np.sqrt(zebu.rp_bins[1:] * zebu.rp_bins[:-1])
-        ds = delta_sigma_from_sigma(rp_bins, sigma_l, table_l['z'], n)
-        ds -= delta_sigma_from_sigma(rp_bins, sigma_r, table_r['z'], n)
+        ds = delta_sigma_from_sigma(
+            rp_bins, table_l['sigma'], table_l['w_sys'], n)
+        ds -= delta_sigma_from_sigma(
+            rp_bins, table_r['sigma'], table_r['w_sys'], n)
 
         fname = 'results.csv'
 
