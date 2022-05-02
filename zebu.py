@@ -114,7 +114,7 @@ def read_mock_data(catalog_type, z_bin, survey='gen', magnification=False,
                       (table['z'] < RED_IA['z_max'][i]))
             pix = hp.ang2pix(
                 2048, table['ra'][select], table['dec'][select],
-                lonlat=True)
+                lonlat=True, nest=True)
             row = np.searchsorted(MAP_IA['pix'], pix)
             table['e_1'][select] += MAP_IA['e_1'][:, i][row]
             table['e_2'][select] -= MAP_IA['e_2'][:, i][row]
