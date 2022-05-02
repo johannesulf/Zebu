@@ -5,15 +5,59 @@ import numpy as np
 import healpy as hp
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+from scipy.interpolate import interp1d
 from astropy.table import Table, vstack
 from dsigma.helpers import dsigma_table
 from dsigma.precompute import add_precompute_results
 from dsigma.stacking import excess_surface_density
 
+# %%
+"""
+ptcl = vstack([Table.read(os.path.join(
+    'files', 'downsampled_particles.{}.fits'.format(i))) for i in
+    range(64)])
+ra, dec = hp.vec2ang(np.vstack([ptcl['PX'], ptcl['PY'], ptcl['PZ']]).T,
+                     lonlat=True)
 
-def delta_sigma_from_sigma(rp_bins, sigma, z):
+ptcl['ra'] = ra
+ptcl['dec'] = dec
+ptcl.keep_columns(['ra', 'dec', 'Z_COS'])
 
-    w = zebu.cosmo.comoving_distance(z).value**-2
+# %%
+
+select = (ptcl['ra'] > 0) & (ptcl['ra'] < 180) & (ptcl['dec'] > 0)
+ptcl = ptcl[select]
+
+# %%
+
+from matplotlib.colors import LogNorm
+
+plt.hist2d(ptcl['ra'], ptcl['dec'], bins=300, norm=LogNorm())
+
+# %%
+
+plt.hist(ptcl['Z_COS'], bins=100)
+print(np.amax(ptcl['Z_COS']))
+
+# %%
+
+from astropy import units as u
+
+cosmo = zebu.cosmo
+
+v = np.pi / 3 * zebu.cosmo.comoving_distance(1.0)**3
+rho_c = cosmo.critical_density(0)
+print((v * rho_c).to(u.Msun) * cosmo.Om0)
+print(len(ptcl) * 7.82e12)
+"""
+# %%
+
+
+def delta_sigma_from_sigma(rp_bins, sigma, z, n):
+
+    z_bins = np.linspace(np.amin(z), np.amax(z), 100)
+    w = interp1d(z_bins, zebu.cosmo.comoving_distance(z_bins).value**-2,
+                 kind='cubic')(z)
     sigma = np.average(sigma, axis=0, weights=w)
     ds = np.zeros_like(sigma)
     w = np.diff(rp_bins**2)
@@ -53,6 +97,11 @@ if args.compute:
     for lens_bin in range(len(zebu.lens_z_bins) - 1):
         table_l = zebu.read_mock_data(
             'lens', lens_bin, unlensed_coordinates=True)
+        table_r = zebu.read_mock_data('random', lens_bin)[::20]
+        table_l['field_jk'] = hp.ang2pix(
+            8, table_l['ra'], table_l['dec'], nest=True, lonlat=True)
+        table_r['field_jk'] = hp.ang2pix(
+            8, table_r['ra'], table_r['dec'], nest=True, lonlat=True)
 
         rp_bins = []
         rp_bins.append([1e-6, zebu.rp_bins[0]])
@@ -64,7 +113,8 @@ if args.compute:
 
         rp_bins = np.concatenate(rp_bins)
 
-        sigma = []
+        sigma_l = np.zeros((len(table_l), len(rp_bins) - 1))
+        sigma_r = np.zeros((len(table_r), len(rp_bins) - 1))
 
         for i in range(10):
             dz = (zebu.lens_z_bins[lens_bin + 1] -
@@ -72,45 +122,44 @@ if args.compute:
             z_min = zebu.lens_z_bins[lens_bin] + i * dz
             z_max = z_min + dz
             print('lens redshift: {:.2f} - {:.2f}'.format(z_min, z_max))
-            table_l_use = table_l[(table_l['z'] > z_min) &
-                                  (table_l['z'] <= z_max)]
+            select_l = (table_l['z'] > z_min) & (table_l['z'] <= z_max)
+            select_r = (table_r['z'] > z_min) & (table_r['z'] <= z_max)
+            select_s = ((table_s['z'] > z_min - 0.1) &
+                        (table_s['z'] < z_max + 0.1))
 
-            table_s_use = table_s[
-                (table_s['z'] > np.amin(table_l_use['z']) - 0.05) &
-                (table_s['z'] < np.amax(table_l_use['z']) + 0.05)]
+            table_l_select = add_precompute_results(
+                table_l[select_l], table_s[select_s], rp_bins,
+                cosmology=zebu.cosmo, progress_bar=True, n_jobs=4)
+            sigma_l[select_l] = (
+                table_l_select['sum 1'] * 7.935e12 * downsample /
+                (np.pi * np.diff(rp_bins**2)))
 
-            add_precompute_results(
-                table_l_use, table_s_use, rp_bins, cosmology=zebu.cosmo,
-                progress_bar=True)
+            table_r_select = add_precompute_results(
+                table_r[select_r], table_s[select_s], rp_bins,
+                cosmology=zebu.cosmo, progress_bar=True, n_jobs=2)
+            sigma_r[select_r] = (
+                table_r_select['sum 1'] * 7.935e12 * downsample /
+                (np.pi * np.diff(rp_bins**2)))
 
-            sigma.append(table_l_use['sum 1'] * 7.82e12 * downsample / (
-                np.pi * np.diff(rp_bins**2)))
-
-        sigma = np.concatenate(sigma)
-
-        fname = 'l{}'.format(lens_bin) + '_s{}_gen_zspec_nomag_nofib.hdf5'
-        path = os.path.join(zebu.base_dir, 'stacks', 'precompute')
-        table_p_l = vstack([Table.read(os.path.join(
-            path, fname.format(source_bin)), path='lens') for source_bin in
-            range(4)])
-        table_p_r = vstack([Table.read(os.path.join(
-            path, fname.format(source_bin)), path='random') for source_bin in
-            range(4)])
-        table_p_l.meta['bins'] = zebu.rp_bins
-        table_p_r.meta['bins'] = zebu.rp_bins
-
-        table_l['field_jk'] = hp.ang2pix(
-            8, table_l['ra'], table_l['dec'], nest=True, lonlat=True)
+        fname = 'l{}'.format(lens_bin) + '_gen_zspec_nomag_nofib.hdf5'
+        fpath = os.path.join(zebu.base_dir, 'stacks', 'precompute', fname)
+        table_l_shear = Table.read(fpath, path='lens')
+        table_r_shear = Table.read(fpath, path='random')
 
         ds_diff = []
         for field_jk in np.unique(table_l['field_jk']):
-            use = table_l['field_jk'] != field_jk
-            use_p_l = table_p_l['field_jk'] != field_jk
-            use_p_r = table_p_r['field_jk'] != field_jk
-            ds_diff.append(excess_surface_density(
-                    table_p_l[use_p_l], table_p_r[use_p_r],
-                    **zebu.stacking_kwargs('gen')) - delta_sigma_from_sigma(
-                rp_bins, sigma[use], table_l['z'][use]))
+            select = table_l['field_jk'] != field_jk
+            ds_particles = delta_sigma_from_sigma(
+                rp_bins, sigma_l[select], table_l['z'][select], n)
+            select = table_r['field_jk'] != field_jk
+            ds_particles -= delta_sigma_from_sigma(
+                rp_bins, sigma_r[select], table_r['z'][select], n)
+            select_l_shear = table_l_shear['field_jk'] != field_jk
+            select_r_shear = table_r_shear['field_jk'] != field_jk
+            ds_shear = excess_surface_density(
+                table_l_shear[select_l_shear], table_r_shear[select_r_shear],
+                random_subtraction=True)
+            ds_diff.append(ds_shear - ds_particles)
 
         ds_diff = np.array(ds_diff)
 
@@ -121,7 +170,8 @@ if args.compute:
 
         ds_diff = np.mean(ds_diff, axis=0)
         rp = np.sqrt(zebu.rp_bins[1:] * zebu.rp_bins[:-1])
-        ds = delta_sigma_from_sigma(rp_bins, sigma, table_l['z'])
+        ds = delta_sigma_from_sigma(rp_bins, sigma_l, table_l['z'], n)
+        ds -= delta_sigma_from_sigma(rp_bins, sigma_r, table_r['z'], n)
 
         fname = 'results.csv'
 
@@ -186,7 +236,7 @@ for lens_bin in range(len(zebu.lens_z_bins) - 1):
 
 plt.xscale('log')
 plt.xlabel(r'Projected radius $r_p \, [h^{-1} \, \mathrm{Mpc}]$')
-plt.ylabel(r'$\delta \Delta \Sigma / \Delta \Sigma_{\rm ptcl}$')
+plt.ylabel(r'$(\Delta\Sigma_{\gamma} - \Delta\Sigma_p) / \Delta\Sigma_p$')
 cmap = mpl.colors.ListedColormap(color_list)
 sm = plt.cm.ScalarMappable(cmap=cmap)
 sm._A = []
@@ -196,6 +246,7 @@ cb.ax.set_yticklabels(['{:g}'.format(z) for z in zebu.lens_z_bins])
 cb.ax.minorticks_off()
 cb.set_label(r'Lens redshift $z_l$')
 plt.axhline(0, color='black', ls='--', zorder=-99)
+plt.ylim(-0.25, 0.25)
 
 plt.tight_layout(pad=0.3)
 plt.savefig('shear_ptcl_diff.pdf')
@@ -203,7 +254,7 @@ plt.savefig('shear_ptcl_diff.png', dpi=300)
 
 # %%
 
-lens_bin = 3
+lens_bin = 2
 fname = 'ds_diff_cov_{}.csv'.format(lens_bin)
 ds_diff_cov = np.genfromtxt(fname, delimiter=',')
 
@@ -218,4 +269,4 @@ ds = results['ds_{}'.format(lens_bin)]
 ds_diff = results['ds_diff_{}'.format(lens_bin)] / ds
 ds_diff_cov = ds_diff_cov / np.outer(ds, ds)
 
-print(get_mean(ds_diff[-4:], ds_diff_cov[-4:, -4:]))
+print(get_mean(ds_diff[-10:], ds_diff_cov[-10:, -10:]))
