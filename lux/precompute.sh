@@ -17,7 +17,7 @@ source init.sh
 cd ../stacks/
 python precompute.py STAGE --noisy --zspec --runit --noiip'
 
-if [[ $1 != [0-4] ]]; then
+if [[ $1 != [0-5] ]]; then
   echo "The first command line argument must be an int representing the stage."
   return 1
 fi

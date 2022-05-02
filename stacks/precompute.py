@@ -138,6 +138,8 @@ for survey in survey_list:
             fname = fname + '_nofib'
         if args.noiip:
             fname = fname + '_noiip'
+        if intrinsic_alignment:
+            fname = fname + '_ia'
 
         fname = fname + '.hdf5'
 
