@@ -110,8 +110,8 @@ def read_mock_data(catalog_type, z_bin, survey='gen', magnification=False,
             MAP_IA = Table.read(os.path.join(path, 'ia.hdf5'), path='ia')
             RED_IA = Table.read(os.path.join(path, 'ia.hdf5'), path='z')
         for i in range(len(RED_IA)):
-            select = ((table['z'] >= RED_IA['z_min'][i]) &
-                      (table['z'] < RED_IA['z_max'][i]))
+            select = ((table['z_true'] >= RED_IA['z_min'][i]) &
+                      (table['z_true'] < RED_IA['z_max'][i]))
             pix = hp.ang2pix(
                 2048, table['ra'][select], table['dec'][select],
                 lonlat=True)
