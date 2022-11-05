@@ -71,7 +71,7 @@ def read_buzzard_catalog(pixel):
 def read_real_source_catalog(survey):
 
     path = os.path.join('/', 'project', 'projectdirs', 'desi', 'users',
-                        'cblake', 'lensing', 'lenscats')
+                        'cblake', 'lensing', 'mock_inputs')
 
     if survey.lower() in ['kids', 'hsc']:
         fname = '{}_mag.fits'.format(survey.lower())
@@ -145,7 +145,7 @@ def read_real_source_catalog(survey):
 def read_real_calibration_catalog(survey):
 
     path = os.path.join('/', 'project', 'projectdirs', 'desi', 'users',
-                        'cblake', 'lensing', 'lenscats')
+                        'cblake', 'lensing', 'mock_inputs')
 
     if survey.lower() in ['kids', 'hsc']:
         fname = '{}_cal.fits'.format(survey.lower())
