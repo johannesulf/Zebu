@@ -401,13 +401,7 @@ def main():
         TABLE_S[survey] = read_real_source_catalog(survey)
         TABLE_C[survey] = read_real_calibration_catalog(survey)
 
-    pixel_all = [
-        5, 6, 7, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
-        25, 26, 27, 28, 29, 30, 31, 32, 33, 35, 36, 37, 38, 39, 48, 49, 50, 51,
-        52, 53, 54, 55, 69, 70, 71, 73, 74, 75, 76, 77, 78, 79, 80, 82, 83, 88,
-        89, 90, 91, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107,
-        108, 109, 110, 111, 112, 113, 114, 115, 120, 121, 122, 123, 373, 374,
-        375, 377, 378, 379, 380, 381, 382, 383]
+    pixel_all = np.genfromtxt(os.path.join('mocks', 'pixels.csv'))
 
     global TABLE_R
     for survey in ['bgs', 'lrg']:
@@ -425,7 +419,7 @@ def main():
         for survey in ['des', 'hsc', 'kids']:
             table_b['z_' + survey] = photometric_redshift(table_b['z'], survey)
 
-        fname = 'detection_probability.hdf5'
+        fname = os.path.join('mocks', 'f_detect.hdf5')
 
         if not os.path.isfile(fname):
             table_p = Table()
