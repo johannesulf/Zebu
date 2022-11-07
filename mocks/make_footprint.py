@@ -43,7 +43,7 @@ def main():
             pixel_inner.append(p)
 
     in_inner_buzzard = np.isin(range(hp.nside2npix(nside)), pixel_inner)
-    np.savetxt(os.path.join('mocks', 'pixels.csv'), pixel_inner)
+    np.savetxt(os.path.join('mocks', 'pixels.csv'), pixel_inner, fmt='%i')
 
     fpath = os.path.join('/', 'global', 'cfs', 'cdirs', 'desi', 'survey',
                          'ops', 'surveyops', 'trunk', 'ops')

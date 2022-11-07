@@ -401,7 +401,7 @@ def main():
         TABLE_S[survey] = read_real_source_catalog(survey)
         TABLE_C[survey] = read_real_calibration_catalog(survey)
 
-    pixel_all = np.genfromtxt(os.path.join('mocks', 'pixels.csv'))
+    pixel_all = np.genfromtxt(os.path.join('mocks', 'pixels.csv')).astype(int)
 
     global TABLE_R
     for survey in ['bgs', 'lrg']:
@@ -446,7 +446,7 @@ def main():
         table_b = table_b[select]
 
         fname = 'pixel_{}.hdf5'.format(pixel)
-        fpath = os.path.join(fname)
+        fpath = os.path.join('mocks', fname)
 
         buzzard_columns = ['z', 'mu', 'g_1', 'g_2', 'ra', 'dec', 'mag']
         table_b[buzzard_columns].write(fpath, path='buzzard', overwrite=True)
