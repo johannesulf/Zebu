@@ -9,7 +9,7 @@ from scipy.interpolate import splev, splrep
 
 
 SOURCE_Z_BINS = {
-    'des': np.array([0.2, 0.43, 0.63, 0.9, 1.3]),
+    'des': np.array([0.0, 0.5, 1.0, 1.5, 2.0]),
     'hsc': np.array([0.3, 0.6, 0.9, 1.2, 1.5]),
     'kids': np.array([0.1, 0.3, 0.5, 0.7, 0.9, 1.2])}
 MAG_BINS = np.linspace(18, 26, 81)
@@ -73,34 +73,36 @@ def read_real_source_catalog(survey):
     path = os.path.join('/', 'project', 'projectdirs', 'desi', 'users',
                         'cblake', 'lensing', 'mock_inputs')
 
-    if survey.lower() in ['kids', 'hsc']:
-        fname = '{}_mag.fits'.format(survey.lower())
-    elif survey.lower() == 'des':
-        fname = 'desy1_metacal_mag.fits'
-    else:
+    if survey.lower() not in ['des', 'kids', 'hsc']:
         raise RuntimeError('Unkown survey {}.'.format(survey))
+    elif survey.lower() == 'des':
+        survey = 'desy3'
 
+    fname = '{}_mag.fits'.format(survey.lower())
     table_s = Table.read(os.path.join(path, fname))
 
-    if survey == 'des':
+    if survey == 'desy3':
 
-        table_s.meta['area'] = 142.9
-        table_s.meta['bands'] = 'riz'
+        table_s.meta['area'] = 4143.
+        table_s.meta['bands'] = 'griz'
 
         table_s['mag'] = np.zeros((len(table_s), len(table_s.meta['bands'])))
         for i, band in enumerate(table_s.meta['bands']):
-            table_s['mag'][:, i] = 30. - 2.5 * np.log10(table_s[
-                'flux_{}'.format(band)])
-        table_s.rename_column('weight', 'w')
+            table_s['mag'][:, i] = table_s['mag_{}'.format(band)]
+        table_s.rename_column('wei', 'w')
         table_s.rename_column('R11', 'R_11')
         table_s.rename_column('R22', 'R_22')
         table_s['R_12'] = np.zeros(len(table_s))
         table_s['R_21'] = np.zeros(len(table_s))
-        table_s.rename_column('zphotmof', 'z')
+        z_bin = table_s['tombin']
+        table_s['z'] = (
+            SOURCE_Z_BINS['des'][z_bin] +
+            np.random.random(len(table_s)) *
+            np.diff(SOURCE_Z_BINS['des'])[z_bin])
 
         table_s.keep_columns(['mag', 'w', 'R_11', 'R_22', 'R_12', 'R_21', 'z'])
 
-        use = (0.2 <= table_s['z']) & (table_s['z'] < 1.3)
+        use = (0 <= z_bin) & (z_bin < len(SOURCE_Z_BINS['des']))
         use = use & (table_s['R_11'] > -1000.) & (table_s['R_22'] > -1000.)
         table_s = table_s[use]
 
@@ -147,20 +149,19 @@ def read_real_calibration_catalog(survey):
     path = os.path.join('/', 'project', 'projectdirs', 'desi', 'users',
                         'cblake', 'lensing', 'mock_inputs')
 
-    if survey.lower() in ['kids', 'hsc']:
-        fname = '{}_cal.fits'.format(survey.lower())
-    elif survey.lower() == 'des':
-        fname = 'desy1_metacal_cal.fits'
-    else:
+    if survey.lower() not in ['des', 'kids', 'hsc']:
         raise RuntimeError('Unkown survey {}.'.format(survey))
+    elif survey.lower() == 'des':
+        survey = 'desy3'
 
+    fname = '{}_cal.fits'.format(survey.lower())
     table_c = Table.read(os.path.join(path, fname))
 
-    if survey == 'des':
+    if survey == 'desy3':
 
         table_c.rename_column('zphot', 'z')
-        table_c.rename_column('zmc', 'z_true')
-        table_c.rename_column('weinz', 'w_sys')
+        table_c.rename_column('zspec', 'z_true')
+        table_c['w_sys'] = 1.0
 
     elif survey == 'hsc':
 
@@ -237,21 +238,24 @@ def detection_probability(table_b, survey):
 
     bins = (MAG_BINS, SOURCE_Z_BINS[survey])
 
+    if survey == 'des':
+        band = 'r'
+        magshift = np.array([0.3, 0.3, 0.3, 0.2])
     if survey == 'hsc':
         band = 'i'
+        magshift = np.array([0, 0, 0, 0.1])
     else:
         band = 'r'
+        magshift = np.array([0, 0, 0, 0, 0])
 
     mag_b = table_b['mag'][:, table_b.meta['bands'].index(band)]
     z_b = table_b['z_' + survey]
+    mag_b -= magshift[np.digitize(z_b, SOURCE_Z_BINS[survey]) - 1]
     hist_b = np.histogramdd(np.vstack([mag_b, z_b]).T, bins=bins)[0]
 
     mag_s = table_s['mag'][:, table_s.meta['bands'].index(band)]
     z_s = table_s['z']
     hist_s = np.histogramdd(np.vstack([mag_s, z_s]).T, bins=bins)[0]
-
-    if survey == 'hsc':
-        hist_s[1:, 3] = hist_s[:-1, 3]
 
     return (hist_s / table_s.meta['area']) / (hist_b / table_b.meta['area'])
 
@@ -358,8 +362,11 @@ def apply_observed_shear(table_s, survey=None):
                    'e_rms']:
             table_s[key] = table_s_ref[key][idx]
 
-    if survey.lower() == 'kids':
-        m = np.array([-0.017, -0.008, -0.015, 0.010, 0.006])
+    if survey.lower() in ['des', 'kids']:
+        if survey.lower() == 'des':
+            m = np.array([-0.006, -0.020, -0.024, -0.037])
+        else:
+            m = np.array([-0.009, -0.011, -0.015, 0.002, 0.007])
         z_dig = np.digitize(
             table_s['z'], SOURCE_Z_BINS[survey.lower()]) - 1
         table_s['m'] = m[z_dig]
@@ -470,9 +477,9 @@ def main():
 
                 if survey in ['des', 'kids']:
                     if survey == 'des':
-                        sigma = np.array([0.26, 0.29, 0.27, 0.29])
+                        sigma = np.array([0.201, 0.204, 0.195, 0.203])
                     else:
-                        sigma = np.array([0.276, 0.269, 0.290, 0.281, 0.294])
+                        sigma = np.array([0.274, 0.271, 0.289, 0.287, 0.301])
                     sigma = sigma[np.digitize(
                         table_survey['z'], SOURCE_Z_BINS[survey]) - 1]
                 else:
