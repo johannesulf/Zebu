@@ -241,7 +241,7 @@ def detection_probability(table_b, survey):
     if survey == 'des':
         band = 'r'
         magshift = np.array([0.3, 0.3, 0.3, 0.2])
-    if survey == 'hsc':
+    elif survey == 'hsc':
         band = 'i'
         magshift = np.array([0, 0, 0, 0.1])
     else:
