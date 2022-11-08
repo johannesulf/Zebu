@@ -250,7 +250,9 @@ def detection_probability(table_b, survey):
 
     mag_b = table_b['mag'][:, table_b.meta['bands'].index(band)]
     z_b = table_b['z_' + survey]
-    mag_b -= magshift[np.digitize(z_b, SOURCE_Z_BINS[survey]) - 1]
+    z_dig  = np.digitize(z_b, SOURCE_Z_BINS[survey]) - 1
+    z_dig = np.minimum(np.maximum(z_dig, 0), len(SOURCE_Z_BINS[survey]) - 2)
+    mag_b -= magshift[z_dig]
     hist_b = np.histogramdd(np.vstack([mag_b, z_b]).T, bins=bins)[0]
 
     mag_s = table_s['mag'][:, table_s.meta['bands'].index(band)]
