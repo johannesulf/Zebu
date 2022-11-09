@@ -36,6 +36,11 @@ def read_mock_catalog(survey, magnification=True, fiber_assignment=False,
                       intrinsic_alignment=False, photometric_redshift=True,
                       shear_bias=True, shape_noise=False):
 
+    if shape_noise:
+        if not (shear_bias and intrinsic_alignment):
+            raise ValueError('If `shape_noise` is true, `shear_bias` and ' +
+                             '`intrinsic_alignment` must also be true.')
+
     if isinstance(survey, str):
         survey_list = [survey, ]
     else:
@@ -55,8 +60,12 @@ def read_mock_catalog(survey, magnification=True, fiber_assignment=False,
         for fname in fname_list:
             if fname[:5] != 'pixel':
                 continue
+            if survey not in ['des-c', 'hsc-c', 'kids-c']:
+                path = survey
+            else:
+                path = survey.split('-')[0]
             cat_all[survey].append(Table.read(
-                os.path.join(fpath, fname), path=survey))
+                os.path.join(fpath, fname), path=path))
 
     for survey in survey_list:
         if survey in ['bgs-r', 'lrg-r']:
@@ -64,15 +73,14 @@ def read_mock_catalog(survey, magnification=True, fiber_assignment=False,
         for i in range(len(cat_all['buzzard'])):
             cat_survey = cat_all[survey][i]
             cat_buzzard = cat_all['buzzard'][i][cat_survey['id_buzzard']]
-            for key in ['ra', 'dec', 'mu', 'g_1', 'g_2']:
-                if shear_bias and key in ['g_1', 'g_2']:
-                    continue
+            for key in ['ra', 'dec', 'mu', 'g_1', 'g_2', 'ia_1', 'ia_2']:
                 cat_survey[key] = cat_buzzard[key]
             cat_survey['z_true'] = cat_buzzard['z']
 
     for survey in survey_list:
         meta = cat_all[survey][0].meta
-        meta['area'] = np.sum([c.meta['area'] for c in cat_all[survey]])
+        if 'area' in cat_all[survey][0].meta.keys():
+            meta['area'] = np.sum([c.meta['area'] for c in cat_all[survey]])
         cat_all[survey] = vstack(cat_all[survey], metadata_conflicts='silent')
         cat_all[survey].meta = meta
 
@@ -93,65 +101,50 @@ def read_mock_catalog(survey, magnification=True, fiber_assignment=False,
                 key = 'w'
             cat_all[survey][key] = cat_all[survey][key] * cat_all[survey]['mu']
 
+    if not shape_noise:
+        for survey in survey_list:
+            if survey not in ['des', 'hsc', 'kids', 'des-c', 'hsc-c',
+                              'kids-c']:
+                continue
+            cat_survey = cat_all[survey]
+
+            if not shear_bias:
+                if 'm' in cat_all[survey].colnames:
+                    cat_survey['m'] = 0
+                if 'e_rms' in cat_all[survey].colnames:
+                    cat_survey['e_rms'] = 0
+                if 'R_11' in cat_all[survey].colnames:
+                    cat_survey['R_11'] = 1
+                if 'R_22' in cat_all[survey].colnames:
+                    cat_survey['R_22'] = 1
+                if 'R_21' in cat_all[survey].colnames:
+                    cat_survey['R_21'] = 0
+                if 'R_12' in cat_all[survey].colnames:
+                    cat_survey['R_12'] = 0
+
+            r_1 = np.ones(len(cat_survey))
+            r_2 = np.ones(len(cat_survey))
+            if survey in ['hsc', 'kids']:
+                r_1 *= 1 + cat_survey['m']
+                r_2 *= 1 + cat_survey['m']
+            if survey == 'des':
+                r_1 *= 0.5 * (cat_survey['R_11'] + cat_survey['R_22'])
+                r_2 *= 0.5 * (cat_survey['R_11'] + cat_survey['R_22'])
+            if survey == 'hsc':
+                r_1 *= 2 * (1 - cat_survey['e_rms']**2)
+                r_2 *= 2 * (1 - cat_survey['e_rms']**2)
+
+            cat_survey['e_1'] = cat_survey['g_1'] * r_1
+            cat_survey['e_2'] = cat_survey['g_2'] * r_2
+            if intrinsic_alignment:
+                cat_survey['e_1'] += cat_survey['ia_1'] * r_1
+                cat_survey['e_2'] += cat_survey['ia_2'] * r_2
+
     for survey in survey_list:
         if survey in ['bgs', 'lrg']:
             cat_all[survey].rename_column('z_true', 'z')
         if survey in ['des-c', 'hsc-c', 'kids-c']:
             cat_all[survey] = cat_all[survey][::100]
-        elif survey in ['des', 'hsc', 'kids', 'des-c', 'hsc-c', 'kids-c']:
-            if not photometric_redshift:
-                cat_all[survey]['z'] = cat_all[survey]['z_true']
-            if not shear_bias:
-                if 'm' in cat_all[survey].colnames:
-                    cat_all[survey]['m'] = 0
-                if 'e_rms' in cat_all[survey].colnames:
-                    cat_all[survey]['e_rms'] = 0
-                if 'R_11' in cat_all[survey].colnames:
-                    cat_all[survey]['R_11'] = 1
-                if 'R_22' in cat_all[survey].colnames:
-                    cat_all[survey]['R_22'] = 1
-                if 'R_21' in cat_all[survey].colnames:
-                    cat_all[survey]['R_21'] = 0
-                if 'R_12' in cat_all[survey].colnames:
-                    cat_all[survey]['R_12'] = 0
-            if not shape_noise:
-                cat_all[survey]['e_1'] = cat_all[survey]['g_1']
-                cat_all[survey]['e_2'] = cat_all[survey]['g_2']
-
-    map_ia = None
-    red_ia = None
-
-    for survey in survey_list:
-        if survey not in ['des', 'hsc', 'kids'] or not intrinsic_alignment:
-            continue
-        cat_survey = cat_all[survey]
-
-        r_1 = np.ones(len(cat_survey))
-        r_2 = np.ones(len(cat_survey))
-        if survey in ['hsc', 'kids']:
-            r_1 *= 1 + cat_survey['m']
-            r_2 *= 1 + cat_survey['m']
-        if survey == 'des':
-            r_1 *= 0.5 * (cat_survey['R_11'] + cat_survey['R_22'])
-            r_2 *= 0.5 * (cat_survey['R_11'] + cat_survey['R_22'])
-        if survey == 'hsc':
-            r_1 *= 2 * (1 - cat_survey['e_rms']**2)
-            r_2 *= 2 * (1 - cat_survey['e_rms']**2)
-
-        if map_ia is None:
-            map_ia = Table.read(os.path.join(fpath, 'ia.hdf5'), path='ia')
-            red_ia = Table.read(os.path.join(fpath, 'ia.hdf5'), path='z')
-
-        pix = hp.ang2pix(2048, cat_survey['ra'], cat_survey['dec'],
-                         lonlat=True)
-        row = np.searchsorted(map_ia['pix'], pix)
-
-        for i in range(len(red_ia)):
-            select = ((cat_survey['z_true'] >= red_ia['z_min'][i]) &
-                      (cat_survey['z_true'] < red_ia['z_max'][i]))
-
-            cat_survey['e_1'] += map_ia['e_1'][:, i][row] * r_1 * select
-            cat_survey['e_2'] += map_ia['e_2'][:, i][row] * r_2 * select
 
     for survey in survey_list:
         columns_keep = ['ra', 'dec', 'e_1', 'e_2', 'z_true', 'z', 'e_rms',

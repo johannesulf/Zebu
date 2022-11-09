@@ -5,7 +5,9 @@ import numpy as np
 import healpy as hp
 from astropy.table import Table
 from scipy.spatial import cKDTree
+from scipy.interpolate import interp1d
 from scipy.interpolate import splev, splrep
+from astropy.cosmology import FlatLambdaCDM
 
 
 SOURCE_Z_BINS = {
@@ -16,6 +18,7 @@ MAG_BINS = np.linspace(18, 26, 81)
 TABLE_S = {}
 TABLE_C = {}
 TABLE_R = {}
+TABLE_IA = None
 
 
 def read_buzzard_catalog(pixel):
@@ -66,6 +69,23 @@ def read_buzzard_catalog(pixel):
     table.meta['bands'] = ['g', 'r', 'i', 'z', 'y', 'w1', 'w2']
 
     return table
+
+
+def add_ia_information(table_b):
+
+    pixel = hp.ang2pix(2048, table_b['ra'], table_b['dec'],  lonlat=True)
+    row = np.searchsorted(TABLE_IA['pix'], pixel)
+
+    table_b['ia_1'] = np.zeros(len(table_b), dtype=np.float32)
+    table_b['ia_2'] = np.zeros(len(table_b), dtype=np.float32)
+    z_bins = TABLE_IA.meta['z_bins']
+
+    for i in range(len(z_bins) - 1):
+        select = (table_b['z'] >= z_bins[i]) & (table_b['z'] < z_bins[i + 1])
+        table_b['ia_1'] += TABLE_IA['ia_1'][:, i][row] * select
+        table_b['ia_2'] += TABLE_IA['ia_2'][:, i][row] * select
+
+    return table_b
 
 
 def read_real_source_catalog(survey):
@@ -422,8 +442,52 @@ def main():
         table_r = table_r[np.random.random(len(table_r)) < 0.1]
         TABLE_R[survey] = table_r
 
+    global TABLE_IA
+    if TABLE_IA is None:
+        print('Reading in the IA map...')
+        TABLE_IA = Table()
+        cosmo = FlatLambdaCDM(Om0=0.286, H0=100)
+        z = np.linspace(0, 4, 1000)
+        z = interp1d(cosmo.comoving_distance(z), z, kind='cubic')
+        TABLE_IA.meta['z_bins'] = z(np.arange(81) * 50)
+        nside = 2048
+        ra, dec = hp.pix2ang(nside, np.arange(hp.nside2npix(nside)),
+                             lonlat=True)
+
+        # Retrieve IA information for all pixels we selected and their
+        # neighbours.
+        pixel_ia = np.concatenate(
+            [hp.pixelfunc.get_all_neighbours(8, p, nest=True) for p in
+             pixel_all])
+        pixel_ia = np.unique(pixel_ia)
+
+        # Calculate the nside=2048 pixels that correspond to the nside=8 pixels
+        # calculated above.
+        ra, dec = hp.pix2ang(nside, np.arange(hp.nside2npix(nside)),
+                             lonlat=True)
+        nside = 8
+        select = np.isin(hp.pixelfunc.ang2pix(
+            nside, ra, dec, nest=True, lonlat=True), pixel_ia)
+
+        # Read the IA data.
+        nside = 2048
+        TABLE_IA['pix'] = np.arange(hp.nside2npix(nside))[select]
+        TABLE_IA['ia_1'] = np.zeros((np.sum(select), 80), dtype=np.float32)
+        TABLE_IA['ia_2'] = np.zeros((np.sum(select), 80), dtype=np.float32)
+
+        fpath = os.path.join(
+            '/', 'global', 'cscratch1', 'sd', 'ucapnje', 'DESI',
+            'buzzard4_shear_intrinsic_alignments')
+
+        for i in tqdm.tqdm(range(80)):
+            fname = 'desi_lensing_shear_buzzard4_{}.fits'.format(i)
+            ia = Table.read(os.path.join(fpath, fname))['T'].data.ravel()
+            TABLE_IA['ia_1'][:, i] = np.real(ia)[select]
+            TABLE_IA['ia_2'][:, i] = np.imag(ia)[select]
+
     for pixel in tqdm.tqdm(pixel_all):
         table_b = read_buzzard_catalog(pixel)
+        table_b = add_ia_information(table_b)
 
         for survey in ['des', 'hsc', 'kids']:
             table_b['z_' + survey] = photometric_redshift(table_b['z'], survey)
@@ -457,7 +521,7 @@ def main():
         fname = 'pixel_{}.hdf5'.format(pixel)
         fpath = os.path.join('mocks', fname)
 
-        buzzard_columns = ['z', 'mu', 'g_1', 'g_2', 'ra', 'dec', 'mag']
+        buzzard_columns = ['z', 'mu', 'g_1', 'g_2', 'ra', 'dec', 'mag', 'ia_1', 'ia_2']
         table_b[buzzard_columns].write(fpath, path='buzzard', overwrite=True)
 
         for survey in ['bgs', 'lrg', 'des', 'hsc', 'kids']:
@@ -470,8 +534,10 @@ def main():
 
             if survey not in ['bgs', 'lrg']:
 
-                table_survey['g_1'] = table_b['g_1'][select]
-                table_survey['g_2'] = table_b['g_2'][select]
+                table_survey['g_1'] = (table_b['g_1'][select] +
+                                       table_b['ia_1'][select])
+                table_survey['g_2'] = (table_b['g_2'][select] +
+                                       table_b['ia_2'][select])
                 table_survey['mag'] = table_b['mag'][select]
                 table_survey['z'] = table_b['z_' + survey][select]
                 table_survey = apply_observed_shear(
@@ -487,7 +553,7 @@ def main():
                 else:
                     sigma = 1.0 / np.sqrt(table_survey['w'])
                 table_survey = apply_shape_noise(table_survey, sigma)
-                table_survey.remove_column('mag')
+                table_survey.remove_columns(['mag', 'g_1', 'g_2'])
 
             for key in table_survey.colnames:
                 dtype = table_survey[key].dtype
@@ -500,6 +566,7 @@ def main():
 
         for survey in ['bgs', 'lrg']:
             table_r = TABLE_R[survey]
+            nside = 8
             pixel_r = hp.ang2pix(nside, table_r['ra'], table_r['dec'],
                                  nest=True, lonlat=True)
             table_r[pixel_r == pixel].write(fpath, path=survey + '-r',
