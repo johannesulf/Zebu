@@ -60,7 +60,7 @@ for bin_l, (z_l_min, z_l_max) in enumerate(zip(z_l_bins[:-1], z_l_bins[1:])):
         add_maximum_lens_redshift(cat_s, dz_min=-99)
 
         kwargs = {'cosmology': zebu.COSMOLOGY,
-                  'n_jobs': multiprocessing.cpu_count(), 'progress_bar': True}
+                  'n_jobs': multiprocessing.cpu_count(), 'progress_bar': False}
 
         add_precompute_results(cat_l, cat_s, zebu.RP_BINS, **kwargs)
         cat_l = compress_jackknife_fields(cat_l)
@@ -93,7 +93,7 @@ for bin_l, (z_l_min, z_l_max) in enumerate(zip(z_l_bins[:-1], z_l_bins[1:])):
     cat_l['w_sys'] *= w_sys(cat_l['z'])
 
     kwargs = {'cosmology': zebu.COSMOLOGY, 'table_c': cat_c,
-              'n_jobs': multiprocessing.cpu_count(), 'progress_bar': True}
+              'n_jobs': multiprocessing.cpu_count(), 'progress_bar': False}
 
     add_precompute_results(cat_l, cat_s, zebu.RP_BINS, **kwargs)
     cat_l = compress_jackknife_fields(cat_l)
