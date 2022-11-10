@@ -1,7 +1,7 @@
 import os
 import camb
 import numpy as np
-import healpy as hp
+from astropy import units as u
 from astropy.table import Table, vstack
 from astropy.cosmology import FlatLambdaCDM
 
@@ -9,13 +9,15 @@ from astropy.cosmology import FlatLambdaCDM
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 COSMOLOGY = FlatLambdaCDM(Om0=0.286, H0=100)
 RP_BINS = 0.2 * np.logspace(0, 2, 21)
-THETA_BINS = 3 * np.logspace(0, 2, 21)
+THETA_BINS = 3 * np.logspace(0, 2, 21) * u.arcmin
 
-LENS_Z_BINS = np.linspace(0.1, 0.9, 5)
 SOURCE_Z_BINS = {
-    'des': np.array([0.2, 0.43, 0.63, 0.9, 1.3]),
+    'des': np.array([0.0, 0.5, 1.0, 1.5, 2.0]),
     'hsc': np.array([0.3, 0.6, 0.9, 1.2, 1.5]),
     'kids': np.array([0.1, 0.3, 0.5, 0.7, 0.9, 1.2])}
+LENS_Z_BINS = {
+    'bgs': np.array([0.1, 0.3, 0.5]),
+    'lrg': np.array([0.5, 0.7, 0.9])}
 
 ALPHA_L = [0.818, 1.658, 2.568, 1.922]
 
@@ -33,7 +35,7 @@ def stacking_kwargs(survey):
 
 
 def read_mock_catalog(survey, magnification=True, fiber_assignment=False,
-                      intrinsic_alignment=False, photometric_redshift=True,
+                      intrinsic_alignment=False, photometric_redshifts=True,
                       shear_bias=True, shape_noise=False):
 
     if shape_noise:
@@ -101,11 +103,12 @@ def read_mock_catalog(survey, magnification=True, fiber_assignment=False,
                 key = 'w'
             cat_all[survey][key] = cat_all[survey][key] * cat_all[survey]['mu']
 
-    if not shape_noise:
-        for survey in survey_list:
-            if survey not in ['des', 'hsc', 'kids', 'des-c', 'hsc-c',
-                              'kids-c']:
-                continue
+    for survey in survey_list:
+        if survey not in ['des', 'hsc', 'kids', 'des-c', 'hsc-c',
+                          'kids-c']:
+            continue
+
+        if not shape_noise or survey in ['des-c', 'hsc-c', 'kids-c']:
             cat_survey = cat_all[survey]
 
             if not shear_bias:
@@ -124,21 +127,27 @@ def read_mock_catalog(survey, magnification=True, fiber_assignment=False,
 
             r_1 = np.ones(len(cat_survey))
             r_2 = np.ones(len(cat_survey))
-            if survey in ['hsc', 'kids']:
+            if 'm' in cat_survey.colnames:
                 r_1 *= 1 + cat_survey['m']
                 r_2 *= 1 + cat_survey['m']
-            if survey == 'des':
+            if 'R_11' in cat_survey.colnames:
                 r_1 *= 0.5 * (cat_survey['R_11'] + cat_survey['R_22'])
                 r_2 *= 0.5 * (cat_survey['R_11'] + cat_survey['R_22'])
-            if survey == 'hsc':
+            if 'e_rms' in cat_survey.colnames:
                 r_1 *= 2 * (1 - cat_survey['e_rms']**2)
                 r_2 *= 2 * (1 - cat_survey['e_rms']**2)
 
-            cat_survey['e_1'] = cat_survey['g_1'] * r_1
-            cat_survey['e_2'] = cat_survey['g_2'] * r_2
-            if intrinsic_alignment:
-                cat_survey['e_1'] += cat_survey['ia_1'] * r_1
-                cat_survey['e_2'] += cat_survey['ia_2'] * r_2
+            if survey in ['des-c', 'hsc-c', 'kids-c']:
+                cat_survey['w_sys'] = (r_1 + r_2) / 2.0
+
+            if not shape_noise:
+                cat_survey['e_1'] = cat_survey['g_1'] * r_1
+                cat_survey['e_2'] = cat_survey['g_2'] * r_2
+                if intrinsic_alignment:
+                    cat_survey['e_1'] += cat_survey['ia_1'] * r_1
+                    cat_survey['e_2'] += cat_survey['ia_2'] * r_2
+
+        cat_survey['e_2'] = - cat_survey['e_2']
 
     for survey in survey_list:
         if survey in ['bgs', 'lrg']:
@@ -152,6 +161,8 @@ def read_mock_catalog(survey, magnification=True, fiber_assignment=False,
         for key in cat_all[survey].colnames:
             if key not in columns_keep:
                 cat_all[survey].remove_column(key)
+            else:
+                cat_all[survey][key] = cat_all[survey][key].astype(float)
 
     cat_all = [cat_all[survey] for survey in survey_list]
     if len(cat_all) == 1:
