@@ -59,7 +59,7 @@ for bin_l, (z_l_min, z_l_max) in enumerate(zip(z_l_bins[:-1], z_l_bins[1:])):
         cat_s = cat_s_all[select]
         add_maximum_lens_redshift(cat_s, dz_min=-99)
 
-        kwargs = {'cosmology': zebu.COSMOLOGY,
+        kwargs = {'cosmology': zebu.COSMOLOGY, 'weighting': 0,
                   'n_jobs': multiprocessing.cpu_count(), 'progress_bar': False}
 
         add_precompute_results(cat_l, cat_s, zebu.RP_BINS, **kwargs)
