@@ -1,47 +1,160 @@
 import os
 import zebu
-import argparse
 import numpy as np
 import matplotlib as mpl
+from matplotlib import gridspec
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 from astropy.table import Table
-
+from astropy.io.ascii import convert_numpy
 from dsigma.stacking import excess_surface_density, lens_magnification_bias
+from dsigma.stacking import tangential_shear
 from dsigma.jackknife import jackknife_resampling
 
-parser = argparse.ArgumentParser()
-parser.add_argument('stage', type=int, help='stage of the analysis')
-args = parser.parse_args()
-
-source_magnification = args.stage >= 2
-lens_magnification = args.stage >= 3
-fiber_assignment = args.stage >= 4
-intrinsic_alignment = args.stage >= 5
-output = 'stage_{}'.format(args.stage)
-
-# %%
-
-if not os.path.isdir(output):
-    os.makedirs(output)
-
-if args.stage == 0:
-    survey_list = ['gen']
-else:
-    survey_list = ['des', 'hsc', 'kids']
-
-color_list = plt.get_cmap('plasma')(
-    np.linspace(0.0, 0.8, len(zebu.lens_z_bins) - 1))
-rp = 0.5 * (zebu.rp_bins[1:] + zebu.rp_bins[:-1])
+fpath = 'plots'
 
 
-def initialize_plot(ylabel=None):
+def read_compute_file(config, lens_bin, source_bin=None, delta_sigma=True):
 
-    fig, axarr = plt.subplots(figsize=(7, 2), nrows=1, ncols=3, sharex=True,
-                              sharey='row')
-    plt.xscale('log')
+    fpath = os.path.join('results', '{}'.format(config))
 
-    for i, ax in enumerate(axarr):
+    if delta_sigma:
+        fname = 'l{}_ds.hdf5'.format(lens_bin)
+        compute = Table.read(os.path.join(fpath, fname))
+    else:
+        fname = 'l{}_s{}_gt.hdf5'.format(lens_bin, source_bin)
+        compute = Table.read(os.path.join(fpath, fname))
+
+    n_pairs = np.sum(compute['sum 1'], axis=1)
+    return compute[n_pairs > 0.01 * np.amax(n_pairs)]
+
+
+def read_compute(lenses, sources, delta_sigma=True, lens_magnification=False,
+                 source_magnification=False, fiber_assignment=False,
+                 intrinsic_alignment=False, photometric_redshifts=False,
+                 shear_bias=False, shape_noise=False):
+
+    if lenses in ['bgs-r', 'lrg-r']:
+        source_magnification = False
+        lens_magnification = False
+        intrinsic_alignment = False
+
+    converters = {'*': [convert_numpy(typ) for typ in (int, float, bool, str)]}
+    table = Table.read('config.csv', converters=converters)
+    select = np.ones(len(table), dtype=bool)
+    select &= table['lenses'] == lenses.lower()
+    select &= table['sources'] == sources.lower()
+    select &= table['lens magnification'] == lens_magnification
+    select &= table['source magnification'] == source_magnification
+    select &= table['fiber assignment'] == fiber_assignment
+    select &= table['intrinsic alignment'] == intrinsic_alignment
+    select &= table['photometric redshifts'] == photometric_redshifts
+    select &= table['shear bias'] == shear_bias
+    select &= table['shape noise'] == shape_noise
+    assert np.sum(select) == 1
+
+    config = table['configuration'][select][0]
+
+    compute = []
+    for lens_bin in range(len(zebu.LENS_Z_BINS[lenses.split('-')[0]]) - 1):
+        if delta_sigma:
+            compute.append(read_compute_file(config, lens_bin))
+        else:
+            compute.append([])
+            for source_bin in range(len(zebu.SOURCE_Z_BINS[sources]) - 1):
+                compute[-1].append(read_compute_file(
+                    config, lens_bin, source_bin, delta_sigma=False))
+
+    return compute
+
+
+def difference(table_l, table_l_2=None, function=None, stacking_kwargs=None):
+
+    return (function(table_l_2, **stacking_kwargs) -
+            function(table_l, **stacking_kwargs))
+
+
+def plot_difference(separation='physical', statistic='ds', sources=None,
+                    relative=True, config={}):
+
+    config_def = dict(
+        lens_magnification=False, source_magnification=False,
+        fiber_assignment=False, intrinsic_alignment=False,
+        photometric_redshifts=False, shear_bias=False, shape_noise=False)
+
+    for key in config_def.keys():
+        if key not in config.keys():
+            config[key] = config_def[key]
+
+    for key in config.keys():
+        if isinstance(config[key], bool):
+            config[key] = (config[key], config[key])
+
+    kwargs_1 = {}
+    kwargs_2 = {}
+    for key in config.keys():
+        kwargs_1[key] = config[key][0]
+        kwargs_2[key] = config[key][1]
+
+    if separation == 'angle':
+        if sources is None:
+            raise ValueError('Sources must be specified when plotting as a ' +
+                             'function of angle.')
+        cat_l_1 = (
+            read_compute('bgs', sources, delta_sigma=False, **kwargs_1) +
+            read_compute('lrg', sources, delta_sigma=False, **kwargs_1))
+        cat_r_1 = (
+            read_compute('bgs-r', sources, delta_sigma=False, **kwargs_1) +
+            read_compute('lrg-r', sources, delta_sigma=False, **kwargs_1))
+        cat_l_2 = (
+            read_compute('bgs', sources, delta_sigma=False, **kwargs_2) +
+            read_compute('lrg', sources, delta_sigma=False, **kwargs_2))
+        cat_r_2 = (
+            read_compute('bgs-r', sources, delta_sigma=False, **kwargs_2) +
+            read_compute('lrg-r', sources, delta_sigma=False, **kwargs_2))
+
+    elif separation == 'physical':
+        cat_l_1 = [[], [], []]
+        cat_r_1 = [[], [], []]
+        cat_l_2 = [[], [], []]
+        cat_r_2 = [[], [], []]
+        for i, sources in enumerate(['des', 'hsc', 'kids']):
+            for lenses in ['bgs', 'lrg']:
+                cat_l_1[i] = cat_l_1[i] + read_compute(
+                    lenses, sources, **kwargs_1)
+                cat_r_1[i] = cat_l_1[i] + read_compute(
+                    lenses + '-r', sources, **kwargs_1)
+                cat_l_2[i] = cat_l_2[i] + read_compute(
+                    lenses, sources, **kwargs_2)
+                cat_r_2[i] = cat_l_2[i] + read_compute(
+                    lenses + '-r', sources, **kwargs_2)
+
+    fig = plt.figure(figsize=(7, 2))
+    gs = gridspec.GridSpec(1, len(cat_l_1) + 1, wspace=0,
+                           width_ratios=[20] * len(cat_l_1) + [1])
+    ax_list = []
+    for i in range(len(cat_l_1)):
+        ax_list.append(fig.add_subplot(
+            gs[i], sharex=ax_list[-1] if i > 0 else None,
+            sharey=ax_list[-1] if i > 0 else None))
+    cax = fig.add_subplot(gs[-1])
+
+    ax_list[0].set_xscale('log')
+
+    lens_list = []
+    for lenses in ['bgs', 'lrg']:
+        for i in range(len(zebu.LENS_Z_BINS[lenses]) - 1):
+            lens_list.append(r'{}-{}'.format(lenses.upper(), i + 1))
+
+    if separation == 'angle':
+        text_list = lens_list
+        source_list = []
+        for i in range(len(zebu.SOURCE_Z_BINS[sources]) - 1):
+            source_list.append(r'{}-{}'.format(sources.upper(), i + 1))
+    else:
+        text_list = ['DES', 'HSC', 'KiDS']
+
+    for ax, text in zip(ax_list, text_list):
 
         ax.xaxis.set_major_formatter(ticker.FuncFormatter(
             lambda y, p: r'{:g}'.format(y)))
@@ -49,445 +162,95 @@ def initialize_plot(ylabel=None):
             lambda y, p: r'{:+g}\%'.format(y) if y != 0 else r'0\%'))
         ax.axhline(0, ls='--', color='black')
 
-        ax.text(0.08, 0.92, ['DES', 'HSC', 'KiDS'][i], ha='left', va='top',
+        ax.text(0.08, 0.92, text, ha='left', va='top',
                 transform=ax.transAxes, zorder=200)
 
-        ax.set_xlabel(r'$r_p \, [h^{-1} \, \mathrm{Mpc}]$')
-        if i == 0:
-            if ylabel is None:
-                ylabel = r'Residual bias'
-            ax.set_ylabel(ylabel)
+        if separation == 'angle':
+            ax.set_xlabel(r'$\theta \, [\mathrm{arcmin}]$')
+        else:
+            ax.set_xlabel(r'$r_p \, [h^{-1} \, \mathrm{Mpc}]$')
 
-    plt.tight_layout(pad=0.3)
-    plt.subplots_adjust(wspace=0, hspace=0)
-
+    color_list = plt.get_cmap('plasma')(np.linspace(0.0, 0.8, len(cat_l_1[0])))
     cmap = mpl.colors.ListedColormap(color_list)
     sm = plt.cm.ScalarMappable(cmap=cmap)
     sm._A = []
-    cb = plt.colorbar(sm, ax=axarr[-1], pad=0.0, ticks=np.linspace(
-        0, 1, len(zebu.lens_z_bins)))
-    cb.ax.set_yticklabels(['{:g}'.format(z) for z in zebu.lens_z_bins])
+    if separation == 'angle':
+        tick_label_list = source_list
+    else:
+        tick_label_list = lens_list
+    ticks = np.linspace(0, 1, len(tick_label_list) + 1)
+    ticks = 0.5 * (ticks[1:] + ticks[:-1])
+    cb = plt.colorbar(sm, cax=cax, pad=0.0, ticks=ticks)
+    cb.ax.set_yticklabels(tick_label_list)
     cb.ax.minorticks_off()
-    cb.set_label(r'Lens redshift $z_l$')
 
-    return fig, axarr
-
-
-def read_precompute(survey, lens_bin, zspec=False, noisy=False,
-                    lens_magnification=False, source_magnification=False,
-                    fiber_assignment=False, iip_weights=True, runit=False,
-                    intrinsic_alignment=False):
-
-    directory = 'precompute'
-    fname = 'l{}_{}'.format(lens_bin, survey)
-
-    if noisy:
-        fname += '_noisy'
-    if zspec:
-        fname += '_zspec'
-    if runit:
-        fname += '_runit'
-    if not lens_magnification:
-        if not source_magnification:
-            fname += '_nomag'
-        else:
-            fname += '_nolmag'
-    if lens_magnification and not source_magnification:
-        raise RuntimeError('Precomputation with lens magnification but no ' +
-                           'source magnification has not been performed.')
-    if not fiber_assignment:
-        fname += '_nofib'
-    if fiber_assignment and not iip_weights:
-        fname += '_noiip'
-    if intrinsic_alignment:
-        fname += '_ia'
-
-    fname += '.hdf5'
-
-    return Table.read(os.path.join(directory, fname), path='lens')
-
-
-def difference(table_l, table_l_2=None, survey_1=None, survey_2=None,
-               boost=False):
-
-    for survey in [survey_1, survey_2]:
-        if survey not in ['gen', 'hsc', 'kids', 'des']:
-            raise RuntimeError('Unkown survey!')
-
-    if not boost:
-        ds_1 = excess_surface_density(
-            table_l, **zebu.stacking_kwargs(survey_1))
-        ds_2 = excess_surface_density(
-            table_l_2, **zebu.stacking_kwargs(survey_2))
-        return ds_1 - ds_2
+    if separation == 'angle':
+        x = 0.5 * (zebu.THETA_BINS[1:] + zebu.THETA_BINS[:-1])
     else:
-        w_1 = np.sum(table_l['sum w_ls'].data *
-                     table_l['w_sys'].data[:, None], axis=0)
-        w_2 = np.sum(table_l_2['sum w_ls'].data *
-                     table_l_2['w_sys'].data[:, None], axis=0)
-        return (w_1 * w_2[-1] / w_1[-1] - w_2) / w_1
+        x = 0.5 * (zebu.RP_BINS[1:] + zebu.RP_BINS[:-1])
+
+    for i in range(len(ax_list)):
+        for k in range(len(color_list)):
+
+            if separation == 'angle':
+                survey = sources
+            else:
+                survey = ['des', 'hsc', 'kids'][i]
+
+            stacking_kwargs = zebu.stacking_kwargs(survey, statistic=statistic)
+
+            if statistic == 'ds':
+                function = excess_surface_density
+            elif statistic == 'gt':
+                function = tangential_shear
+            else:
+                raise ValueError("Unknown statistic '{}'.".format(statistic))
+
+            norm = function(cat_l_1[i][k], table_r=cat_r_1[i][k],
+                            **stacking_kwargs)
+            diff = difference(
+                cat_l_1[i][k], table_l_2=cat_l_2[i][k], function=function,
+                stacking_kwargs=stacking_kwargs) / norm
+            diff_cov = jackknife_resampling(
+                difference, cat_l_1[i][k], table_l_2=cat_l_2[i][k],
+                function=function, stacking_kwargs=stacking_kwargs) / np.outer(
+                    norm, norm)
+
+            if np.all(np.isclose(diff_cov, 0)):
+                diff_err = np.zeros(len(norm))
+            else:
+                diff_err = np.sqrt(np.diag(diff_cov))
+
+            plotline, caps, barlinecols = ax_list[i].errorbar(
+                x * (1 + k * 0.05), 100 * diff, yerr=100 * diff_err,
+                fmt='o', ms=2, color=color_list[k], zorder=i + 100)
+            plt.setp(barlinecols[0], capstyle='round')
+
+    for ax in ax_list[1:]:
+        plt.setp(ax.get_yticklabels(), visible=False)
+
+    return fig, ax_list
 
 
-def plot_difference(ax, color, table_l_1, table_l_2, survey, survey_2=None,
-                    ds_norm=1.0, label=None, offset=0, lens_bin=0,
-                    boost=False):
+fig, ax_list = plot_difference(separation='physical', statistic='ds',
+                               config=dict(lens_magnification=(False, True)))
+ax_list[0].set_ylabel(r'$\Delta\Sigma$ Lens Magn. Bias')
+plt.tight_layout(pad=0.3)
+plt.subplots_adjust(wspace=0, hspace=0)
+plt.savefig(os.path.join(fpath, 'lens_magnification_ds.pdf'))
+plt.savefig(os.path.join(fpath, 'lens_magnification_ds.png'), dpi=300)
+plt.close()
 
-    if survey_2 is None:
-        survey_2 = survey
-
-    dds = difference(table_l_1, table_l_2=table_l_2, survey_1=survey,
-                     survey_2=survey_2, boost=boost) / ds_norm
-    dds_cov = jackknife_resampling(
-        difference, table_l_1, table_l_2=table_l_2, survey_1=survey,
-        survey_2=survey_2, boost=boost)
-    if hasattr(ds_norm, 'shape'):
-        dds_cov = dds_cov / np.outer(ds_norm, ds_norm)
-    else:
-        dds_cov = dds_cov / ds_norm**2
-
-    if np.all(np.isclose(dds_cov, 0)):
-        dds_err = np.zeros(len(np.diag(dds_cov)))
-    else:
-        dds_err = np.sqrt(np.diag(dds_cov))
-
-    plotline, caps, barlinecols = ax.errorbar(
-        rp * (1 + offset * 0.05), 100 * dds, yerr=100 * dds_err, label=label,
-        fmt='o', ms=2, color=color, zorder=offset + 100)
-    plt.setp(barlinecols[0], capstyle='round')
-
-
-def adjust_ylim(ax_list, yabsmin=1.2):
-
-    for ax in ax_list:
-        ymin, ymax = ax.get_ylim()
-        yabsmax = max(yabsmin, max(np.abs(ymin), np.abs(ymax)))
-        ax.set_ylim(-yabsmax, yabsmax)
-
-
-def savefigs(name):
-    plt.savefig(os.path.join(output, name + '.pdf'))
-    plt.savefig(os.path.join(output, name + '.png'), dpi=300, transparent=True)
-
-# %%
-
-
-table_l_ref = []
-ds_ref = []
-
-for lens_bin in range(len(zebu.lens_z_bins) - 1):
-
-    table_l = read_precompute(
-        'gen', lens_bin, zspec=True, lens_magnification=False,
-        source_magnification=False, fiber_assignment=False)
-    table_l_ref.append(table_l)
-    ds_ref.append(excess_surface_density(
-        table_l, **zebu.stacking_kwargs('gen')))
-
-# %%
-
-rp = np.sqrt(zebu.rp_bins[1:] * zebu.rp_bins[:-1])
-
-if args.stage == 0:
-    for lens_bin in range(len(zebu.lens_z_bins) - 1):
-        plt.plot(rp, rp * ds_ref[lens_bin],
-                 label=r'${:.1f} \leq z_l < {:.1f}$'.format(
-            zebu.lens_z_bins[lens_bin], zebu.lens_z_bins[lens_bin + 1]))
-
-    plt.title("no shape noise, no photo-z's, all sources")
-    plt.xscale('log')
-    plt.xlabel(r'Projected radius $r_p \, [h^{-1} \, \mathrm{Mpc}]$')
-    plt.ylabel(r'$r_p \Delta \Sigma \, [10^6 M_\odot / \mathrm{pc}]$')
-    plt.legend(loc='upper left')
+for sources in ['des', 'hsc', 'kids']:
+    fig, ax_list = plot_difference(
+        separation='angle', statistic='gt', sources=sources,
+        config=dict(lens_magnification=(False, True)))
+    ax_list[0].set_ylabel(r'$\gamma_t$ Lens Magn. Bias')
+    ax_list[0].set_ylim(-10, 100)
     plt.tight_layout(pad=0.3)
-    plt.savefig(os.path.join(output, 'reference.pdf'))
-    plt.savefig(os.path.join(output, 'reference.png'), dpi=300)
-    plt.close()
-
-# %%
-
-if args.stage > 0:
-
-    fig, axarr = initialize_plot()
-
-    for survey, ax in zip(survey_list, axarr):
-        for lens_bin, color in enumerate(color_list):
-
-            table_l = read_precompute(
-                survey, lens_bin, zspec=False,
-                lens_magnification=lens_magnification,
-                source_magnification=source_magnification,
-                fiber_assignment=fiber_assignment)
-
-            plot_difference(ax, color, table_l, table_l_ref[lens_bin],
-                            survey, survey_2='gen', ds_norm=ds_ref[lens_bin],
-                            offset=lens_bin)
-
-    ymin, ymax = axarr[0].get_ylim()
-    yabsmax = max(abs(ymin), abs(ymax))
-    plt.ylim(-yabsmax, +yabsmax)
-    plt.tight_layout(pad=0.3)
-    plt.subplots_adjust(wspace=0)
-    savefigs('reference_comparison')
-    plt.close()
-
-if args.stage == 1:
-
-    fig, axarr = initialize_plot()
-
-    for survey, ax in zip(survey_list, axarr):
-        for lens_bin, color in enumerate(color_list):
-
-            table_l_phot = read_precompute(
-                survey, lens_bin, zspec=False,
-                lens_magnification=lens_magnification,
-                source_magnification=source_magnification,
-                fiber_assignment=fiber_assignment)
-            table_l_spec = read_precompute(
-                survey, lens_bin, zspec=True,
-                lens_magnification=lens_magnification,
-                source_magnification=source_magnification,
-                fiber_assignment=fiber_assignment)
-
-            plot_difference(ax, color, table_l_phot, table_l_spec, survey,
-                            ds_norm=ds_ref[lens_bin], offset=lens_bin)
-
-    axarr[1].set_title('Photometric redshift dilution')
-    plt.ylim(-10, +10)
-    plt.tight_layout(pad=0.3)
-    plt.subplots_adjust(wspace=0)
-    savefigs('redshift_dilution_residual')
-    plt.close()
-
-    fig, axarr = initialize_plot('Bias')
-
-    for survey, ax in zip(survey_list, axarr):
-        for lens_bin, color in enumerate(color_list):
-
-            table_l_phot = read_precompute(
-                survey, lens_bin, zspec=False,
-                lens_magnification=lens_magnification,
-                source_magnification=source_magnification,
-                fiber_assignment=fiber_assignment)
-            table_l_spec = read_precompute(
-                survey, lens_bin, zspec=True,
-                lens_magnification=lens_magnification,
-                source_magnification=source_magnification,
-                fiber_assignment=fiber_assignment)
-            table_l_phot['sum w_ls e_t sigma_crit f_bias'] = \
-                table_l_phot['sum w_ls e_t sigma_crit']
-
-            plot_difference(ax, color, table_l_phot, table_l_spec, survey,
-                            ds_norm=ds_ref[lens_bin], offset=lens_bin)
-
-    axarr[1].set_title('Photometric redshift dilution')
-    plt.ylim(-60, +60)
-    plt.tight_layout(pad=0.3)
-    plt.subplots_adjust(wspace=0)
-    savefigs('redshift_dilution')
-    plt.close()
-
-    fig, axarr = initialize_plot()
-
-    for survey, ax in zip(survey_list, axarr):
-        for lens_bin, color in enumerate(color_list):
-
-            table_l_normal = read_precompute(
-                survey, lens_bin, zspec=True, runit=False,
-                lens_magnification=lens_magnification,
-                source_magnification=source_magnification,
-                fiber_assignment=fiber_assignment)
-            table_l_runit = read_precompute(
-                survey, lens_bin, zspec=True, runit=True,
-                lens_magnification=lens_magnification,
-                source_magnification=source_magnification,
-                fiber_assignment=fiber_assignment)
-
-            plot_difference(ax, color, table_l_normal, table_l_runit, survey,
-                            ds_norm=ds_ref[lens_bin], offset=lens_bin)
-
-    axarr[1].set_title('Shear response')
-    plt.ylim(-10, +10)
-    plt.tight_layout(pad=0.3)
-    plt.subplots_adjust(wspace=0)
-    savefigs('response_residual')
-    plt.close()
-
-# %%
-
-if args.stage == 2:
-
-    fig, axarr = initialize_plot('Bias')
-
-    for survey, ax in zip(survey_list, axarr):
-        for lens_bin, color in enumerate(color_list):
-
-            table_l_normal = read_precompute(
-                survey, lens_bin, zspec=False,
-                lens_magnification=lens_magnification,
-                source_magnification=source_magnification,
-                fiber_assignment=fiber_assignment)
-            table_l_nomag = read_precompute(
-                survey, lens_bin, zspec=False,
-                lens_magnification=lens_magnification,
-                source_magnification=False,
-                fiber_assignment=fiber_assignment)
-
-            plot_difference(ax, color, table_l_normal, table_l_nomag, survey,
-                            ds_norm=ds_ref[lens_bin], offset=lens_bin)
-
-    axarr[1].set_title('Source magnification')
-    plt.ylim(-4, +4)
-    plt.tight_layout(pad=0.3)
-    plt.subplots_adjust(wspace=0)
-    savefigs('source_magnification')
-    plt.close()
-
-    fig, axarr = initialize_plot('Bias')
-
-    for survey, ax in zip(survey_list, axarr):
-        for lens_bin, color in enumerate(color_list):
-
-            table_l_normal = read_precompute(
-                survey, lens_bin, zspec=False,
-                lens_magnification=lens_magnification,
-                source_magnification=source_magnification,
-                fiber_assignment=fiber_assignment)
-            table_l_nomag = read_precompute(
-                survey, lens_bin, zspec=False,
-                lens_magnification=lens_magnification,
-                source_magnification=False,
-                fiber_assignment=fiber_assignment)
-
-            plot_difference(ax, color, table_l_normal, table_l_nomag, survey,
-                            offset=lens_bin, boost=True)
-
-    axarr[1].set_title('Impact of magnification on boost estimator')
-    plt.ylim(-4, +4)
-    plt.tight_layout(pad=0.3)
-    plt.subplots_adjust(wspace=0)
-    savefigs('boost_magnification_bias')
-    plt.close()
-
-# %%
-
-if args.stage == 3:
-
-    camb_results = zebu.get_camb_results()
-
-    fig, axarr = initialize_plot()
-
-    for survey, ax in zip(survey_list, axarr):
-        for lens_bin, color in enumerate(color_list):
-
-            table_l_normal = read_precompute(
-                survey, lens_bin, zspec=False,
-                lens_magnification=lens_magnification,
-                source_magnification=source_magnification,
-                fiber_assignment=fiber_assignment)
-            table_l_nomag = read_precompute(
-                survey, lens_bin, zspec=False,
-                lens_magnification=False,
-                source_magnification=source_magnification,
-                fiber_assignment=fiber_assignment)
-
-            ds_lm = lens_magnification_bias(
-                table_l_normal, zebu.alpha_l[lens_bin], camb_results,
-                photo_z_correction=True)
-            ax.plot(rp * (1 + lens_bin * 0.05),
-                    100 * ds_lm / ds_ref[lens_bin], color=color, ls='--')
-
-            plot_difference(ax, color, table_l_normal, table_l_nomag, survey,
-                            ds_norm=ds_ref[lens_bin], offset=lens_bin)
-
-    axarr[1].set_title('Lens magnification')
-    plt.ylim(-2, +25)
-    plt.tight_layout(pad=0.3)
-    plt.subplots_adjust(wspace=0)
-    savefigs('lens_magnification')
-    plt.close()
-
-# %%
-
-if args.stage == 4:
-
-    fig, axarr = initialize_plot('Bias')
-
-    for survey, ax in zip(survey_list, axarr):
-        for lens_bin, color in enumerate(color_list):
-
-            table_l_normal = read_precompute(
-                survey, lens_bin, zspec=False,
-                lens_magnification=lens_magnification,
-                source_magnification=source_magnification,
-                fiber_assignment=True, iip_weights=False)
-            table_l_nofib = read_precompute(
-                survey, lens_bin, zspec=False,
-                lens_magnification=lens_magnification,
-                source_magnification=source_magnification,
-                fiber_assignment=False)
-
-            plot_difference(ax, color, table_l_normal, table_l_nofib, survey,
-                            ds_norm=ds_ref[lens_bin], offset=lens_bin)
-
-    axarr[1].set_title('Fibre collisions')
-    plt.ylim(-50, +50)
-    plt.tight_layout(pad=0.3)
-    plt.subplots_adjust(wspace=0)
-    savefigs('fiber_collisions')
-    plt.close()
-
-    fig, axarr = initialize_plot()
-
-    for survey, ax in zip(survey_list, axarr):
-        for lens_bin, color in enumerate(color_list):
-
-            table_l_normal = read_precompute(
-                survey, lens_bin, zspec=False,
-                lens_magnification=lens_magnification,
-                source_magnification=source_magnification,
-                fiber_assignment=True)
-            table_l_nofib = read_precompute(
-                survey, lens_bin, zspec=False,
-                lens_magnification=lens_magnification,
-                source_magnification=source_magnification,
-                fiber_assignment=False)
-
-            plot_difference(ax, color, table_l_normal, table_l_nofib, survey,
-                            ds_norm=ds_ref[lens_bin], offset=lens_bin)
-
-    axarr[1].set_title('Fibre collisions')
-    plt.ylim(-2, +2)
-    plt.tight_layout(pad=0.3)
-    plt.subplots_adjust(wspace=0)
-    savefigs('fiber_collisions_residual')
-    plt.close()
-
-# %%
-
-if args.stage == 5:
-
-    fig, axarr = initialize_plot('Bias')
-
-    for survey, ax in zip(survey_list, axarr):
-        for lens_bin, color in enumerate(color_list):
-
-            table_l_ia = read_precompute(
-                survey, lens_bin, zspec=False,
-                lens_magnification=lens_magnification,
-                source_magnification=source_magnification,
-                fiber_assignment=fiber_assignment, intrinsic_alignment=True)
-            table_l_noia = read_precompute(
-                survey, lens_bin, zspec=False,
-                lens_magnification=lens_magnification,
-                source_magnification=source_magnification,
-                fiber_assignment=fiber_assignment)
-
-            plot_difference(ax, color, table_l_ia, table_l_noia, survey,
-                            ds_norm=ds_ref[lens_bin], offset=lens_bin)
-
-    axarr[1].set_title('Intrinsic alignment')
-    plt.ylim(-1, +1)
-    plt.tight_layout(pad=0.3)
-    plt.subplots_adjust(wspace=0)
-    savefigs('intrinsic_alignment')
+    plt.subplots_adjust(wspace=0, hspace=0)
+    plt.savefig(os.path.join(
+        fpath, 'lens_magnification_gt_{}.pdf'.format(sources)))
+    plt.savefig(os.path.join(
+        fpath, 'lens_magnification_gt_{}.png'.format(sources)), dpi=300)
     plt.close()

@@ -22,14 +22,20 @@ LENS_Z_BINS = {
 ALPHA_L = [0.818, 1.658, 2.568, 1.922]
 
 
-def stacking_kwargs(survey):
+def stacking_kwargs(survey, statistic='ds'):
 
     if survey.lower() in ['des', 'hsc', 'kids']:
-        return {'photo_z_dilution_correction': True,
-                'boost_correction': False, 'random_subtraction': False,
-                'scalar_shear_response_correction': survey.lower() != 'des',
-                'matrix_shear_response_correction': survey.lower() == 'des',
-                'shear_responsivity_correction': survey.lower() == 'hsc'}
+        kwargs = {'boost_correction': False, 'random_subtraction': False,
+                  'scalar_shear_response_correction': survey.lower() != 'des',
+                  'matrix_shear_response_correction': survey.lower() == 'des',
+                  'shear_responsivity_correction': survey.lower() == 'hsc'}
+        if statistic == 'ds':
+            kwargs['photo_z_dilution_correction'] = True
+        elif statistic == 'gt':
+            pass
+        else:
+            raise ValueError("Unknown statistic '{}'.".format(statistic))
+        return kwargs
     else:
         raise RuntimeError('Unkown lensing survey {}.'.format(survey))
 
