@@ -2,10 +2,11 @@ import os
 import zebu
 import argparse
 import numpy as np
-import healpy as hp
 from time import time
 import multiprocessing
+from astropy import units as u
 from astropy.table import Table
+from astropy_healpix import HEALPix
 from scipy.interpolate import interp1d
 from astropy.io.ascii import convert_numpy
 from dsigma.physics import critical_surface_density
@@ -41,8 +42,8 @@ cat_l_all, cat_s_all, cat_c_all = zebu.read_mock_catalog(
     photometric_redshifts=config['photometric redshifts'],
     shear_bias=config['shear bias'],
     shape_noise=config['shape noise'])
-cat_l_all['field_jk'] = hp.ang2pix(
-    8, cat_l_all['ra'], cat_l_all['dec'], nest=True, lonlat=True)
+cat_l_all['field_jk'] = HEALPix(8, order='nested').lonlat_to_healpix(
+    cat_l_all['ra'] * u.deg, cat_l_all['dec'] * u.deg)
 
 z_l_bins = zebu.LENS_Z_BINS[config['lenses'].split('-')[0]]
 z_s_bins = zebu.SOURCE_Z_BINS[config['sources']]
