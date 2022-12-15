@@ -93,7 +93,8 @@ elif args.survey.lower() == 'kids':
 
     table_s['z_bin'] = kids.tomographic_redshift_bin(table_s['z'],
                                                      version='DR4')
-    table_s['m'] = kids.multiplicative_shear_bias(table_s['z'], version='DR4')
+    table_s['m'] = kids.multiplicative_shear_bias(table_s['z_bin'],
+                                                  version='DR4')
     table_s = table_s[table_s['z_bin'] >= 0]
     table_s['z'] = np.array([0.1, 0.3, 0.5, 0.7, 0.9])[table_s['z_bin']]
 
