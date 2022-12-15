@@ -1,9 +1,8 @@
 import os
-import fitsio
 import argparse
 import numpy as np
 import multiprocessing
-from astropy.table import Table, vstack, hstack, join
+from astropy.table import Table, vstack, join
 from dsigma.helpers import dsigma_table
 from dsigma.precompute import add_maximum_lens_redshift, add_precompute_results
 from dsigma.jackknife import add_continous_fields, jackknife_field_centers
@@ -15,7 +14,8 @@ from astropy.cosmology import FlatLambdaCDM
 parser = argparse.ArgumentParser(
     description='Calculate the lensing signal for a LWB-type analysis.')
 
-parser.add_argument('survey', help='the lens survey')
+parser.add_argument('survey', help='the lens survey',
+                    choices=['des', 'hsc', 'kids'])
 args = parser.parse_args()
 
 cosmology = FlatLambdaCDM(100, 0.3)
@@ -25,59 +25,53 @@ table_l = vstack([
         'boss', 'galaxy_DR12v5_CMASSLOWZTOT_South.fits.gz')),
     Table.read(os.path.join(
         'boss', 'galaxy_DR12v5_CMASSLOWZTOT_North.fits.gz'))])
-table_l = dsigma_table(table_l, 'lens', z='Z', ra='RA', dec='DEC', w_sys=1)
+
+table_l['w_sys'] = table_l['WEIGHT_SYSTOT'] * (
+    table_l['WEIGHT_NOZ'] + table_l['WEIGHT_CP'] - 1)
+table_l = dsigma_table(table_l, 'lens', z='Z', ra='RA', dec='DEC')
 table_l = table_l[table_l['z'] >= 0.15]
 
 if args.survey.lower() == 'des':
 
-    table_s = []
-
-    fname_list = ['mcal-y1a1-combined-riz-unblind-v4-matched.fits',
-                  'y1a1-gold-mof-badregion_BPZ.fits',
-                  'mcal-y1a1-combined-griz-blind-v3-matched_BPZbase.fits']
-    columns_list = [['e1', 'e2', 'R11', 'R12', 'R21', 'R22', 'region', 'ra',
-                     'dec', 'flags_select', 'flags_select_1p',
-                     'flags_select_1m', 'flags_select_2p', 'flags_select_2m'],
-                    ['Z_MC'], ['MEAN_Z']]
-
-    for fname, columns in zip(fname_list, columns_list):
-        table_s.append(Table(fitsio.read(os.path.join('des', 'raw', fname),
-                                         columns=columns), names=columns))
-
-    table_s = hstack(table_s)
-    table_s = table_s[table_s['region'] == 2]
+    table_s = Table.read(os.path.join('des', 'des_y3.hdf5'),
+                         path='catalog')
     table_s = dsigma_table(table_s, 'source', survey='DES')
-    table_s['z_bin'] = des.tomographic_redshift_bin(table_s['z'])
 
     for z_bin in range(4):
-        use = table_s['z_bin'] == z_bin
-        R_sel = des.selection_response(table_s[use])
-        table_s['R_11'][use] += 0.5 * np.sum(np.diag(R_sel))
-        table_s['R_22'][use] += 0.5 * np.sum(np.diag(R_sel))
+        select = table_s['z_bin'] == z_bin
+        R_sel = des.selection_response(table_s[select])
+        print("Bin {}: R_sel = {:.1f}%".format(
+            z_bin + 1, 100 * 0.5 * np.sum(np.diag(R_sel))))
+        table_s['R_11'][select] += 0.5 * np.sum(np.diag(R_sel))
+        table_s['R_22'][select] += 0.5 * np.sum(np.diag(R_sel))
 
-    table_s = table_s[(table_s['flags_select'] == 0) &
-                      (table_s['z_bin'] != -1)]
+    table_s = table_s[table_s['flags_select']]
+    table_s['m'] = des.multiplicative_shear_bias(
+        table_s['z_bin'], version='Y3')
 
-    table_c = table_s['z', 'z_true', 'w']
-    table_c['w_sys'] = 0.5 * (table_s['R_11'] + table_s['R_22'])
+    table_n = Table.read(os.path.join('des', 'des_y3.hdf5'),
+                         path='redshift')
+    z_mean = np.array([np.average(table_n['z'], weights=table_n['n'][:, i])
+                       for i in range(4)])
+    table_s['z'] = z_mean[table_s['z_bin']]
 
-    z_s_bins = [0.2, 0.43, 0.63, 0.9, 1.3]
-    precompute_kwargs = {'table_c': table_c}
-    stacking_kwargs = {'matrix_shear_response_correction': True,
-                       'photo_z_dilution_correction': True}
+    z_s_bins = np.array([0.0, 0.358, 0.631, 0.872, 2.0])
+    precompute_kwargs = {'table_n': table_n}
+    stacking_kwargs = {'scalar_shear_response_correction': True,
+                       'matrix_shear_response_correction': True}
 
 elif args.survey.lower() == 'hsc':
 
-    table_s = Table.read(os.path.join('hsc', 'raw', 'hsc_s16a_lensing.fits'))
+    table_s = Table.read(os.path.join('hsc', 'hsc_s16a_lensing.fits'))
     table_s = dsigma_table(table_s, 'source', survey='HSC')
 
     table_c_1 = vstack([
-        Table.read(os.path.join('hsc', 'raw', 'pdf-s17a_wide-9812.cat.fits')),
-        Table.read(os.path.join('hsc', 'raw', 'pdf-s17a_wide-9813.cat.fits'))])
+        Table.read(os.path.join('hsc', 'pdf-s17a_wide-9812.cat.fits')),
+        Table.read(os.path.join('hsc', 'pdf-s17a_wide-9813.cat.fits'))])
     for key in table_c_1.colnames:
         table_c_1.rename_column(key, key.lower())
     table_c_2 = Table.read(os.path.join(
-        'hsc', 'raw', 'Afterburner_reweighted_COSMOS_photoz_FDFC.fits'))
+        'hsc', 'Afterburner_reweighted_COSMOS_photoz_FDFC.fits'))
     table_c_2.rename_column('S17a_objid', 'id')
     table_c = join(table_c_1, table_c_2, keys='id')
     table_c = dsigma_table(table_c, 'calibration', w_sys='SOM_weight',
@@ -94,7 +88,7 @@ elif args.survey.lower() == 'hsc':
 elif args.survey.lower() == 'kids':
 
     table_s = Table.read(os.path.join(
-        'kids', 'raw', 'KiDS_DR4.1_ugriZYJHKs_SOM_gold_WL_cat.fits'))
+        'kids', 'KiDS_DR4.1_ugriZYJHKs_SOM_gold_WL_cat.fits'))
     table_s = dsigma_table(table_s, 'source', survey='KiDS')
 
     table_s['z_bin'] = kids.tomographic_redshift_bin(table_s['z'],
@@ -107,16 +101,13 @@ elif args.survey.lower() == 'kids':
              'v2_SOMcols_Fid_blindC_TOMO{}_Nz.asc')
     table_n = Table()
     table_n['z'] = np.genfromtxt(os.path.join(
-        'kids', 'raw', fname.format(1)))[:, 0] + 0.025
+        'kids', fname.format(1)))[:, 0] + 0.025
     table_n['n'] = np.vstack([np.genfromtxt(os.path.join(
-        'kids', 'raw', fname.format(i + 1)))[:, 1] for i in range(5)]).T
+        'kids', fname.format(i + 1)))[:, 1] for i in range(5)]).T
 
     z_s_bins = np.array([0.1, 0.3, 0.5, 0.7, 0.9, 1.2])
     precompute_kwargs = {'table_n': table_n}
     stacking_kwargs = {'scalar_shear_response_correction': True}
-
-else:
-    raise ValueError("Survey must be 'des', 'hsc' or 'kids'.")
 
 # %%
 
@@ -124,12 +115,12 @@ add_maximum_lens_redshift(table_s, dz_min=0.1)
 if 'table_c' in precompute_kwargs.keys():
     add_maximum_lens_redshift(table_c, dz_min=0.1)
 
-if args.survey.lower() == 'kids':
+if args.survey.lower() in ['des', 'kids']:
     table_s['z_l_max'] = 1000.0
 
-precompute_kwargs.update({
-    'n_jobs': multiprocessing.cpu_count(), 'comoving': True,
-    'cosmology': cosmology})
+precompute_kwargs.update(dict(
+    n_jobs=multiprocessing.cpu_count(), comoving=True, cosmology=cosmology,
+    progress_bar=True))
 
 # %%
 
