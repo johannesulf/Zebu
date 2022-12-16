@@ -254,3 +254,22 @@ for sources in ['des', 'hsc', 'kids']:
     plt.savefig(os.path.join(
         fpath, 'lens_magnification_gt_{}.png'.format(sources)), dpi=300)
     plt.close()
+
+fig, ax_list = plot_difference(separation='physical', statistic='ds',
+                               config=dict(source_magnification=(False, True)))
+ax_list[0].set_ylabel(r'$\Delta\Sigma$ Source Magn. Bias')
+plt.tight_layout(pad=0.3)
+plt.subplots_adjust(wspace=0, hspace=0)
+plt.savefig(os.path.join(fpath, 'source_magnification_ds.pdf'))
+plt.savefig(os.path.join(fpath, 'source_magnification_ds.png'), dpi=300)
+plt.close()
+
+fig, ax_list = plot_difference(
+    separation='physical', statistic='ds',
+    config=dict(photometric_redshifts=(False, True)))
+ax_list[0].set_ylabel(r'$\Delta\Sigma$ Photo-z Bias')
+plt.tight_layout(pad=0.3)
+plt.subplots_adjust(wspace=0, hspace=0)
+plt.savefig(os.path.join(fpath, 'photometric_redshift_ds.pdf'))
+plt.savefig(os.path.join(fpath, 'photometric_redshift_ds.png'), dpi=300)
+plt.close()
