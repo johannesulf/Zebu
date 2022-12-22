@@ -68,10 +68,8 @@ def read_mock_catalog(survey, magnification=True, fiber_assignment=False,
         for fname in fname_list:
             if fname[:5] != 'pixel':
                 continue
-            if survey not in ['des-c', 'hsc-c', 'kids-c']:
-                path = survey
-            else:
-                path = survey.split('-')[0]
+            # Remove '-c' for calibration samples, e.g, des-c.
+            path = survey.split('-')[0]
             cat_all[survey].append(Table.read(
                 os.path.join(fpath, fname), path=path))
 
@@ -155,6 +153,9 @@ def read_mock_catalog(survey, magnification=True, fiber_assignment=False,
 
         cat_survey['e_2'] = - cat_survey['e_2']
 
+        if not photometric_redshifts:
+            cat_survey['z'] = cat_survey['z_true']
+
     for survey in survey_list:
         if survey in ['bgs', 'lrg']:
             cat_all[survey].rename_column('z_true', 'z')
@@ -163,7 +164,8 @@ def read_mock_catalog(survey, magnification=True, fiber_assignment=False,
 
     for survey in survey_list:
         columns_keep = ['ra', 'dec', 'e_1', 'e_2', 'z_true', 'z', 'e_rms',
-                        'm', 'R_11', 'R_22', 'R_12', 'R_21', 'w', 'w_sys']
+                        'm', 'R_11', 'R_22', 'R_12', 'R_21', 'w', 'w_sys',
+                        'g_1', 'g_2', 'ia_1', 'ia_2']
         for key in cat_all[survey].colnames:
             if key not in columns_keep:
                 cat_all[survey].remove_column(key)
