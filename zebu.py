@@ -69,7 +69,7 @@ def read_mock_catalog(survey, magnification=True, fiber_assignment=False,
             if fname[:5] != 'pixel':
                 continue
             # Remove '-c' for calibration samples, e.g, des-c.
-            path = survey.split('-')[0]
+            path = survey.split('-c')[0]
             cat_all[survey].append(Table.read(
                 os.path.join(fpath, fname), path=path))
 
