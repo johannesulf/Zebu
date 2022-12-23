@@ -119,7 +119,7 @@ def read_mock_catalog(survey, magnification=True, fiber_assignment=False,
                 if 'm' in cat_all[survey].colnames:
                     cat_survey['m'] = 0
                 if 'e_rms' in cat_all[survey].colnames:
-                    cat_survey['e_rms'] = 0
+                    cat_survey['e_rms'] = np.sqrt(0.5)
                 if 'R_11' in cat_all[survey].colnames:
                     cat_survey['R_11'] = 1
                 if 'R_22' in cat_all[survey].colnames:
