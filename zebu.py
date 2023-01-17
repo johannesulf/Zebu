@@ -1,12 +1,12 @@
-import os
 import camb
 import numpy as np
+from pathlib import Path
 from astropy import units as u
 from astropy.table import Table, vstack
 from astropy.cosmology import FlatLambdaCDM
 
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = Path(__file__).absolute().parent
 COSMOLOGY = FlatLambdaCDM(Om0=0.286, H0=100)
 RP_BINS = 0.2 * np.logspace(0, 2, 21)
 THETA_BINS = 3 * np.logspace(0, 2, 21) * u.arcmin
@@ -41,8 +41,8 @@ def stacking_kwargs(survey, statistic='ds'):
 
 
 def read_mock_catalog(survey, magnification=True, fiber_assignment=False,
-                      intrinsic_alignment=False, photometric_redshifts=True,
-                      shear_bias=True, shape_noise=False):
+                      intrinsic_alignment=False, shear_bias=True,
+                      shape_noise=False):
 
     if shape_noise:
         if not (shear_bias and intrinsic_alignment):
@@ -59,53 +59,54 @@ def read_mock_catalog(survey, magnification=True, fiber_assignment=False,
     else:
         magnification_list = magnification
 
-    fpath = os.path.join(BASE_DIR, 'mocks', 'mocks')
-    fname_list = os.listdir(fpath)
+    path = BASE_DIR / 'mocks' / 'mocks'
 
-    cat_all = {}
+    table_all = {}
     for survey in ['buzzard', ] + survey_list:
-        cat_all[survey] = []
-        for fname in fname_list:
-            if fname[:5] != 'pixel':
+        table_all[survey] = []
+        for fpath in path.iterdir():
+            if 'pixel' not in fpath.as_posix():
                 continue
             # Remove '-c' for calibration samples, e.g, des-c.
-            path = survey.split('-c')[0]
-            cat_all[survey].append(Table.read(
-                os.path.join(fpath, fname), path=path))
+            table_all[survey].append(Table.read(
+                fpath, path=survey.split('-c')[0]))
 
     for survey in survey_list:
         if survey in ['bgs-r', 'lrg-r']:
             continue
-        for i in range(len(cat_all['buzzard'])):
-            cat_survey = cat_all[survey][i]
-            cat_buzzard = cat_all['buzzard'][i][cat_survey['id_buzzard']]
+        for i in range(len(table_all['buzzard'])):
+            table_survey = table_all[survey][i]
+            table_buzzard = table_all['buzzard'][i][table_survey['id_buzzard']]
             for key in ['ra', 'dec', 'mu', 'g_1', 'g_2', 'ia_1', 'ia_2']:
-                cat_survey[key] = cat_buzzard[key]
-            cat_survey['z_true'] = cat_buzzard['z']
+                table_survey[key] = table_buzzard[key]
+            table_survey['z_true'] = table_buzzard['z']
 
     for survey in survey_list:
-        meta = cat_all[survey][0].meta
-        if 'area' in cat_all[survey][0].meta.keys():
-            meta['area'] = np.sum([c.meta['area'] for c in cat_all[survey]])
-        cat_all[survey] = vstack(cat_all[survey], metadata_conflicts='silent')
-        cat_all[survey].meta = meta
+        meta = table_all[survey][0].meta
+        if 'area' in table_all[survey][0].meta.keys():
+            meta['area'] = np.sum([c.meta['area'] for c in table_all[survey]])
+        table_all[survey] = vstack(
+            table_all[survey], metadata_conflicts='silent')
+        table_all[survey].meta = meta
 
     for survey in survey_list:
         if survey in ['bgs', 'lrg', 'bgs-r', 'lrg-r']:
-            cat_all[survey]['w_sys'] = np.ones(len(cat_all[survey]))
+            table_all[survey]['w_sys'] = np.ones(len(table_all[survey]))
 
     for survey, magnification in zip(survey_list, magnification_list):
         if survey in ['bgs-r', 'lrg-r']:
             continue
         if magnification:
-            cat_all[survey] = cat_all[survey][cat_all[survey]['target']]
+            table_all[survey] = table_all[survey][table_all[survey]['target']]
         else:
-            cat_all[survey] = cat_all[survey][cat_all[survey]['target_t']]
+            table_all[survey] = table_all[survey][
+                table_all[survey]['target_t']]
             if survey in ['bgs', 'lrg']:
                 key = 'w_sys'
             else:
                 key = 'w'
-            cat_all[survey][key] = cat_all[survey][key] * cat_all[survey]['mu']
+            table_all[survey][key] = table_all[survey][key] * \
+                table_all[survey]['mu']
 
     for survey in survey_list:
         if survey not in ['des', 'hsc', 'kids', 'des-c', 'hsc-c',
@@ -113,70 +114,63 @@ def read_mock_catalog(survey, magnification=True, fiber_assignment=False,
             continue
 
         if not shape_noise or survey in ['des-c', 'hsc-c', 'kids-c']:
-            cat_survey = cat_all[survey]
+            table_survey = table_all[survey]
 
             if not shear_bias:
-                if 'm' in cat_all[survey].colnames:
-                    cat_survey['m'] = 0
-                if 'e_rms' in cat_all[survey].colnames:
-                    cat_survey['e_rms'] = np.sqrt(0.5)
-                if 'R_11' in cat_all[survey].colnames:
-                    cat_survey['R_11'] = 1
-                if 'R_22' in cat_all[survey].colnames:
-                    cat_survey['R_22'] = 1
-                if 'R_21' in cat_all[survey].colnames:
-                    cat_survey['R_21'] = 0
-                if 'R_12' in cat_all[survey].colnames:
-                    cat_survey['R_12'] = 0
+                if 'm' in table_all[survey].colnames:
+                    table_survey['m'] = 0
+                if 'e_rms' in table_all[survey].colnames:
+                    table_survey['e_rms'] = np.sqrt(0.5)
+                if 'R_11' in table_all[survey].colnames:
+                    table_survey['R_11'] = 1
+                if 'R_22' in table_all[survey].colnames:
+                    table_survey['R_22'] = 1
+                if 'R_21' in table_all[survey].colnames:
+                    table_survey['R_21'] = 0
+                if 'R_12' in table_all[survey].colnames:
+                    table_survey['R_12'] = 0
 
-            r_1 = np.ones(len(cat_survey))
-            r_2 = np.ones(len(cat_survey))
-            if 'm' in cat_survey.colnames:
-                r_1 *= 1 + cat_survey['m']
-                r_2 *= 1 + cat_survey['m']
-            if 'R_11' in cat_survey.colnames:
-                r_1 *= 0.5 * (cat_survey['R_11'] + cat_survey['R_22'])
-                r_2 *= 0.5 * (cat_survey['R_11'] + cat_survey['R_22'])
-            if 'e_rms' in cat_survey.colnames:
-                r_1 *= 2 * (1 - cat_survey['e_rms']**2)
-                r_2 *= 2 * (1 - cat_survey['e_rms']**2)
+            r = np.ones(len(table_survey))
+            if 'm' in table_survey.colnames:
+                r *= 1 + table_survey['m']
+            if 'R_11' in table_survey.colnames:
+                r *= 0.5 * (table_survey['R_11'] + table_survey['R_22'])
+            if 'e_rms' in table_survey.colnames:
+                r *= 2 * (1 - table_survey['e_rms']**2)
 
             if survey in ['des-c', 'hsc-c', 'kids-c']:
-                cat_survey['w_sys'] = (r_1 + r_2) / 2.0
+                table_survey['w_sys'] = r
 
             if not shape_noise:
-                cat_survey['e_1'] = cat_survey['g_1'] * r_1
-                cat_survey['e_2'] = cat_survey['g_2'] * r_2
+                table_survey['e_1'] = table_survey['g_1'] * r
+                table_survey['e_2'] = table_survey['g_2'] * r
                 if intrinsic_alignment:
-                    cat_survey['e_1'] += cat_survey['ia_1'] * r_1
-                    cat_survey['e_2'] += cat_survey['ia_2'] * r_2
+                    table_survey['e_1'] += table_survey['ia_1'] * r
+                    table_survey['e_2'] += table_survey['ia_2'] * r
 
-        cat_survey['e_2'] = - cat_survey['e_2']
-
-        if not photometric_redshifts:
-            cat_survey['z'] = cat_survey['z_true']
+        table_survey['e_2'] = - table_survey['e_2']
 
     for survey in survey_list:
         if survey in ['bgs', 'lrg']:
-            cat_all[survey].rename_column('z_true', 'z')
+            table_all[survey].rename_column('z_true', 'z')
         if survey in ['des-c', 'hsc-c', 'kids-c']:
-            cat_all[survey] = cat_all[survey][::100]
+            table_all[survey] = table_all[survey][::100]
 
     for survey in survey_list:
         columns_keep = ['ra', 'dec', 'e_1', 'e_2', 'z_true', 'z', 'e_rms',
                         'm', 'R_11', 'R_22', 'R_12', 'R_21', 'w', 'w_sys',
                         'g_1', 'g_2', 'ia_1', 'ia_2']
-        for key in cat_all[survey].colnames:
+        for key in table_all[survey].colnames:
             if key not in columns_keep:
-                cat_all[survey].remove_column(key)
+                table_all[survey].remove_column(key)
             else:
-                cat_all[survey][key] = cat_all[survey][key].astype(float)
+                table_all[survey][key] = table_all[survey][key].astype(float)
 
-    cat_all = [cat_all[survey] for survey in survey_list]
-    if len(cat_all) == 1:
-        cat_all = cat_all[0]
+    table_all = [table_all[survey] for survey in survey_list]
+    if len(table_all) == 1:
+        table_all = table_all[0]
 
-    return cat_all
+    return table_all
 
 
 def get_camb_results():
