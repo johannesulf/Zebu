@@ -26,7 +26,7 @@ def stacking_kwargs(survey, statistic='ds'):
 
     if survey.lower() in ['des', 'hsc', 'kids']:
         kwargs = {'boost_correction': False, 'random_subtraction': False,
-                  'scalar_shear_response_correction': survey.lower() != 'des',
+                  'scalar_shear_response_correction': True,
                   'matrix_shear_response_correction': survey.lower() == 'des',
                   'shear_responsivity_correction': survey.lower() == 'hsc'}
         if statistic == 'ds':

@@ -1,6 +1,6 @@
-import os
 import zebu
 import numpy as np
+from pathlib import Path
 import matplotlib as mpl
 from matplotlib import gridspec
 import matplotlib.pyplot as plt
@@ -11,19 +11,19 @@ from dsigma.stacking import excess_surface_density, lens_magnification_bias
 from dsigma.stacking import tangential_shear
 from dsigma.jackknife import jackknife_resampling
 
-fpath = 'plots'
+path = Path('plots')
 
 
 def read_compute_file(config, lens_bin, source_bin=None, delta_sigma=True):
 
-    fpath = os.path.join('results', '{}'.format(config))
+    path = Path('results', '{}'.format(config))
 
     if delta_sigma:
         fname = 'l{}_ds.hdf5'.format(lens_bin)
-        compute = Table.read(os.path.join(fpath, fname))
+        compute = Table.read(path / fname)
     else:
         fname = 'l{}_s{}_gt.hdf5'.format(lens_bin, source_bin)
-        compute = Table.read(os.path.join(fpath, fname))
+        compute = Table.read(path / fname)
 
     n_pairs = np.sum(compute['sum 1'], axis=1)
     return compute[n_pairs > 0.01 * np.amax(n_pairs)]
@@ -237,8 +237,8 @@ fig, ax_list = plot_difference(separation='physical', statistic='ds',
 ax_list[0].set_ylabel(r'$\Delta\Sigma$ Lens Magn. Bias')
 plt.tight_layout(pad=0.3)
 plt.subplots_adjust(wspace=0, hspace=0)
-plt.savefig(os.path.join(fpath, 'lens_magnification_ds.pdf'))
-plt.savefig(os.path.join(fpath, 'lens_magnification_ds.png'), dpi=300)
+plt.savefig(path / 'lens_magnification_ds.pdf')
+plt.savefig(path / 'lens_magnification_ds.png', dpi=300)
 plt.close()
 
 for sources in ['des', 'hsc', 'kids']:
@@ -249,10 +249,8 @@ for sources in ['des', 'hsc', 'kids']:
     ax_list[0].set_ylim(-10, 100)
     plt.tight_layout(pad=0.3)
     plt.subplots_adjust(wspace=0, hspace=0)
-    plt.savefig(os.path.join(
-        fpath, 'lens_magnification_gt_{}.pdf'.format(sources)))
-    plt.savefig(os.path.join(
-        fpath, 'lens_magnification_gt_{}.png'.format(sources)), dpi=300)
+    plt.savefig(path / 'lens_magnification_gt_{}.pdf'.format(sources))
+    plt.savefig(path / 'lens_magnification_gt_{}.png'.format(sources), dpi=300)
     plt.close()
 
 fig, ax_list = plot_difference(separation='physical', statistic='ds',
@@ -260,8 +258,8 @@ fig, ax_list = plot_difference(separation='physical', statistic='ds',
 ax_list[0].set_ylabel(r'$\Delta\Sigma$ Source Magn. Bias')
 plt.tight_layout(pad=0.3)
 plt.subplots_adjust(wspace=0, hspace=0)
-plt.savefig(os.path.join(fpath, 'source_magnification_ds.pdf'))
-plt.savefig(os.path.join(fpath, 'source_magnification_ds.png'), dpi=300)
+plt.savefig(path / 'source_magnification_ds.pdf')
+plt.savefig(path / 'source_magnification_ds.png', dpi=300)
 plt.close()
 
 fig, ax_list = plot_difference(
@@ -270,6 +268,51 @@ fig, ax_list = plot_difference(
 ax_list[0].set_ylabel(r'$\Delta\Sigma$ Photo-z Bias')
 plt.tight_layout(pad=0.3)
 plt.subplots_adjust(wspace=0, hspace=0)
-plt.savefig(os.path.join(fpath, 'photometric_redshift_ds.pdf'))
-plt.savefig(os.path.join(fpath, 'photometric_redshift_ds.png'), dpi=300)
+plt.savefig(path / 'photometric_redshift_ds.pdf')
+plt.savefig(path / 'photometric_redshift_ds.png', dpi=300)
+plt.close()
+
+for sources in ['des', 'hsc', 'kids']:
+    fig, ax_list = plot_difference(
+        separation='angle', statistic='gt', sources=sources,
+        config=dict(intrinsic_alignment=(False, True),
+                    photometric_redshifts=True))
+    ax_list[0].set_ylabel(r'$\gamma_t$ IA Contamination')
+    ax_list[0].set_ylim(-10, 100)
+    plt.tight_layout(pad=0.3)
+    plt.subplots_adjust(wspace=0, hspace=0)
+    plt.savefig(path / 'ia_contamination_gt_{}.pdf'.format(sources))
+    plt.savefig(path / 'ia_contamination_gt_{}.png'.format(sources), dpi=300)
+    plt.close()
+
+fig, ax_list = plot_difference(
+    separation='physical', statistic='ds',
+    config=dict(intrinsic_alignment=(False, True), photometric_redshifts=True))
+ax_list[0].set_ylabel(r'$\Delta\Sigma$ IA Contamination')
+plt.tight_layout(pad=0.3)
+plt.subplots_adjust(wspace=0, hspace=0)
+plt.savefig(path / 'ia_contamination_ds.pdf')
+plt.savefig(path / 'ia_contamination_ds.png', dpi=300)
+plt.close()
+
+for sources in ['des', 'hsc', 'kids']:
+    fig, ax_list = plot_difference(
+        separation='angle', statistic='gt', sources=sources,
+        config=dict(shear_bias=(False, True)))
+    ax_list[0].set_ylabel(r'$\gamma_t$ Residual Shear Bias')
+    ax_list[0].set_ylim(-10, 100)
+    plt.tight_layout(pad=0.3)
+    plt.subplots_adjust(wspace=0, hspace=0)
+    plt.savefig(path / 'shear_bias_gt_{}.pdf'.format(sources))
+    plt.savefig(path / 'shear_bias_gt_{}.png'.format(sources), dpi=300)
+    plt.close()
+
+fig, ax_list = plot_difference(
+    separation='physical', statistic='ds',
+    config=dict(shear_bias=(False, True)))
+ax_list[0].set_ylabel(r'$\Delta\Sigma$ Residual Shear Bias')
+plt.tight_layout(pad=0.3)
+plt.subplots_adjust(wspace=0, hspace=0)
+plt.savefig(path / 'shear_bias_ds.pdf')
+plt.savefig(path / 'shear_bias_ds.png', dpi=300)
 plt.close()
