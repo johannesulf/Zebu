@@ -501,7 +501,7 @@ def main():
 
         path = Path('buzzard-{}'.format(args.buzzard_mock)) / 'f_detect.hdf5'
 
-        if not path.isfile():
+        if not path.is_file():
             table_p = Table()
             table_p['mag_min'] = MAG_BINS[:-1]
             table_p['mag_max'] = MAG_BINS[1:]
