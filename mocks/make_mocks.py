@@ -45,7 +45,10 @@ def read_buzzard_catalog(pixel):
     table.rename_column('TSIZE', 'size_t')
 
     path = BUZZARD_PATH / 'surveymags'
-    fname = 'Chinchilla-{}-aux.{}.fits'.format(BUZZARD_MOCK, pixel)
+    if BUZZARD_MOCK != 0:
+        fname = 'Chinchilla-{}-aux.{}.fits'.format(BUZZARD_MOCK, pixel)
+    else:
+        fname = 'surveymags-aux.{}.fits'.format(pixel)
 
     mag = fitsio.read(path / fname, columns=['LMAG'])['LMAG']
     mag_t = fitsio.read(path / fname, columns=['TMAG'])['TMAG']
