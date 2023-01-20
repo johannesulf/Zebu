@@ -416,9 +416,9 @@ def apply_shape_noise(table_s, sigma):
 
 def main():
 
-    parser = argparse.ArgumentParser(
-        'buzzard_mock', description='which Buzzard mock to process',
-        choices=[0, 11, 3, 4, 5, 6, 7, 8, 9])
+    parser = argparse.ArgumentParser()
+    parser.add_argument('buzzard_mock', choices=[0, 11, 3, 4, 5, 6, 7, 8, 9],
+                        description='which Buzzard mock to process')
     args = parser.parse_args()
 
     global BUZZARD_PATH
