@@ -427,11 +427,8 @@ def main():
         'buzzard_v2.0' / 'buzzard-{}'.format(args.buzzard_mock) /
         'addgalspostprocess')
 
-    pixel_all = [fname for fname in (BUZZARD_PATH / 'truth').iterdir()]
-    print(pixel_all)
-
-    import sys
-    sys.exit()
+    pixel_all = [int(str(fname.stem).split('.')[-1]) for fname in
+                 (BUZZARD_PATH / 'truth').iterdir()]
 
     global TABLE_S, TABLE_C
     for survey in ['des', 'hsc', 'kids']:
@@ -483,15 +480,13 @@ def main():
         TABLE_IA['ia_1'] = np.zeros((np.sum(select), 80), dtype=np.float32)
         TABLE_IA['ia_2'] = np.zeros((np.sum(select), 80), dtype=np.float32)
 
-        fpath = os.path.join(
-            '/', 'global', 'cscratch1', 'sd', 'ucapnje', 'DESI',
-            'buzzard4_shear_intrinsic_alignments')
+        path = BUZZARD_PATH / 'ia_shear'
 
         for i in tqdm.tqdm(range(80)):
             fname = 'desi_lensing_shear_buzzard4_{}.fits'.format(i)
-            ia = Table.read(os.path.join(fpath, fname))['T'].data.ravel()
-            TABLE_IA['ia_1'][:, i] = np.real(ia)[select]
-            TABLE_IA['ia_2'][:, i] = np.imag(ia)[select]
+            # ia = Table.read(os.path.join(fpath, fname))['T'].data.ravel()
+            # TABLE_IA['ia_1'][:, i] = np.real(ia)[select]
+            # TABLE_IA['ia_2'][:, i] = np.imag(ia)[select]
 
     for pixel in tqdm.tqdm(pixel_all):
         table_b = read_buzzard_catalog(pixel)
@@ -500,17 +495,17 @@ def main():
         for survey in ['des', 'hsc', 'kids']:
             table_b['z_' + survey] = photometric_redshift(table_b['z'], survey)
 
-        fname = os.path.join('mocks', 'f_detect.hdf5')
+        path = Path('buzzard-{}'.format(args.buzzard_mock)) / 'f_detect.hdf5'
 
-        if not os.path.isfile(fname):
+        if not path.isfile():
             table_p = Table()
             table_p['mag_min'] = MAG_BINS[:-1]
             table_p['mag_max'] = MAG_BINS[1:]
             for survey in ['des', 'hsc', 'kids']:
                 table_p[survey] = detection_probability(table_b, survey)
-            table_p.write(fname, path='data')
+            table_p.write(path, path='data')
         else:
-            table_p = Table.read(fname)
+            table_p = Table.read(path)
 
         random = np.random.random(len(table_b))
         for suffix, lensed in zip(['', '_t'], [True, False]):
@@ -527,11 +522,11 @@ def main():
         table_b = table_b[select]
 
         fname = 'pixel_{}.hdf5'.format(pixel)
-        fpath = os.path.join('mocks', fname)
+        path = Path('buzzard-{}'.format(args.buzzard_mock)) / fname
 
         buzzard_columns = ['z', 'mu', 'g_1', 'g_2',
                            'ra', 'dec', 'mag', 'ia_1', 'ia_2']
-        table_b[buzzard_columns].write(fpath, path='buzzard', overwrite=True)
+        table_b[buzzard_columns].write(path, path='buzzard', overwrite=True)
 
         for survey in ['bgs', 'lrg', 'des', 'hsc', 'kids']:
             table_survey = Table()
@@ -571,14 +566,14 @@ def main():
                 elif np.issubdtype(dtype, np.floating):
                     table_survey[key] = table_survey[key].astype(np.float32)
 
-            table_survey.write(fpath, path=survey, append=True)
+            table_survey.write(path, path=survey, append=True)
 
         for survey in ['bgs', 'lrg']:
             table_r = TABLE_R[survey]
             nside = 8
             pixel_r = hp.ang2pix(nside, table_r['ra'], table_r['dec'],
                                  nest=True, lonlat=True)
-            table_r[pixel_r == pixel].write(fpath, path=survey + '-r',
+            table_r[pixel_r == pixel].write(path, path=survey + '-r',
                                             append=True)
 
 
