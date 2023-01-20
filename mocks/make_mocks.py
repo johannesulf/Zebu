@@ -22,6 +22,7 @@ TABLE_C = {}
 TABLE_R = {}
 TABLE_IA = None
 BUZZARD_PATH = None
+BUZZARD_MOCK = None
 MOCK_INPUT_PATH = (Path(os.getenv('CFS')) / 'desi' / 'users' / 'cblake' /
                    'lensing' / 'mock_inputs')
 
@@ -29,7 +30,8 @@ MOCK_INPUT_PATH = (Path(os.getenv('CFS')) / 'desi' / 'users' / 'cblake' /
 def read_buzzard_catalog(pixel):
 
     path = BUZZARD_PATH / 'truth'
-    fname = 'Chinchilla-4_cam_rs_scat_shift_lensed.{}.fits'.format(pixel)
+    fname = 'Chinchilla-{}_cam_rs_scat_shift_lensed.{}.fits'.format(
+        BUZZARD_MOCK, pixel)
 
     columns = ['GAMMA1', 'GAMMA2', 'Z', 'MU', 'RA', 'DEC', 'SIZE', 'TSIZE']
     table = Table(fitsio.read(path / fname, columns=columns))
@@ -43,7 +45,7 @@ def read_buzzard_catalog(pixel):
     table.rename_column('TSIZE', 'size_t')
 
     path = BUZZARD_PATH / 'surveymags'
-    fname = 'Chinchilla-4-aux.{}.fits'.format(pixel)
+    fname = 'Chinchilla-{}-aux.{}.fits'.format(BUZZARD_MOCK, pixel)
 
     mag = fitsio.read(path / fname, columns=['LMAG'])['LMAG']
     mag_t = fitsio.read(path / fname, columns=['TMAG'])['TMAG']
@@ -421,7 +423,8 @@ def main():
                         help='which Buzzard mock to process', type=int)
     args = parser.parse_args()
 
-    global BUZZARD_PATH
+    global BUZZARD_MOCK, BUZZARD_PATH
+    BUZZARD_MOCK = args.buzzard_mock
     BUZZARD_PATH = (
         Path(os.getenv('CFS')) / 'desi' / 'mocks' / 'buzzard' /
         'buzzard_v2.0' / 'buzzard-{}'.format(args.buzzard_mock) /
