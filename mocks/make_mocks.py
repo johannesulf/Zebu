@@ -418,7 +418,7 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument('buzzard_mock', choices=[0, 11, 3, 4, 5, 6, 7, 8, 9],
-                        description='which Buzzard mock to process')
+                        help='which Buzzard mock to process')
     args = parser.parse_args()
 
     global BUZZARD_PATH
