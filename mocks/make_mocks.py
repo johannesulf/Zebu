@@ -492,6 +492,8 @@ def main():
             # TABLE_IA['ia_1'][:, i] = np.real(ia)[select]
             # TABLE_IA['ia_2'][:, i] = np.imag(ia)[select]
 
+    Path('buzzard-{}'.format(args.buzzard_mock)).mkdir(exist_ok=True)
+
     for pixel in tqdm.tqdm(pixel_all):
         table_b = read_buzzard_catalog(pixel)
         table_b = add_ia_information(table_b)
