@@ -424,9 +424,11 @@ def main():
     global BUZZARD_PATH
     BUZZARD_PATH = (
         Path(os.getenv('CFS')) / 'desi' / 'mocks' / 'buzzard' /
-        'buzzard_v2.0' / 'buzzard-{}'.format(args.buzzard_mock))
+        'buzzard_v2.0' / 'buzzard-{}'.format(args.buzzard_mock) /
+        'addgalspostprocess')
 
-    pixel_all = []
+    pixel_all = [fname for fname in (BUZZARD_PATH / 'truth').iterdir()]
+    print(pixel_all)
 
     import sys
     sys.exit()
