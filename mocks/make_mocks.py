@@ -427,15 +427,13 @@ def main():
         'buzzard_v2.0' / 'buzzard-{}'.format(args.buzzard_mock) /
         'addgalspostprocess')
 
-    pixel_all = [int(str(fname.stem).split('.')[-1]) for fname in
-                 (BUZZARD_PATH / 'truth').iterdir()]
-
     global TABLE_S, TABLE_C
     for survey in ['des', 'hsc', 'kids']:
         TABLE_S[survey] = read_real_source_catalog(survey)
         TABLE_C[survey] = read_real_calibration_catalog(survey)
 
-    pixel_all = []
+    pixel_all = [int(str(fname.stem).split('.')[-1]) for fname in
+                 (BUZZARD_PATH / 'truth').iterdir()]
 
     global TABLE_R
     for survey in ['bgs', 'lrg']:
