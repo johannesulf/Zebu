@@ -1,8 +1,10 @@
 import os
 import tqdm
 import fitsio
+import argparse
 import numpy as np
 import healpy as hp
+from pathlib import Path
 from astropy.table import Table
 from scipy.spatial import cKDTree
 from scipy.interpolate import interp1d
@@ -19,18 +21,20 @@ TABLE_S = {}
 TABLE_C = {}
 TABLE_R = {}
 TABLE_IA = None
+BUZZARD_PATH = None
+BUZZARD_MOCK = None
+MOCK_INPUT_PATH = (Path(os.getenv('CFS')) / 'desi' / 'users' / 'cblake' /
+                   'lensing' / 'mock_inputs')
 
 
 def read_buzzard_catalog(pixel):
 
-    path = os.path.join('/', 'project', 'projectdirs', 'desi', 'mocks',
-                        'buzzard', 'buzzard_v2.0', 'buzzard-4',
-                        'addgalspostprocess', 'truth')
-
-    fname = 'Chinchilla-4_cam_rs_scat_shift_lensed.{}.fits'.format(pixel)
+    path = BUZZARD_PATH / 'truth'
+    fname = 'Chinchilla-{}_cam_rs_scat_shift_lensed.{}.fits'.format(
+        BUZZARD_MOCK, pixel)
 
     columns = ['GAMMA1', 'GAMMA2', 'Z', 'MU', 'RA', 'DEC', 'SIZE', 'TSIZE']
-    table = Table(fitsio.read(os.path.join(path, fname), columns=columns))
+    table = Table(fitsio.read(path / fname, columns=columns))
     table.rename_column('GAMMA1', 'g_1')
     table.rename_column('GAMMA2', 'g_2')
     table.rename_column('Z', 'z')
@@ -40,13 +44,14 @@ def read_buzzard_catalog(pixel):
     table.rename_column('SIZE', 'size')
     table.rename_column('TSIZE', 'size_t')
 
-    path = os.path.join('/', 'project', 'projectdirs', 'desi', 'mocks',
-                        'buzzard', 'buzzard_v2.0', 'buzzard-4',
-                        'addgalspostprocess', 'surveymags')
-    fname = 'Chinchilla-4-aux.{}.fits'.format(pixel)
+    path = BUZZARD_PATH / 'surveymags'
+    if BUZZARD_MOCK != 0:
+        fname = 'Chinchilla-{}-aux.{}.fits'.format(BUZZARD_MOCK, pixel)
+    else:
+        fname = 'surveymags-aux.{}.fits'.format(pixel)
 
-    mag = fitsio.read(os.path.join(path, fname), columns=['LMAG'])['LMAG']
-    mag_t = fitsio.read(os.path.join(path, fname), columns=['TMAG'])['TMAG']
+    mag = fitsio.read(path / fname, columns=['LMAG'])['LMAG']
+    mag_t = fitsio.read(path / fname, columns=['TMAG'])['TMAG']
 
     table['mag'] = mag[:, [1, 2, 3, 4, 5, -2, -1]]
     table['mag_t'] = mag_t[:, [1, 2, 3, 4, 5, -2, -1]]
@@ -90,16 +95,13 @@ def add_ia_information(table_b):
 
 def read_real_source_catalog(survey):
 
-    path = os.path.join('/', 'project', 'projectdirs', 'desi', 'users',
-                        'cblake', 'lensing', 'mock_inputs')
-
     if survey.lower() not in ['des', 'kids', 'hsc']:
         raise RuntimeError('Unkown survey {}.'.format(survey))
     elif survey.lower() == 'des':
         survey = 'desy3'
 
     fname = '{}_mag.fits'.format(survey.lower())
-    table_s = Table.read(os.path.join(path, fname))
+    table_s = Table.read(MOCK_INPUT_PATH / fname)
 
     if survey == 'desy3':
 
@@ -166,16 +168,13 @@ def read_real_source_catalog(survey):
 
 def read_real_calibration_catalog(survey):
 
-    path = os.path.join('/', 'project', 'projectdirs', 'desi', 'users',
-                        'cblake', 'lensing', 'mock_inputs')
-
     if survey.lower() not in ['des', 'kids', 'hsc']:
         raise RuntimeError('Unkown survey {}.'.format(survey))
     elif survey.lower() == 'des':
         survey = 'desy3'
 
     fname = '{}_cal.fits'.format(survey.lower())
-    table_c = Table.read(os.path.join(path, fname))
+    table_c = Table.read(MOCK_INPUT_PATH / fname)
 
     if survey == 'desy3':
 
@@ -204,13 +203,10 @@ def read_real_calibration_catalog(survey):
 
 def read_random_catalog(survey):
 
-    path = os.path.join('/', 'project', 'projectdirs', 'desi', 'mocks',
-                        'buzzard', 'buzzard_v2.0', 'buzzard-4',
-                        'addgalspostprocess', 'desi_targets')
+    path = BUZZARD_PATH / 'desi_targets'
     fname = '{}_rand.fits'.format(survey)
 
-    table = Table(fitsio.read(os.path.join(path, fname),
-                              columns=['ra', 'dec', 'redshift']))
+    table = Table(fitsio.read(path / fname, columns=['ra', 'dec', 'redshift']))
     table.rename_column('redshift', 'z')
 
     for key in table.colnames:
@@ -270,7 +266,7 @@ def detection_probability(table_b, survey):
 
     mag_b = table_b['mag'][:, table_b.meta['bands'].index(band)]
     z_b = table_b['z_' + survey]
-    z_dig  = np.digitize(z_b, SOURCE_Z_BINS[survey]) - 1
+    z_dig = np.digitize(z_b, SOURCE_Z_BINS[survey]) - 1
     z_dig = np.minimum(np.maximum(z_dig, 0), len(SOURCE_Z_BINS[survey]) - 2)
     mag_b -= magshift[z_dig]
     hist_b = np.histogramdd(np.vstack([mag_b, z_b]).T, bins=bins)[0]
@@ -425,12 +421,25 @@ def apply_shape_noise(table_s, sigma):
 
 def main():
 
+    parser = argparse.ArgumentParser()
+    parser.add_argument('buzzard_mock', choices=[0, 11, 3, 4, 5, 6, 7, 8, 9],
+                        help='which Buzzard mock to process', type=int)
+    args = parser.parse_args()
+
+    global BUZZARD_MOCK, BUZZARD_PATH
+    BUZZARD_MOCK = args.buzzard_mock
+    BUZZARD_PATH = (
+        Path(os.getenv('CFS')) / 'desi' / 'mocks' / 'buzzard' /
+        'buzzard_v2.0' / 'buzzard-{}'.format(args.buzzard_mock) /
+        'addgalspostprocess')
+
     global TABLE_S, TABLE_C
     for survey in ['des', 'hsc', 'kids']:
         TABLE_S[survey] = read_real_source_catalog(survey)
         TABLE_C[survey] = read_real_calibration_catalog(survey)
 
-    pixel_all = np.genfromtxt(os.path.join('mocks', 'pixels.csv')).astype(int)
+    pixel_all = [int(str(fname.stem).split('.')[-1]) for fname in
+                 (BUZZARD_PATH / 'truth').iterdir()]
 
     global TABLE_R
     for survey in ['bgs', 'lrg']:
@@ -475,15 +484,15 @@ def main():
         TABLE_IA['ia_1'] = np.zeros((np.sum(select), 80), dtype=np.float32)
         TABLE_IA['ia_2'] = np.zeros((np.sum(select), 80), dtype=np.float32)
 
-        fpath = os.path.join(
-            '/', 'global', 'cscratch1', 'sd', 'ucapnje', 'DESI',
-            'buzzard4_shear_intrinsic_alignments')
+        path = BUZZARD_PATH / 'ia_shear'
 
         for i in tqdm.tqdm(range(80)):
             fname = 'desi_lensing_shear_buzzard4_{}.fits'.format(i)
-            ia = Table.read(os.path.join(fpath, fname))['T'].data.ravel()
-            TABLE_IA['ia_1'][:, i] = np.real(ia)[select]
-            TABLE_IA['ia_2'][:, i] = np.imag(ia)[select]
+            # ia = Table.read(os.path.join(fpath, fname))['T'].data.ravel()
+            # TABLE_IA['ia_1'][:, i] = np.real(ia)[select]
+            # TABLE_IA['ia_2'][:, i] = np.imag(ia)[select]
+
+    Path('buzzard-{}'.format(args.buzzard_mock)).mkdir(exist_ok=True)
 
     for pixel in tqdm.tqdm(pixel_all):
         table_b = read_buzzard_catalog(pixel)
@@ -492,17 +501,17 @@ def main():
         for survey in ['des', 'hsc', 'kids']:
             table_b['z_' + survey] = photometric_redshift(table_b['z'], survey)
 
-        fname = os.path.join('mocks', 'f_detect.hdf5')
+        path = Path('buzzard-{}'.format(args.buzzard_mock)) / 'f_detect.hdf5'
 
-        if not os.path.isfile(fname):
+        if not path.is_file():
             table_p = Table()
             table_p['mag_min'] = MAG_BINS[:-1]
             table_p['mag_max'] = MAG_BINS[1:]
             for survey in ['des', 'hsc', 'kids']:
                 table_p[survey] = detection_probability(table_b, survey)
-            table_p.write(fname, path='data')
+            table_p.write(path, path='data')
         else:
-            table_p = Table.read(fname)
+            table_p = Table.read(path)
 
         random = np.random.random(len(table_b))
         for suffix, lensed in zip(['', '_t'], [True, False]):
@@ -519,10 +528,11 @@ def main():
         table_b = table_b[select]
 
         fname = 'pixel_{}.hdf5'.format(pixel)
-        fpath = os.path.join('mocks', fname)
+        path = Path('buzzard-{}'.format(args.buzzard_mock)) / fname
 
-        buzzard_columns = ['z', 'mu', 'g_1', 'g_2', 'ra', 'dec', 'mag', 'ia_1', 'ia_2']
-        table_b[buzzard_columns].write(fpath, path='buzzard', overwrite=True)
+        buzzard_columns = ['z', 'mu', 'g_1', 'g_2',
+                           'ra', 'dec', 'mag', 'ia_1', 'ia_2']
+        table_b[buzzard_columns].write(path, path='buzzard', overwrite=True)
 
         for survey in ['bgs', 'lrg', 'des', 'hsc', 'kids']:
             table_survey = Table()
@@ -562,14 +572,14 @@ def main():
                 elif np.issubdtype(dtype, np.floating):
                     table_survey[key] = table_survey[key].astype(np.float32)
 
-            table_survey.write(fpath, path=survey, append=True)
+            table_survey.write(path, path=survey, append=True)
 
         for survey in ['bgs', 'lrg']:
             table_r = TABLE_R[survey]
             nside = 8
             pixel_r = hp.ang2pix(nside, table_r['ra'], table_r['dec'],
                                  nest=True, lonlat=True)
-            table_r[pixel_r == pixel].write(fpath, path=survey + '-r',
+            table_r[pixel_r == pixel].write(path, path=survey + '-r',
                                             append=True)
 
 
