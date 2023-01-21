@@ -43,7 +43,7 @@ def main():
             pixel_inner.append(p)
 
     in_inner_buzzard = np.isin(range(hp.nside2npix(nside)), pixel_inner)
-    np.savetxt(os.path.join('mocks', 'pixels.csv'), pixel_inner, fmt='%i')
+    np.savetxt(os.path.join('buzzard-4', 'pixels.csv'), pixel_inner, fmt='%i')
 
     fpath = os.path.join('/', 'global', 'cfs', 'cdirs', 'desi', 'survey',
                          'ops', 'surveyops', 'trunk', 'ops')
@@ -106,9 +106,9 @@ def main():
     footprint.savefig('footprint.png', dpi=300)
 
     table_t[table_t['PROGRAM'] == 'BRIGHT'].write(
-        os.path.join('mocks', 'bright_tiles.fits'), overwrite=True)
+        os.path.join('buzzard-4', 'bright_tiles.fits'), overwrite=True)
     table_t[table_t['PROGRAM'] == 'DARK'].write(
-        os.path.join('mocks', 'dark_tiles.fits'), overwrite=True)
+        os.path.join('buzzard-4', 'dark_tiles.fits'), overwrite=True)
 
 
 if __name__ == "__main__":

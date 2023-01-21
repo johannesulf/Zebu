@@ -6,7 +6,10 @@ from astropy.table import Table, vstack
 from astropy.cosmology import FlatLambdaCDM
 
 
-BASE_DIR = Path(__file__).absolute().parent
+BASE_PATH = Path(__file__).absolute().parent
+MOCK_PATH = BASE_PATH / 'mocks'
+MOCK_PIXEL_LIST = np.genfromtxt(
+    MOCK_PATH / 'buzzard-4' / 'pixels.csv').astype(int)
 COSMOLOGY = FlatLambdaCDM(Om0=0.286, H0=100)
 RP_BINS = 0.2 * np.logspace(0, 2, 21)
 THETA_BINS = 3 * np.logspace(0, 2, 21) * u.arcmin
@@ -42,8 +45,55 @@ def stacking_kwargs(survey, statistic='ds'):
 
 def read_mock_catalog(survey, magnification=True, fiber_assignment=False,
                       intrinsic_alignment=False, shear_bias=True,
-                      shape_noise=False):
+                      shape_noise=False, path=MOCK_PATH / 'buzzard-4',
+                      pixel=MOCK_PIXEL_LIST):
+    """
+    Read in one or multiple mock catalogs.
 
+    Attributes
+    ----------
+    survey : string or list
+        Mock survey to read. Options are 'bgs', 'bgs-r' (BGS randoms), 'lrg',
+        'lrg-r', 'des', 'des-c' (DES calibration sample), 'hsc', 'hsc-c',
+        'kids' and 'kids-c'. You can specify multiple surveys at once by
+        passing a list.
+    magnification : bool or list, optional
+        Whether to include magnification effects. If list, specifies whether
+        magnification effects are included for each survey. Default is True.
+    fiber_assignment : bool, optional
+        Whether to include fiber assignment for BGS and LRG. NOT IMPLEMENTED,
+        YET. Default is False.
+    intrinsic_alignment : bool, optional
+        Whether to include intrinsic alignment effects on the measured shears.
+        Default is False.
+    shear_bias : bool, optional
+        Whether to include shear bias effects on the measured ellipticities.
+        Default is True.
+    shape_noise : bool, optional
+        Whether to include shape noise on the measured ellipticities. Default
+        is False.
+    path : pathlib.Path, optional
+        Path to the folder in which the mocks are located in.
+    pixel : list
+        List of Healpix pixels to read
+
+    Returns
+    -------
+    mocks : astropy.Table or list
+        One or more mock survey catalogs, depending on whether one or more
+        surveys were requested. The tables have the following columns.
+        * 'ra': (lensed) right ascension
+        * 'dec': (lensed) declination
+        * 'z': measured redshift
+        * 'z_true': true cosmological redshift
+        * 'w_sys': lens or calibration systematic weight
+        * 'w': source weight
+        * 'e_1'/'e_2': ellipticity components
+        * 'g_1'/'g_2': true shear components
+        * 'ia_1'/'ia_2': IA components
+        * 'e_rms'/'m'/'R_11'/'R_22'/'R_21'/'R_12': shear biases
+
+    """
     if shape_noise:
         if not (shear_bias and intrinsic_alignment):
             raise ValueError('If `shape_noise` is true, `shear_bias` and ' +
@@ -59,17 +109,13 @@ def read_mock_catalog(survey, magnification=True, fiber_assignment=False,
     else:
         magnification_list = magnification
 
-    path = BASE_DIR / 'mocks' / 'mocks'
-
     table_all = {}
     for survey in ['buzzard', ] + survey_list:
         table_all[survey] = []
-        for fpath in path.iterdir():
-            if 'pixel' not in fpath.as_posix():
-                continue
+        for p in pixel:
             # Remove '-c' for calibration samples, e.g, des-c.
             table_all[survey].append(Table.read(
-                fpath, path=survey.split('-c')[0]))
+                path / 'pixel_{}.hdf5'.format(p), path=survey.split('-c')[0]))
 
     for survey in survey_list:
         if survey in ['bgs-r', 'lrg-r']:
