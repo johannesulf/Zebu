@@ -1,11 +1,12 @@
-import os
-import numpy as np
 import healpy as hp
-import skymapper as skm
 import matplotlib.pyplot as plt
+import numpy as np
+import os
+import skymapper as skm
 from astropy import units as u
 from astropy.table import Table
 from astropy.coordinates import SkyCoord
+from pathlib import Path
 from scipy.spatial.transform import Rotation
 
 
@@ -19,35 +20,35 @@ def mean_of_coordinates(ra, dec):
 
 def main():
 
-    fpath = os.path.join('/', 'project', 'projectdirs', 'desi', 'mocks',
-                         'buzzard', 'buzzard_v2.0', 'buzzard-4',
-                         'addgalspostprocess', 'truth')
-    fname_list = os.listdir(fpath)
-    pixel = []
-    for fname in fname_list:
-        pixel.append(int(fname.split('.')[-2]))
+    path = (
+        Path(os.getenv('CFS')) / 'desi' / 'mocks' / 'buzzard' /
+        'buzzard_v2.0' / 'buzzard-4' / 'addgalspostprocess' / 'truth')
+
+    pixel_all = [int(str(fname.stem).split('.')[-1]) for fname in
+                 path.iterdir()]
 
     nside = 8
-    in_buzzard = np.isin(range(hp.nside2npix(nside)), pixel)
+    in_buzzard = np.isin(range(hp.nside2npix(nside)), pixel_all)
     ra_p, dec_p, vertices = skm.healpix.getGrid(nside, return_vertices=True,
                                                 nest=True)[1:4]
 
     pixel_inner = []
-    for p in pixel:
-        neighbors = hp.get_all_neighbours(nside, p, nest=True)
+    for pixel in pixel_all:
+        neighbors = hp.get_all_neighbours(nside, pixel, nest=True)
         neighbors = neighbors[neighbors != -1]
         neighbors = hp.get_all_neighbours(
             nside, neighbors, nest=True).flatten()
         neighbors = neighbors[neighbors != -1]
-        if np.all(np.isin(neighbors, pixel)):
-            pixel_inner.append(p)
+        if np.all(np.isin(neighbors, pixel_all)):
+            pixel_inner.append(pixel)
 
     in_inner_buzzard = np.isin(range(hp.nside2npix(nside)), pixel_inner)
-    np.savetxt(os.path.join('buzzard-4', 'pixels.csv'), pixel_inner, fmt='%i')
+    for pixel in pixel_inner:
+        Path('mocks', 'pixel_{}.hdf5'.format(pixel)).symlink_to(
+            Path().absolute() / 'buzzard-4' / 'pixel_{}.hdf5'.format(pixel))
 
-    fpath = os.path.join('/', 'global', 'cfs', 'cdirs', 'desi', 'survey',
-                         'ops', 'surveyops', 'trunk', 'ops')
-    table_t = Table.read(os.path.join(fpath, 'tiles-main.ecsv'))
+    table_t = Table.read((Path(os.getenv('CFS')) / 'desi' / 'survey' / 'ops' /
+                          'surveyops' / 'trunk' / 'ops' / 'tiles-main.ecsv'))
     c = SkyCoord(table_t['RA'], table_t['DEC'], unit='deg')
     # Cut the tiles to just the NGC region.
     table_t = table_t[c.separation(SkyCoord(180, 40, unit='deg')) < 80 * u.deg]
@@ -102,13 +103,13 @@ def main():
     footprint.vertex(vertices[in_inner_buzzard], facecolor='darkgrey')
     footprint.scatter(table_t['RA'], table_t['DEC'], s=0.1)
     footprint.focus(ra_p[in_buzzard], dec_p[in_buzzard])
-    footprint.savefig('footprint.pdf')
-    footprint.savefig('footprint.png', dpi=300)
+    footprint.savefig(Path('mocks', 'footprint.pdf'))
+    footprint.savefig(Path('mocks', 'footprint.png'), dpi=300)
 
     table_t[table_t['PROGRAM'] == 'BRIGHT'].write(
-        os.path.join('buzzard-4', 'bright_tiles.fits'), overwrite=True)
+        Path('mocks', 'bright_tiles.fits'), overwrite=True)
     table_t[table_t['PROGRAM'] == 'DARK'].write(
-        os.path.join('buzzard-4', 'dark_tiles.fits'), overwrite=True)
+        Path('mocks', 'dark_tiles.fits'), overwrite=True)
 
 
 if __name__ == "__main__":
