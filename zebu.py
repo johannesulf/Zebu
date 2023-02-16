@@ -7,9 +7,12 @@ from astropy.cosmology import FlatLambdaCDM
 
 
 BASE_PATH = Path(__file__).absolute().parent
-MOCK_PATH = BASE_PATH / 'mocks'
-MOCK_PIXEL_LIST = np.genfromtxt(
-    MOCK_PATH / 'buzzard-4' / 'pixels.csv').astype(int)
+MOCK_PATH = BASE_PATH / 'mocks' / 'mocks'
+MOCK_PIXEL_LIST = []
+for fname in MOCK_PATH.iterdir():
+    if fname.suffix == '.hdf5':
+        MOCK_PIXEL_LIST.append(
+            int(str(fname.stem).split('.')[-1].split('_')[1]))
 COSMOLOGY = FlatLambdaCDM(Om0=0.286, H0=100)
 RP_BINS = 0.2 * np.logspace(0, 2, 21)
 THETA_BINS = 3 * np.logspace(0, 2, 21) * u.arcmin
