@@ -14,7 +14,7 @@ for fname in MOCK_PATH.iterdir():
         MOCK_PIXEL_LIST.append(
             int(str(fname.stem).split('.')[-1].split('_')[1]))
 COSMOLOGY = FlatLambdaCDM(Om0=0.286, H0=100)
-RP_BINS = 0.2 * np.logspace(0, 2, 21)
+RP_BINS = np.logspace(0, 2, 21)[:-7]
 THETA_BINS = 3 * np.logspace(0, 2, 21) * u.arcmin
 
 SOURCE_Z_BINS = {
