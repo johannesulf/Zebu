@@ -48,7 +48,7 @@ def stacking_kwargs(survey, statistic='ds'):
 
 def read_mock_catalog(survey, magnification=True, fiber_assignment=False,
                       intrinsic_alignment=False, shear_bias=True,
-                      shape_noise=False, path=MOCK_PATH / 'buzzard-4',
+                      shape_noise=False, path=MOCK_PATH,
                       pixel=MOCK_PIXEL_LIST):
     """
     Read in one or multiple mock catalogs.
