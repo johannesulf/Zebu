@@ -25,7 +25,8 @@ LENS_Z_BINS = {
     'bgs': np.array([0.1, 0.3, 0.5]),
     'lrg': np.array([0.5, 0.7, 0.9])}
 
-ALPHA_L = [0.818, 1.658, 2.568, 1.922]
+ALPHA_L = [0.7642979832435776, 1.6389627681213133, 2.497741720186678,
+           1.953780096692544]
 
 
 def stacking_kwargs(survey, statistic='ds'):
@@ -208,7 +209,7 @@ def read_mock_catalog(survey, magnification=True, fiber_assignment=False,
     for survey in survey_list:
         columns_keep = ['ra', 'dec', 'e_1', 'e_2', 'z_true', 'z', 'e_rms',
                         'm', 'R_11', 'R_22', 'R_12', 'R_21', 'w', 'w_sys',
-                        'g_1', 'g_2', 'ia_1', 'ia_2']
+                        'g_1', 'g_2', 'ia_1', 'ia_2', 'mu']
         for key in table_all[survey].colnames:
             if key not in columns_keep:
                 table_all[survey].remove_column(key)

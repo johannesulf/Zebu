@@ -31,7 +31,7 @@ def read_compute_file(config, lens_bin, source_bin=None, delta_sigma=True):
 
 def read_compute(lenses, sources, delta_sigma=True, lens_magnification=False,
                  source_magnification=False, fiber_assignment=False,
-                 intrinsic_alignment=False, photometric_redshifts=False,
+                 intrinsic_alignment=False, photometric_redshifts=True,
                  shear_bias=False, shape_noise=False):
 
     if lenses in ['bgs-r', 'lrg-r']:
@@ -51,7 +51,8 @@ def read_compute(lenses, sources, delta_sigma=True, lens_magnification=False,
     select &= table['photometric redshifts'] == photometric_redshifts
     select &= table['shear bias'] == shear_bias
     select &= table['shape noise'] == shape_noise
-    assert np.sum(select) == 1
+    if np.sum(select) == 0:
+        raise ValueError('Configuration with these options not available.')
 
     config = table['configuration'][select][0]
 
@@ -75,12 +76,12 @@ def difference(table_l, table_l_2=None, function=None, stacking_kwargs=None):
 
 
 def plot_difference(separation='physical', statistic='ds', sources=None,
-                    relative=True, config={}):
+                    relative=True, plot_lens_magnification=False, config={}):
 
     config_def = dict(
         lens_magnification=False, source_magnification=False,
         fiber_assignment=False, intrinsic_alignment=False,
-        photometric_redshifts=False, shear_bias=False, shape_noise=False)
+        photometric_redshifts=True, shear_bias=False, shape_noise=False)
 
     for key in config_def.keys():
         if key not in config.keys():
@@ -183,6 +184,7 @@ def plot_difference(separation='physical', statistic='ds', sources=None,
     cb = plt.colorbar(sm, cax=cax, pad=0.0, ticks=ticks)
     cb.ax.set_yticklabels(tick_label_list)
     cb.ax.minorticks_off()
+    cb.ax.tick_params(size=0)
 
     if separation == 'angle':
         x = 0.5 * (zebu.THETA_BINS[1:] + zebu.THETA_BINS[:-1])
@@ -226,14 +228,26 @@ def plot_difference(separation='physical', statistic='ds', sources=None,
                 fmt='o', ms=2, color=color_list[k], zorder=i + 100)
             plt.setp(barlinecols[0], capstyle='round')
 
+    if plot_lens_magnification:
+        camb_results = zebu.get_camb_results()
+        for i in range(len(ax_list)):
+            for k in range(len(color_list)):
+                diff = lens_magnification_bias(
+                    cat_l_1[i][k], zebu.ALPHA_L[k], camb_results,
+                    photo_z_correction=True) / norm
+                ax_list[i].plot(x * (1 + k * 0.05), 100 * diff,
+                                color=color_list[k], zorder=i + 100)
+
     for ax in ax_list[1:]:
         plt.setp(ax.get_yticklabels(), visible=False)
 
     return fig, ax_list
 
 
-fig, ax_list = plot_difference(separation='physical', statistic='ds',
-                               config=dict(lens_magnification=(False, True)))
+fig, ax_list = plot_difference(
+    separation='physical', statistic='ds',
+    config=dict(lens_magnification=(False, True)),
+    plot_lens_magnification=True)
 ax_list[0].set_ylabel(r'$\Delta\Sigma$ Lens Magn. Bias')
 plt.tight_layout(pad=0.3)
 plt.subplots_adjust(wspace=0, hspace=0)

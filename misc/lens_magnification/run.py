@@ -1,21 +1,35 @@
-import os
 import camb
 import zebu
 import numpy as np
 import matplotlib.pyplot as plt
 from dsigma.physics import lens_magnification_shear_bias
-from dsigma.stacking import excess_surface_density, lens_magnification_bias
-from astropy.table import Table
 
 # %%
 
-table_m = Table.read(os.path.join(
-    zebu.base_dir, 'mocks', 'magnification.hdf5'))
+alpha = []
 
-for i in range(len(zebu.lens_z_bins) - 1):
-    x = table_m['alpha_{}'.format(i)]
-    print('alpha_l in bin {}: {:.3f} +/- {:.3f}'.format(
-        i, np.mean(x), np.std(x, ddof=1) / np.sqrt(len(x))))
+for survey in ['bgs', 'lrg']:
+
+    table_l_mag = zebu.read_mock_catalog(survey, magnification=True)
+    table_l_nomag = zebu.read_mock_catalog(survey, magnification=False)
+
+    for z_min, z_max in zip(zebu.LENS_Z_BINS[survey][:-1],
+                            zebu.LENS_Z_BINS[survey][1:]):
+
+        select_mag = (z_min < table_l_mag['z']) & (table_l_mag['z'] < z_max)
+        select_nomag = (z_min < table_l_nomag['z']) & (
+            table_l_nomag['z'] < z_max)
+        mu_min = np.percentile(table_l_nomag[select_nomag]['mu'], 20)
+        mu_max = np.percentile(table_l_nomag[select_nomag]['mu'], 80)
+        mu_bins = bins = np.linspace(mu_min, mu_max, 101)
+        mu = 0.5 * (mu_bins[1:] + mu_bins[:-1])
+        h_mag = np.histogram(table_l_mag['mu'][select_mag], bins=mu_bins)[0]
+        h_nomag = np.histogram(
+            table_l_nomag['mu'][select_nomag], bins=mu_bins)[0]
+        alpha.append(np.corrcoef(
+            mu, h_mag / h_nomag)[0][1] * np.std(h_mag / h_nomag) / np.std(mu))
+
+print('alpha values: {}'.format(alpha))
 
 # %%
 
@@ -32,8 +46,6 @@ pars.set_matter_power(redshifts=np.linspace(z_d, 0, 10), kmax=2000.0,
 
 camb_results = camb.get_results(pars)
 
-# %%
-
 theta = np.deg2rad(np.logspace(-1, 1.5, 20) / 60)
 d_gamma = [lens_magnification_shear_bias(theta_i, alpha_d, z_d, z_s,
                                          camb_results) for theta_i in theta]
@@ -49,48 +61,3 @@ plt.xlim(0.5, 20)
 plt.tight_layout(pad=0.3)
 plt.savefig('unruh_20.pdf')
 plt.savefig('unruh_20.png', dpi=300)
-plt.close()
-
-# %%
-
-lens_bin = 2
-camb_results = zebu.get_camb_results()
-rp = np.sqrt(zebu.rp_bins[1:] * zebu.rp_bins[:-1])
-
-# %%
-
-for i in range(3):
-
-    source_bin = 3 - i
-
-    path = os.path.join(
-        zebu.base_dir, 'stacks', 'precompute',
-        'l{}_s{}_gen_zspec_nomag_nofib.hdf5'.format(lens_bin, source_bin))
-
-    table_l = Table.read(path, path='lens')
-    table_r = Table.read(path, path='random')
-
-    kwargs = zebu.stacking_kwargs('gen')
-
-    if source_bin == 3:
-        ds_ref = excess_surface_density(table_l, table_r=table_r, **kwargs)
-
-    ds_lm = lens_magnification_bias(
-        table_l, zebu.alpha_l[lens_bin], camb_results,
-        photo_z_correction=True)
-
-    plt.plot(rp, rp * ds_lm, label=r'${:.1f} \leq z_s < {:.1f}$'.format(
-        zebu.source_z_bins['gen'][source_bin],
-        zebu.source_z_bins['gen'][source_bin + 1]))
-
-plt.title(r'${:.1f} \leq z_l < {:.1f}$'.format(
-    zebu.lens_z_bins[lens_bin], zebu.lens_z_bins[lens_bin + 1]))
-plt.legend(loc='best')
-plt.xscale('log')
-plt.xlabel(r'Projected Radius $r_p \, [h^{-1} \, \mathrm{Mpc}]$')
-plt.ylabel(
-    r'Bias $\Delta (R \times \Delta\Sigma) \, [10^6 M_\odot / \mathrm{pc}]$')
-plt.tight_layout(pad=0.3)
-plt.savefig('bias_delta_sigma_theory.pdf')
-plt.savefig('bias_delta_sigma_theory.png', dpi=300)
-plt.close()
