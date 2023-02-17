@@ -67,7 +67,7 @@ for bin_l, (z_l_min, z_l_max) in enumerate(zip(z_l_bins[:-1], z_l_bins[1:])):
             cosmology=zebu.COSMOLOGY, weighting=0, lens_source_cut=None,
             n_jobs=multiprocessing.cpu_count(), progress_bar=False)
 
-        precompute(table_l, table_s, zebu.RP_BINS, **kwargs)
+        precompute(table_l, table_s, zebu.THETA_BINS, **kwargs)
         table_l = compress_jackknife_fields(table_l)
         table_l.write(path / 'l{}_s{}_gt.hdf5'.format(bin_l, bin_s),
                       path='data', overwrite=True)
