@@ -86,7 +86,7 @@ for bin_l, (z_l_min, z_l_max) in enumerate(zip(z_l_bins[:-1], z_l_bins[1:])):
                 z_s_min = 0
                 z_s_max = np.inf
             else:
-                continue
+                break
 
         select = (z_l_min <= table_l_all['z']) & (table_l_all['z'] < z_l_max)
         table_l = table_l_all[select]
@@ -106,7 +106,7 @@ for bin_l, (z_l_min, z_l_max) in enumerate(zip(z_l_bins[:-1], z_l_bins[1:])):
             table_n = Table()
             table_n['z'] = 0.5 * (z_bins[1:] + z_bins[:-1])
             table_n['n'] = np.atleast_2d(np.histogram(
-                table_c['z'], weights=table_c['w_sys'] * table_c['w'],
+                table_c['z_true'], weights=table_c['w_sys'] * table_c['w'],
                 bins=z_bins)[0]).T
 
         z_l = np.linspace(z_l_min - 1e-6, z_l_max + 1e-6, 100)
@@ -130,7 +130,7 @@ for bin_l, (z_l_min, z_l_max) in enumerate(zip(z_l_bins[:-1], z_l_bins[1:])):
 
         kwargs = dict(
             cosmology=zebu.COSMOLOGY, n_jobs=multiprocessing.cpu_count(),
-            progress_bar=True)
+            progress_bar=False)
 
         if config['sources'] == 'hsc':
             kwargs['table_c'] = table_c
