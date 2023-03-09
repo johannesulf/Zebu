@@ -78,7 +78,7 @@ def read_buzzard_catalog(pixel):
 
 def add_ia_information(table_b):
 
-    pixel = hp.ang2pix(2048, table_b['ra'], table_b['dec'],  lonlat=True)
+    pixel = hp.ang2pix(1024, table_b['ra'], table_b['dec'],  lonlat=True)
     row = np.searchsorted(TABLE_IA['pix'], pixel)
 
     table_b['ia_1'] = np.zeros(len(table_b), dtype=np.float32)
@@ -459,7 +459,7 @@ def main():
         z = np.linspace(0, 4, 1000)
         z = interp1d(cosmo.comoving_distance(z), z, kind='cubic')
         TABLE_IA.meta['z_bins'] = z(np.arange(81) * 50)
-        nside = 2048
+        nside = 1024
         ra, dec = hp.pix2ang(nside, np.arange(hp.nside2npix(nside)),
                              lonlat=True)
 
@@ -470,7 +470,7 @@ def main():
              pixel_all])
         pixel_ia = np.unique(pixel_ia)
 
-        # Calculate the nside=2048 pixels that correspond to the nside=8 pixels
+        # Calculate the nside=1024 pixels that correspond to the nside=8 pixels
         # calculated above.
         ra, dec = hp.pix2ang(nside, np.arange(hp.nside2npix(nside)),
                              lonlat=True)
@@ -479,7 +479,7 @@ def main():
             nside, ra, dec, nest=True, lonlat=True), pixel_ia)
 
         # Read the IA data.
-        nside = 2048
+        nside = 1024
         TABLE_IA['pix'] = np.arange(hp.nside2npix(nside))[select]
         TABLE_IA['ia_1'] = np.zeros((np.sum(select), 80), dtype=np.float32)
         TABLE_IA['ia_2'] = np.zeros((np.sum(select), 80), dtype=np.float32)
