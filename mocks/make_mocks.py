@@ -484,13 +484,13 @@ def main():
         TABLE_IA['ia_1'] = np.zeros((np.sum(select), 80), dtype=np.float32)
         TABLE_IA['ia_2'] = np.zeros((np.sum(select), 80), dtype=np.float32)
 
-        path = BUZZARD_PATH / 'ia_shear'
+        path = BUZZARD_PATH.parent / 'ia_shear'
 
         for i in tqdm.tqdm(range(80)):
-            fname = 'desi_lensing_shear_buzzard4_{}.fits'.format(i)
-            # ia = Table.read(os.path.join(fpath, fname))['T'].data.ravel()
-            # TABLE_IA['ia_1'][:, i] = np.real(ia)[select]
-            # TABLE_IA['ia_2'][:, i] = np.imag(ia)[select]
+            fname = 'ia_shear_buzzard-{}_{}.fits'.format(args.buzzard_mock, i)
+            ia = Table.read(os.path.join(path, fname))['T'].data.ravel()
+            TABLE_IA['ia_1'][:, i] = np.real(ia)[select]
+            TABLE_IA['ia_2'][:, i] = np.imag(ia)[select]
 
     Path('buzzard-{}'.format(args.buzzard_mock)).mkdir(exist_ok=True)
 
