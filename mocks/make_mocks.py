@@ -487,7 +487,7 @@ def main():
         path = BUZZARD_PATH.parent / 'ia_shear'
 
         for i in tqdm.tqdm(range(80)):
-            fname = 'ia_shear_buzzard-{}_{}.fits'.format(args.buzzard_mock, i)
+            fname = 'ia_shear_buzzard-{}-{}.fits'.format(args.buzzard_mock, i)
             ia = Table.read(os.path.join(path, fname))['T'].data.ravel()
             TABLE_IA['ia_1'][:, i] = np.real(ia)[select]
             TABLE_IA['ia_2'][:, i] = np.imag(ia)[select]
