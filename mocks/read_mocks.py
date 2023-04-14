@@ -189,8 +189,21 @@ def read_mock_catalog(survey, path, pixels, magnification=True,
 def main():
 
     parser = argparse.ArgumentParser(
+        formatter_class=argparse.RawDescriptionHelpFormatter,
         description='Script to produce mock catalogs for the lensing mock ' +
-        'challenge.')
+        'challenge.',
+        epilog='''
+The tables have the following columns (if applicable).
+    * 'ra': (lensed) right ascension
+    * 'dec': (lensed) declination
+    * 'z': measured redshift
+    * 'z_true': true cosmological redshift
+    * 'w_sys': lens or calibration systematic weight
+    * 'w': source weight
+    * 'e_1'/'e_2': ellipticity components
+    * 'g_1'/'g_2': true shear components
+    * 'ia_1'/'ia_2': IA components
+    * 'e_rms'/'m'/'R_11'/'R_22'/'R_21'/'R_12': shear biases''')
     parser.add_argument(
         'filename',
         help="Filename used for the result. Must contain the word 'SURVEY' " +
