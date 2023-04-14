@@ -33,7 +33,8 @@ def read_buzzard_catalog(pixel):
     fname = 'Chinchilla-{}_cam_rs_scat_shift_lensed.{}.fits'.format(
         BUZZARD_MOCK, pixel)
 
-    columns = ['GAMMA1', 'GAMMA2', 'Z', 'MU', 'RA', 'DEC', 'SIZE', 'TSIZE']
+    columns = ['GAMMA1', 'GAMMA2', 'Z', 'MU', 'RA', 'DEC', 'SIZE', 'TSIZE',
+               'AMAG']
     table = Table(fitsio.read(path / fname, columns=columns))
     table.rename_column('GAMMA1', 'g_1')
     table.rename_column('GAMMA2', 'g_2')
@@ -43,6 +44,8 @@ def read_buzzard_catalog(pixel):
     table.rename_column('DEC', 'dec')
     table.rename_column('SIZE', 'size')
     table.rename_column('TSIZE', 'size_t')
+    table['abs_mag_r'] = table['AMAG'][:, 1]
+    table.remove_column('AMAG')
 
     path = BUZZARD_PATH / 'surveymags'
     if BUZZARD_MOCK != 0:
@@ -530,8 +533,8 @@ def main():
         fname = 'pixel_{}.hdf5'.format(pixel)
         path = Path('buzzard-{}'.format(args.buzzard_mock)) / fname
 
-        buzzard_columns = ['z', 'mu', 'g_1', 'g_2',
-                           'ra', 'dec', 'mag', 'ia_1', 'ia_2']
+        buzzard_columns = ['z', 'mu', 'g_1', 'g_2', 'ra', 'dec', 'mag', 'ia_1',
+                           'ia_2', 'abs_mag_r']
         table_b[buzzard_columns].write(path, path='buzzard', overwrite=True)
 
         for survey in ['bgs', 'lrg', 'des', 'hsc', 'kids']:
