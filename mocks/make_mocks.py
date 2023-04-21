@@ -19,7 +19,6 @@ SOURCE_Z_BINS = {
 MAG_BINS = np.linspace(18, 26, 81)
 TABLE_S = {}
 TABLE_C = {}
-TABLE_R = {}
 TABLE_IA = None
 BUZZARD_PATH = None
 BUZZARD_MOCK = None
@@ -204,20 +203,6 @@ def read_real_calibration_catalog(survey):
     return table_c
 
 
-def read_random_catalog(survey):
-
-    path = BUZZARD_PATH / 'desi_targets'
-    fname = '{}_rand.fits'.format(survey)
-
-    table = Table(fitsio.read(path / fname, columns=['ra', 'dec', 'redshift']))
-    table.rename_column('redshift', 'z')
-
-    for key in table.colnames:
-        table[key] = table[key].astype(np.float32)
-
-    return table
-
-
 def photometric_redshift(z, survey):
 
     table_c = TABLE_C[survey]
@@ -337,9 +322,7 @@ def bgs_target(table, lensed=True):
     faint &= (r_fib < 20.75 + offset) | (
         (r_fib < 21.5 + offset) & (schlegel_color > 0.0))
 
-    bgs &= (bright | faint)
-
-    return bgs
+    return (bgs & bright), (bgs & faint)
 
 
 def lrg_target(table, lensed=True):
@@ -429,6 +412,8 @@ def main():
                         help='which Buzzard mock to process', type=int)
     args = parser.parse_args()
 
+    np.random.seed(0)
+
     global BUZZARD_MOCK, BUZZARD_PATH
     BUZZARD_MOCK = args.buzzard_mock
     BUZZARD_PATH = (
@@ -443,16 +428,6 @@ def main():
 
     pixel_all = [int(str(fname.stem).split('.')[-1]) for fname in
                  (BUZZARD_PATH / 'truth').iterdir()]
-
-    global TABLE_R
-    for survey in ['bgs', 'lrg']:
-        table_r = read_random_catalog(survey)
-        nside = 8
-        pixel = hp.ang2pix(nside, table_r['ra'], table_r['dec'], nest=True,
-                           lonlat=True)
-        table_r = table_r[np.isin(pixel, pixel_all)]
-        table_r = table_r[np.random.random(len(table_r)) < 0.1]
-        TABLE_R[survey] = table_r
 
     global TABLE_IA
     if TABLE_IA is None:
@@ -521,7 +496,10 @@ def main():
             for survey in ['des', 'hsc', 'kids']:
                 table_b[survey + suffix] = source_target(
                     table_b, table_p, survey, random, lensed=lensed)
-            table_b['bgs' + suffix] = bgs_target(table_b, lensed=lensed)
+            table_b['bgs_bright' + suffix], table_b['bgs_faint' + suffix] = (
+                bgs_target(table_b, lensed=lensed))
+            table_b['bgs' + suffix] = (
+                table_b['bgs_bright'] | table_b['bgs_faint'])
             table_b['lrg' + suffix] = lrg_target(table_b, lensed=lensed)
 
         select = np.zeros(len(table_b), dtype=bool)
@@ -544,6 +522,12 @@ def main():
             table_survey['id_buzzard'] = np.arange(len(table_b))[select]
             table_survey['target'] = table_b[survey][select]
             table_survey['target_t'] = table_b[survey + '_t'][select]
+
+            if survey == 'bgs':
+                table_survey['bright'] = table_b['bgs_bright'][select]
+                table_survey['bright_t'] = table_b['bgs_bright_t'][select]
+                table_survey['faint'] = table_b['bgs_faint'][select]
+                table_survey['faint_t'] = table_b['bgs_faint_t'][select]
 
             if survey not in ['bgs', 'lrg']:
 
@@ -576,14 +560,6 @@ def main():
                     table_survey[key] = table_survey[key].astype(np.float32)
 
             table_survey.write(path, path=survey, append=True)
-
-        for survey in ['bgs', 'lrg']:
-            table_r = TABLE_R[survey]
-            nside = 8
-            pixel_r = hp.ang2pix(nside, table_r['ra'], table_r['dec'],
-                                 nest=True, lonlat=True)
-            table_r[pixel_r == pixel].write(path, path=survey + '-r',
-                                            append=True)
 
 
 if __name__ == "__main__":

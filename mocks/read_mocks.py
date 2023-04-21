@@ -59,6 +59,7 @@ def read_mock_catalog(survey, path, pixels, magnification=True,
         * 'g_1'/'g_2': true shear components
         * 'ia_1'/'ia_2': IA components
         * 'e_rms'/'m'/'R_11'/'R_22'/'R_21'/'R_12': shear biases
+        * 'bright': whether the object is in BGS_BRIGHT (BGS catalog only)
 
     """
     if shape_noise:
@@ -76,14 +77,16 @@ def read_mock_catalog(survey, path, pixels, magnification=True,
     else:
         magnification_list = magnification
 
+    # Read all necessary tables in the files.
     table_all = {}
     for survey in ['buzzard', ] + survey_list:
         table_all[survey] = []
         for p in pixels:
-            # Remove '-c' for calibration samples, e.g, des-c.
+            # Remove '-c' and '-r' for calibration and random samples.
             table_all[survey].append(Table.read(
-                path / 'pixel_{}.hdf5'.format(p), path=survey.split('-c')[0]))
+                path / 'pixel_{}.hdf5'.format(p), path=survey.split('-')[0]))
 
+    # Assign properties from the Buzzard table to the survey tables.
     for survey in survey_list:
         if survey in ['bgs-r', 'lrg-r']:
             continue
@@ -94,6 +97,7 @@ def read_mock_catalog(survey, path, pixels, magnification=True,
                 table_survey[key] = table_buzzard[key]
             table_survey['z_true'] = table_buzzard['z']
 
+    # Stach all the tables from the individual files together.
     for survey in survey_list:
         meta = table_all[survey][0].meta
         if 'area' in table_all[survey][0].meta.keys():
@@ -120,6 +124,8 @@ def read_mock_catalog(survey, path, pixels, magnification=True,
                 key = 'w'
             table_all[survey][key] = table_all[survey][key] * \
                 table_all[survey]['mu']
+            if survey == 'bgs':
+                table_all[survey]['bright'] = table_all[survey]['bright_t']
 
     for survey in survey_list:
         if survey not in ['des', 'hsc', 'kids', 'des-c', 'hsc-c',
@@ -172,7 +178,7 @@ def read_mock_catalog(survey, path, pixels, magnification=True,
     for survey in survey_list:
         columns_keep = ['ra', 'dec', 'e_1', 'e_2', 'z_true', 'z', 'e_rms',
                         'm', 'R_11', 'R_22', 'R_12', 'R_21', 'w', 'w_sys',
-                        'g_1', 'g_2', 'ia_1', 'ia_2', 'mu']
+                        'g_1', 'g_2', 'ia_1', 'ia_2', 'mu', 'bright']
         for key in table_all[survey].colnames:
             if key not in columns_keep:
                 table_all[survey].remove_column(key)
@@ -180,7 +186,7 @@ def read_mock_catalog(survey, path, pixels, magnification=True,
                 table_all[survey][key] = table_all[survey][key].astype(float)
 
     table_all = [table_all[survey] for survey in survey_list]
-    if len(table_all) == 1:
+    if isinstance(survey, str):
         table_all = table_all[0]
 
     return table_all
@@ -203,7 +209,8 @@ The tables have the following columns (if applicable).
     * 'e_1'/'e_2': ellipticity components
     * 'g_1'/'g_2': true shear components
     * 'ia_1'/'ia_2': IA components
-    * 'e_rms'/'m'/'R_11'/'R_22'/'R_21'/'R_12': shear biases''')
+    * 'e_rms'/'m'/'R_11'/'R_22'/'R_21'/'R_12': shear biases
+    * 'bright': whether the object is in BGS_BRIGHT (BGS catalog only)''')
     parser.add_argument(
         'filename',
         help="Filename used for the result. Must contain the word 'SURVEY' " +
@@ -252,7 +259,7 @@ The tables have the following columns (if applicable).
         filenames = [args.filename, ]
 
     path = (Path(os.getenv('CFS')) / 'desi' / 'users' / 'julange' /
-            'Zebu' / 'buzzard-{}'.format(args.buzzard))
+            'Zebu' / 'mocks' / 'buzzard-{}'.format(args.buzzard))
 
     if args.pixels is None:
         pixels = []
@@ -261,8 +268,8 @@ The tables have the following columns (if applicable).
                 pixels.append(int(filepath.stem[6:]))
         pixels = np.array(pixels)
     else:
-        pixels = np.genfromtxt(args.pixel)
-    pixels.sort()
+        pixels = np.atleast_1d(np.genfromtxt(args.pixels, dtype=int))
+    pixels = np.sort(pixels)
 
     print('Buzzard: {}'.format(args.buzzard))
     print('Pixels: {}'.format(', '.join(pixels.astype(str))))
@@ -279,6 +286,8 @@ The tables have the following columns (if applicable).
         fiber_assignment=args.fiber_assignment,
         intrinsic_alignment=args.intrinsic_alignment,
         shear_bias=args.shear_bias, shape_noise=args.shape_noise)
+    tables = [tables] if not isinstance(tables, list) else tables
+
     for table, filename, survey in zip(tables, filenames, args.surveys):
         if survey.split('-')[0] in ['des', 'hsc', 'kids']:
             table['z_bin'] = np.digitize(

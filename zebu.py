@@ -32,12 +32,13 @@ ALPHA_L = [0.7642979832435776, 1.6389627681213133, 2.497741720186678,
 def stacking_kwargs(survey, statistic='ds'):
 
     if survey.lower() in ['des', 'hsc', 'kids']:
-        kwargs = {'boost_correction': False, 'random_subtraction': False,
+        kwargs = {'boost_correction': False, 'random_subtraction': True,
                   'scalar_shear_response_correction': True,
                   'matrix_shear_response_correction': survey.lower() == 'des',
                   'shear_responsivity_correction': survey.lower() == 'hsc'}
         if statistic == 'ds':
-            kwargs['photo_z_dilution_correction'] = True
+            if survey == 'hsc':
+                kwargs['photo_z_dilution_correction'] = True
         elif statistic == 'gt':
             pass
         else:
@@ -50,7 +51,7 @@ def stacking_kwargs(survey, statistic='ds'):
 def read_mock_catalog(survey, magnification=True, fiber_assignment=False,
                       intrinsic_alignment=False, shear_bias=True,
                       shape_noise=False, path=MOCK_PATH,
-                      pixel=MOCK_PIXEL_LIST):
+                      pixels=MOCK_PIXEL_LIST):
     """
     Read in one or multiple mock catalogs.
 
@@ -78,8 +79,8 @@ def read_mock_catalog(survey, magnification=True, fiber_assignment=False,
         is False.
     path : pathlib.Path, optional
         Path to the folder in which the mocks are located in.
-    pixel : list
-        List of Healpix pixels to read
+    pixels : list
+        List of Healpix pixels to read.
 
     Returns
     -------
@@ -96,6 +97,7 @@ def read_mock_catalog(survey, magnification=True, fiber_assignment=False,
         * 'g_1'/'g_2': true shear components
         * 'ia_1'/'ia_2': IA components
         * 'e_rms'/'m'/'R_11'/'R_22'/'R_21'/'R_12': shear biases
+        * 'bright': whether the object is in BGS_BRIGHT (BGS catalog only)
 
     """
     if shape_noise:
@@ -113,14 +115,16 @@ def read_mock_catalog(survey, magnification=True, fiber_assignment=False,
     else:
         magnification_list = magnification
 
+    # Read all necessary tables in the files.
     table_all = {}
     for survey in ['buzzard', ] + survey_list:
         table_all[survey] = []
-        for p in pixel:
-            # Remove '-c' for calibration samples, e.g, des-c.
+        for p in pixels:
+            # Remove '-c' and '-r' for calibration and random samples.
             table_all[survey].append(Table.read(
-                path / 'pixel_{}.hdf5'.format(p), path=survey.split('-c')[0]))
+                path / 'pixel_{}.hdf5'.format(p), path=survey.split('-')[0]))
 
+    # Assign properties from the Buzzard table to the survey tables.
     for survey in survey_list:
         if survey in ['bgs-r', 'lrg-r']:
             continue
@@ -131,6 +135,7 @@ def read_mock_catalog(survey, magnification=True, fiber_assignment=False,
                 table_survey[key] = table_buzzard[key]
             table_survey['z_true'] = table_buzzard['z']
 
+    # Stach all the tables from the individual files together.
     for survey in survey_list:
         meta = table_all[survey][0].meta
         if 'area' in table_all[survey][0].meta.keys():
@@ -157,6 +162,8 @@ def read_mock_catalog(survey, magnification=True, fiber_assignment=False,
                 key = 'w'
             table_all[survey][key] = table_all[survey][key] * \
                 table_all[survey]['mu']
+            if survey == 'bgs':
+                table_all[survey]['bright'] = table_all[survey]['bright_t']
 
     for survey in survey_list:
         if survey not in ['des', 'hsc', 'kids', 'des-c', 'hsc-c',
@@ -209,7 +216,7 @@ def read_mock_catalog(survey, magnification=True, fiber_assignment=False,
     for survey in survey_list:
         columns_keep = ['ra', 'dec', 'e_1', 'e_2', 'z_true', 'z', 'e_rms',
                         'm', 'R_11', 'R_22', 'R_12', 'R_21', 'w', 'w_sys',
-                        'g_1', 'g_2', 'ia_1', 'ia_2', 'mu']
+                        'g_1', 'g_2', 'ia_1', 'ia_2', 'mu', 'bright']
         for key in table_all[survey].colnames:
             if key not in columns_keep:
                 table_all[survey].remove_column(key)
@@ -217,7 +224,7 @@ def read_mock_catalog(survey, magnification=True, fiber_assignment=False,
                 table_all[survey][key] = table_all[survey][key].astype(float)
 
     table_all = [table_all[survey] for survey in survey_list]
-    if len(table_all) == 1:
+    if isinstance(survey, str):
         table_all = table_all[0]
 
     return table_all
