@@ -205,7 +205,7 @@ def read_mock_catalog(survey, path, pixels, magnification=True,
         table_survey['e_2'] = - table_survey['e_2']
 
     for survey in survey_list:
-        if survey in ['bgs', 'lrg']:
+        if survey in ['bgs', 'lrg', 'bgs-r', 'lrg-r']:
             table_all[survey].rename_column('z_true', 'z')
         if survey in ['des-c', 'hsc-c', 'kids-c']:
             table_all[survey] = table_all[survey][::100]
@@ -215,6 +215,20 @@ def read_mock_catalog(survey, path, pixels, magnification=True,
         table_all['other'] = Table()
         table_all['other']['ra'], table_all['other']['dec'] = random_ra_dec(
             600, pixels)
+
+    for survey in survey_list:
+        if survey in ['bgs-r', 'lrg-r']:
+            np.random.seed(1)
+            n = len(table_all[survey]) / table_all[survey].meta['area']
+            ra, dec = random_ra_dec(n, pixels)
+            idx = np.random.choice(
+                len(table_all[survey]), size=len(ra),
+                p=table_all[survey]['w_sys'] / np.sum(
+                    table_all[survey]['w_sys']))
+            table_all[survey] = table_all[survey][idx]
+            table_all[survey]['ra'] = ra
+            table_all[survey]['dec'] = dec
+            table_all[survey].keep_columns(['ra', 'dec', 'z', 'bright'])
 
     for survey in survey_list:
         columns_keep = ['ra', 'dec', 'e_1', 'e_2', 'z_true', 'z', 'e_rms',
@@ -259,8 +273,8 @@ The tables have the following columns (if applicable).
         "replaced by the specific survey, i.e. 'mock_SURVEY.hdf5' will " +
         "'mock_bgs.hdf5', 'mock_lrg.hdf5' etc.")
     parser.add_argument(
-        'surveys', choices=['bgs', 'lrg', 'des', 'hsc', 'kids', 'des-c',
-                            'hsc-c', 'kids-c', 'other'],
+        'surveys', choices=['bgs', 'bgs-r', 'lrg', 'lrg-r', 'des', 'hsc',
+                            'kids', 'des-c', 'hsc-c', 'kids-c', 'other'],
         help='The survey(s) to simulate.', nargs='+')
     parser.add_argument(
         '-b', '--buzzard', choices=[0, 3, 4, 5, 6, 7, 8, 9, 11],
