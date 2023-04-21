@@ -48,6 +48,34 @@ def stacking_kwargs(survey, statistic='ds'):
         raise RuntimeError('Unkown lensing survey {}.'.format(survey))
 
 
+def random_ra_dec(n, pixels):
+    """
+    Compute random angular coordinates.
+
+    Attributes
+    ----------
+    n : float
+        The density in deg^-2.
+    pixels : list
+        List of Healpix pixels to cover.
+
+    Returns
+    -------
+    ra, dec : numpy.ndarray
+        Angular coordinates.
+
+    """
+    hp = HEALPix(8, order='nested')
+    n = int(4 * np.pi * (180.0 / np.pi)**2 * n)
+    pos = np.random.normal(size=(n, 3))
+    pos = pos / np.linalg.norm(pos, axis=1)[:, np.newaxis]
+    ra = np.rad2deg(np.arctan2(pos[:, 1], pos[:, 0]))
+    dec = np.rad2deg(np.arccos(pos[:, 2])) - 90
+    pix = hp.lonlat_to_healpix(ra * u.deg, dec * u.deg)
+    mask = np.isin(pix, pixels)
+    return ra[mask], dec[mask]
+
+
 def read_mock_catalog(survey, magnification=True, fiber_assignment=False,
                       intrinsic_alignment=False, shear_bias=True,
                       shape_noise=False, path=MOCK_PATH,
@@ -119,6 +147,8 @@ def read_mock_catalog(survey, magnification=True, fiber_assignment=False,
     table_all = {}
     for survey in ['buzzard', ] + survey_list:
         table_all[survey] = []
+        if survey == 'other':
+            continue
         for p in pixels:
             # Remove '-c' and '-r' for calibration and random samples.
             table_all[survey].append(Table.read(
@@ -126,7 +156,7 @@ def read_mock_catalog(survey, magnification=True, fiber_assignment=False,
 
     # Assign properties from the Buzzard table to the survey tables.
     for survey in survey_list:
-        if survey in ['bgs-r', 'lrg-r']:
+        if survey == 'other':
             continue
         for i in range(len(table_all['buzzard'])):
             table_survey = table_all[survey][i]
@@ -135,8 +165,10 @@ def read_mock_catalog(survey, magnification=True, fiber_assignment=False,
                 table_survey[key] = table_buzzard[key]
             table_survey['z_true'] = table_buzzard['z']
 
-    # Stach all the tables from the individual files together.
+    # Stack all the tables from the individual files together.
     for survey in survey_list:
+        if survey == 'other':
+            continue
         meta = table_all[survey][0].meta
         if 'area' in table_all[survey][0].meta.keys():
             meta['area'] = np.sum([c.meta['area'] for c in table_all[survey]])
@@ -149,7 +181,7 @@ def read_mock_catalog(survey, magnification=True, fiber_assignment=False,
             table_all[survey]['w_sys'] = np.ones(len(table_all[survey]))
 
     for survey, magnification in zip(survey_list, magnification_list):
-        if survey in ['bgs-r', 'lrg-r']:
+        if survey in ['bgs-r', 'lrg-r', 'other']:
             continue
         if magnification:
             table_all[survey] = table_all[survey][table_all[survey]['target']]
@@ -213,6 +245,12 @@ def read_mock_catalog(survey, magnification=True, fiber_assignment=False,
         if survey in ['des-c', 'hsc-c', 'kids-c']:
             table_all[survey] = table_all[survey][::100]
 
+    if 'other' in survey_list:
+        np.random.seed(0)
+        table_all['other'] = Table()
+        table_all['other']['ra'], table_all['other']['dec'] = random_ra_dec(
+            600, pixels)
+
     for survey in survey_list:
         columns_keep = ['ra', 'dec', 'e_1', 'e_2', 'z_true', 'z', 'e_rms',
                         'm', 'R_11', 'R_22', 'R_12', 'R_21', 'w', 'w_sys',
@@ -224,7 +262,7 @@ def read_mock_catalog(survey, magnification=True, fiber_assignment=False,
                 table_all[survey][key] = table_all[survey][key].astype(float)
 
     table_all = [table_all[survey] for survey in survey_list]
-    if isinstance(survey, str):
+    if isinstance(survey_list, str):
         table_all = table_all[0]
 
     return table_all

@@ -2,13 +2,43 @@ import argparse
 import numpy as np
 import os
 
+from astropy import units as u
 from astropy.table import Table, vstack
+from astropy_healpix import HEALPix
 from pathlib import Path
 
 SOURCE_Z_BINS = {
     'des': np.array([0.0, 0.5, 1.0, 1.5, 2.0]),
     'hsc': np.array([0.3, 0.6, 0.9, 1.2, 1.5]),
     'kids': np.array([0.1, 0.3, 0.5, 0.7, 0.9, 1.2])}
+
+
+def random_ra_dec(n, pixels):
+    """
+    Compute random angular coordinates.
+
+    Attributes
+    ----------
+    n : float
+        The density in deg^-2.
+    pixels : list
+        List of Healpix pixels to cover.
+
+    Returns
+    -------
+    ra, dec : numpy.ndarray
+        Angular coordinates.
+
+    """
+    hp = HEALPix(8, order='nested')
+    n = int(4 * np.pi * (180.0 / np.pi)**2 * n)
+    pos = np.random.normal(size=(n, 3))
+    pos = pos / np.linalg.norm(pos, axis=1)[:, np.newaxis]
+    ra = np.rad2deg(np.arctan2(pos[:, 1], pos[:, 0]))
+    dec = np.rad2deg(np.arccos(pos[:, 2])) - 90
+    pix = hp.lonlat_to_healpix(ra * u.deg, dec * u.deg)
+    mask = np.isin(pix, pixels)
+    return ra[mask], dec[mask]
 
 
 def read_mock_catalog(survey, path, pixels, magnification=True,
@@ -22,8 +52,9 @@ def read_mock_catalog(survey, path, pixels, magnification=True,
     survey : string or list
         Mock survey to read. Options are 'bgs', 'bgs-r' (BGS randoms), 'lrg',
         'lrg-r', 'des', 'des-c' (DES calibration sample), 'hsc', 'hsc-c',
-        'kids' and 'kids-c'. You can specify multiple surveys at once by
-        passing a list.
+        'kids', 'kids-c' and 'other' (other DESI targets, used for fiber
+        collisions). You can specify multiple surveys at once by passing a
+        list.
     path : pathlib.Path, optional
         Path to the folder in which the mocks are located in.
     pixels : list
@@ -81,6 +112,8 @@ def read_mock_catalog(survey, path, pixels, magnification=True,
     table_all = {}
     for survey in ['buzzard', ] + survey_list:
         table_all[survey] = []
+        if survey == 'other':
+            continue
         for p in pixels:
             # Remove '-c' and '-r' for calibration and random samples.
             table_all[survey].append(Table.read(
@@ -88,7 +121,7 @@ def read_mock_catalog(survey, path, pixels, magnification=True,
 
     # Assign properties from the Buzzard table to the survey tables.
     for survey in survey_list:
-        if survey in ['bgs-r', 'lrg-r']:
+        if survey == 'other':
             continue
         for i in range(len(table_all['buzzard'])):
             table_survey = table_all[survey][i]
@@ -97,8 +130,10 @@ def read_mock_catalog(survey, path, pixels, magnification=True,
                 table_survey[key] = table_buzzard[key]
             table_survey['z_true'] = table_buzzard['z']
 
-    # Stach all the tables from the individual files together.
+    # Stack all the tables from the individual files together.
     for survey in survey_list:
+        if survey == 'other':
+            continue
         meta = table_all[survey][0].meta
         if 'area' in table_all[survey][0].meta.keys():
             meta['area'] = np.sum([c.meta['area'] for c in table_all[survey]])
@@ -111,7 +146,7 @@ def read_mock_catalog(survey, path, pixels, magnification=True,
             table_all[survey]['w_sys'] = np.ones(len(table_all[survey]))
 
     for survey, magnification in zip(survey_list, magnification_list):
-        if survey in ['bgs-r', 'lrg-r']:
+        if survey in ['bgs-r', 'lrg-r', 'other']:
             continue
         if magnification:
             table_all[survey] = table_all[survey][table_all[survey]['target']]
@@ -175,6 +210,12 @@ def read_mock_catalog(survey, path, pixels, magnification=True,
         if survey in ['des-c', 'hsc-c', 'kids-c']:
             table_all[survey] = table_all[survey][::100]
 
+    if 'other' in survey_list:
+        np.random.seed(0)
+        table_all['other'] = Table()
+        table_all['other']['ra'], table_all['other']['dec'] = random_ra_dec(
+            600, pixels)
+
     for survey in survey_list:
         columns_keep = ['ra', 'dec', 'e_1', 'e_2', 'z_true', 'z', 'e_rms',
                         'm', 'R_11', 'R_22', 'R_12', 'R_21', 'w', 'w_sys',
@@ -186,7 +227,7 @@ def read_mock_catalog(survey, path, pixels, magnification=True,
                 table_all[survey][key] = table_all[survey][key].astype(float)
 
     table_all = [table_all[survey] for survey in survey_list]
-    if isinstance(survey, str):
+    if isinstance(survey_list, str):
         table_all = table_all[0]
 
     return table_all
@@ -219,7 +260,7 @@ The tables have the following columns (if applicable).
         "'mock_bgs.hdf5', 'mock_lrg.hdf5' etc.")
     parser.add_argument(
         'surveys', choices=['bgs', 'lrg', 'des', 'hsc', 'kids', 'des-c',
-                            'hsc-c', 'kids-c'],
+                            'hsc-c', 'kids-c', 'other'],
         help='The survey(s) to simulate.', nargs='+')
     parser.add_argument(
         '-b', '--buzzard', choices=[0, 3, 4, 5, 6, 7, 8, 9, 11],
