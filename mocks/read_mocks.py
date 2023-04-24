@@ -92,6 +92,7 @@ def read_mock_catalog(survey, path, pixels, magnification=True,
         * 'ia_1'/'ia_2': IA components
         * 'e_rms'/'m'/'R_11'/'R_22'/'R_21'/'R_12': shear biases
         * 'bright': whether the object is in BGS_BRIGHT (BGS catalog only)
+        * 'abs_mag_r': absolute rest-frame r-band magnitude (for BGS cuts)
 
     """
     if shape_noise:
@@ -134,6 +135,8 @@ def read_mock_catalog(survey, path, pixels, magnification=True,
             table_buzzard = table_all['buzzard'][i][table_survey['id_buzzard']]
             for key in ['ra', 'dec', 'mu', 'g_1', 'g_2', 'ia_1', 'ia_2']:
                 table_survey[key] = table_buzzard[key]
+            if survey in ['bgs', 'bgs-r']:
+                table_survey['abs_mag_r'] = table_buzzard['abs_mag_r']
             table_survey['z_true'] = table_buzzard['z']
 
     # Stack all the tables from the individual files together.
@@ -234,12 +237,14 @@ def read_mock_catalog(survey, path, pixels, magnification=True,
             table_all[survey] = table_all[survey][idx]
             table_all[survey]['ra'] = ra
             table_all[survey]['dec'] = dec
-            table_all[survey].keep_columns(['ra', 'dec', 'z', 'bright'])
+            table_all[survey].keep_columns(
+                ['ra', 'dec', 'z', 'bright', 'abs_mag_r', 'w_sys'])
 
     for survey in survey_list:
         columns_keep = ['ra', 'dec', 'e_1', 'e_2', 'z_true', 'z', 'e_rms',
                         'm', 'R_11', 'R_22', 'R_12', 'R_21', 'w', 'w_sys',
-                        'g_1', 'g_2', 'ia_1', 'ia_2', 'mu', 'bright']
+                        'g_1', 'g_2', 'ia_1', 'ia_2', 'mu', 'bright',
+                        'abs_mag_r']
         for key in table_all[survey].colnames:
             if key not in columns_keep:
                 table_all[survey].remove_column(key)
@@ -271,7 +276,8 @@ The tables have the following columns (if applicable).
     * 'g_1'/'g_2': true shear components
     * 'ia_1'/'ia_2': IA components
     * 'e_rms'/'m'/'R_11'/'R_22'/'R_21'/'R_12': shear biases
-    * 'bright': whether the object is in BGS_BRIGHT (BGS catalog only)''')
+    * 'bright': whether the object is in BGS_BRIGHT (BGS catalog only)
+    * 'abs_mag_r': absolute rest-frame r-band magnitude (for BGS cuts)''')
     parser.add_argument(
         'filename',
         help="Filename used for the result. Must contain the word 'SURVEY' " +

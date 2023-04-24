@@ -45,6 +45,12 @@ table_l_all, table_s_all, table_c_all = zebu.read_mock_catalog(
 table_l_all['field_jk'] = HEALPix(8, order='nested').lonlat_to_healpix(
     table_l_all['ra'] * u.deg, table_l_all['dec'] * u.deg)
 
+if config['lenses'] in ['bgs', 'bgs-r']:
+    table_l_all = table_l_all[table_l_all['abs_mag_r'] < -19]
+
+if config['lenses'] in ['bgs-r', 'lrg-r']:
+    table_l_all = table_l_all[::3]
+
 table_s_all['z_phot'] = table_s_all['z']
 table_c_all['z_phot'] = table_c_all['z']
 if not config['photometric redshifts']:
