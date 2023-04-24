@@ -1,6 +1,7 @@
 import argparse
 import numpy as np
 import os
+import warnings
 
 from astropy import units as u
 from astropy.table import Table, vstack
@@ -115,9 +116,14 @@ def read_mock_catalog(survey, path, pixels, magnification=True,
         if survey == 'other':
             continue
         for p in pixels:
-            # Remove '-c' and '-r' for calibration and random samples.
-            table_all[survey].append(Table.read(
-                path / 'pixel_{}.hdf5'.format(p), path=survey.split('-')[0]))
+            try:
+                # Remove '-c' and '-r' for calibration and random samples.
+                table_all[survey].append(Table.read(
+                    path / 'pixel_{}.hdf5'.format(p),
+                    path=survey.split('-')[0]))
+            except FileNotFoundError:
+                warnings.warn('Cannot find pixel {:d}.'.format(p),
+                              stacklevel=2)
 
     # Assign properties from the Buzzard table to the survey tables.
     for survey in survey_list:
@@ -220,7 +226,7 @@ def read_mock_catalog(survey, path, pixels, magnification=True,
         if survey in ['bgs-r', 'lrg-r']:
             np.random.seed(1)
             n = len(table_all[survey]) / table_all[survey].meta['area']
-            ra, dec = random_ra_dec(n, pixels)
+            ra, dec = random_ra_dec(10 * n, pixels)
             idx = np.random.choice(
                 len(table_all[survey]), size=len(ra),
                 p=table_all[survey]['w_sys'] / np.sum(
