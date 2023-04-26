@@ -499,7 +499,7 @@ def main():
             table_b['bgs_bright' + suffix], table_b['bgs_faint' + suffix] = (
                 bgs_target(table_b, lensed=lensed))
             table_b['bgs' + suffix] = (
-                table_b['bgs_bright'] | table_b['bgs_faint'])
+                table_b['bgs_bright' + suffix] | table_b['bgs_faint' + suffix])
             table_b['lrg' + suffix] = lrg_target(table_b, lensed=lensed)
 
         select = np.zeros(len(table_b), dtype=bool)
