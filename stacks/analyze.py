@@ -1,15 +1,15 @@
-import zebu
-import numpy as np
-from pathlib import Path
 import matplotlib as mpl
-from matplotlib import gridspec
 import matplotlib.pyplot as plt
-import matplotlib.ticker as ticker
-from astropy.table import Table
+import numpy as np
+import zebu
+
+from astropy.table import Table, vstack
 from astropy.io.ascii import convert_numpy
+from dsigma.jackknife import jackknife_resampling
 from dsigma.stacking import excess_surface_density, lens_magnification_bias
 from dsigma.stacking import tangential_shear
-from dsigma.jackknife import jackknife_resampling
+from matplotlib import gridspec
+from pathlib import Path
 
 path = Path('plots')
 
@@ -19,8 +19,20 @@ def read_compute_file(config, lens_bin, source_bin=None, delta_sigma=True):
     path = Path('results', '{}'.format(config))
 
     if delta_sigma:
-        fname = 'l{}_ds.hdf5'.format(lens_bin)
-        compute = Table.read(path / fname)
+        try:
+            fname = 'l{}_ds.hdf5'.format(lens_bin)
+            compute = Table.read(path / fname)
+        except FileNotFoundError:
+            source_bin = 0
+            fname = 'l{}_s{}_ds.hdf5'
+            compute = []
+            while (path / fname.format(lens_bin, source_bin)).exists():
+                compute.append(Table.read(path / fname.format(
+                    lens_bin, source_bin)))
+                source_bin += 1
+            meta = compute[0].meta
+            compute = vstack(compute)
+            compute.meta = meta
     else:
         fname = 'l{}_s{}_gt.hdf5'.format(lens_bin, source_bin)
         compute = Table.read(path / fname)
@@ -69,72 +81,69 @@ def read_compute(lenses, sources, delta_sigma=True, lens_magnification=False,
     return compute
 
 
-def difference(table_l, table_l_2=None, function=None, stacking_kwargs=None):
+def difference(table_l, table_l_2=None, table_r=None, table_r_2=None,
+               function=None, stacking_kwargs=None):
 
-    return (function(table_l_2, **stacking_kwargs) -
-            function(table_l, **stacking_kwargs))
+    return (function(table_l_2, table_r=table_r_2, **stacking_kwargs) -
+            function(table_l, table_r=table_r, **stacking_kwargs))
 
 
-def plot_difference(separation='physical', statistic='ds', sources=None,
-                    relative=True, plot_lens_magnification=False, config={}):
+def plot_results(statistic='ds', sources=None, config={}, title=None):
 
-    config_def = dict(
+    config = dict(
         lens_magnification=False, source_magnification=False,
         fiber_assignment=False, intrinsic_alignment=False,
-        photometric_redshifts=True, shear_bias=False, shape_noise=False)
-
-    for key in config_def.keys():
-        if key not in config.keys():
-            config[key] = config_def[key]
-
-    for key in config.keys():
-        if isinstance(config[key], bool):
-            config[key] = (config[key], config[key])
+        photometric_redshifts=True, shear_bias=False,
+        shape_noise=False) | config
 
     kwargs_1 = {}
     kwargs_2 = {}
     for key in config.keys():
-        kwargs_1[key] = config[key][0]
-        kwargs_2[key] = config[key][1]
+        if isinstance(config[key], tuple):
+            kwargs_1[key] = config[key][0]
+            kwargs_2[key] = config[key][1]
+        else:
+            kwargs_1[key] = config[key]
+            kwargs_2[key] = config[key]
 
-    if separation == 'angle':
+    if statistic in ['ds', 'ds_lm']:
+        table_l_1 = [[], [], []]
+        table_r_1 = [[], [], []]
+        table_l_2 = [[], [], []]
+        table_r_2 = [[], [], []]
+        for i, sources in enumerate(['des', 'hsc', 'kids']):
+            for lenses in ['bgs', 'lrg']:
+                table_l_1[i] = table_l_1[i] + read_compute(
+                    lenses, sources, **kwargs_1)
+                table_r_1[i] = table_r_1[i] + read_compute(
+                    lenses + '-r', sources, **kwargs_1)
+                table_l_2[i] = table_l_2[i] + read_compute(
+                    lenses, sources, **kwargs_2)
+                table_r_2[i] = table_r_2[i] + read_compute(
+                    lenses + '-r', sources, **kwargs_2)
+    else:
         if sources is None:
-            raise ValueError('Sources must be specified when plotting as a ' +
-                             'function of angle.')
-        cat_l_1 = (
+            raise ValueError(
+                'Sources must be specified for statistic {}.'.format(
+                    statistic))
+        table_l_1 = (
             read_compute('bgs', sources, delta_sigma=False, **kwargs_1) +
             read_compute('lrg', sources, delta_sigma=False, **kwargs_1))
-        cat_r_1 = (
+        table_r_1 = (
             read_compute('bgs-r', sources, delta_sigma=False, **kwargs_1) +
             read_compute('lrg-r', sources, delta_sigma=False, **kwargs_1))
-        cat_l_2 = (
+        table_l_2 = (
             read_compute('bgs', sources, delta_sigma=False, **kwargs_2) +
             read_compute('lrg', sources, delta_sigma=False, **kwargs_2))
-        cat_r_2 = (
+        table_r_2 = (
             read_compute('bgs-r', sources, delta_sigma=False, **kwargs_2) +
             read_compute('lrg-r', sources, delta_sigma=False, **kwargs_2))
 
-    elif separation == 'physical':
-        cat_l_1 = [[], [], []]
-        cat_r_1 = [[], [], []]
-        cat_l_2 = [[], [], []]
-        cat_r_2 = [[], [], []]
-        for i, sources in enumerate(['des', 'hsc', 'kids']):
-            for lenses in ['bgs', 'lrg']:
-                cat_l_1[i] = cat_l_1[i] + read_compute(
-                    lenses, sources, **kwargs_1)
-                cat_r_1[i] = cat_l_1[i] + read_compute(
-                    lenses + '-r', sources, **kwargs_1)
-                cat_l_2[i] = cat_l_2[i] + read_compute(
-                    lenses, sources, **kwargs_2)
-                cat_r_2[i] = cat_l_2[i] + read_compute(
-                    lenses + '-r', sources, **kwargs_2)
-
-    fig = plt.figure(figsize=(7, 2))
-    gs = gridspec.GridSpec(1, len(cat_l_1) + 1, wspace=0,
-                           width_ratios=[20] * len(cat_l_1) + [1])
+    fig = plt.figure(figsize=(7, 2.3))
+    gs = gridspec.GridSpec(1, len(table_l_1) + 1, wspace=0,
+                           width_ratios=[20] * len(table_l_1) + [1])
     ax_list = []
-    for i in range(len(cat_l_1)):
+    for i in range(len(table_l_1)):
         ax_list.append(fig.add_subplot(
             gs[i], sharex=ax_list[-1] if i > 0 else None,
             sharey=ax_list[-1] if i > 0 else None))
@@ -147,38 +156,39 @@ def plot_difference(separation='physical', statistic='ds', sources=None,
         for i in range(len(zebu.LENS_Z_BINS[lenses]) - 1):
             lens_list.append(r'{}-{}'.format(lenses.upper(), i + 1))
 
-    if separation == 'angle':
+    if statistic in ['ds', 'ds_lm']:
+        text_list = ['DES', 'HSC', 'KiDS']
+    else:
         text_list = lens_list
         source_list = []
         for i in range(len(zebu.SOURCE_Z_BINS[sources]) - 1):
             source_list.append(r'{}-{}'.format(sources.upper(), i + 1))
-    else:
-        text_list = ['DES', 'HSC', 'KiDS']
 
     for ax, text in zip(ax_list, text_list):
-
-        ax.xaxis.set_major_formatter(ticker.FuncFormatter(
-            lambda y, p: r'{:g}'.format(y)))
-        ax.yaxis.set_major_formatter(ticker.FuncFormatter(
-            lambda y, p: r'{:+g}\%'.format(y) if y != 0 else r'0\%'))
         ax.axhline(0, ls='--', color='black')
-
         ax.text(0.08, 0.92, text, ha='left', va='top',
                 transform=ax.transAxes, zorder=200)
-
-        if separation == 'angle':
-            ax.set_xlabel(r'$\theta \, [\mathrm{arcmin}]$')
-        else:
+        if statistic in ['ds', 'ds_lm']:
             ax.set_xlabel(r'$r_p \, [h^{-1} \, \mathrm{Mpc}]$')
+        else:
+            ax.set_xlabel(r'$\theta \, [\mathrm{arcmin}]$')
 
-    color_list = plt.get_cmap('plasma')(np.linspace(0.0, 0.8, len(cat_l_1[0])))
+    if statistic in ['ds', 'ds_lm']:
+        ax_list[0].set_ylabel(
+            r'$r_p \Delta\Sigma \, [10^6 \, M_\odot / \mathrm{pc}]$')
+    else:
+        ax_list[0].set_ylabel(
+            r'$\theta \gamma_t \, [10^3 \, \mathrm{arcmin}]$')
+
+    color_list = plt.get_cmap('plasma')(
+        np.linspace(0.0, 0.8, len(table_l_1[0])))
     cmap = mpl.colors.ListedColormap(color_list)
     sm = plt.cm.ScalarMappable(cmap=cmap)
     sm._A = []
-    if separation == 'angle':
-        tick_label_list = source_list
-    else:
+    if statistic in ['ds', 'ds_lm']:
         tick_label_list = lens_list
+    else:
+        tick_label_list = source_list
     ticks = np.linspace(0, 1, len(tick_label_list) + 1)
     ticks = 0.5 * (ticks[1:] + ticks[:-1])
     cb = plt.colorbar(sm, cax=cax, pad=0.0, ticks=ticks)
@@ -186,18 +196,18 @@ def plot_difference(separation='physical', statistic='ds', sources=None,
     cb.ax.minorticks_off()
     cb.ax.tick_params(size=0)
 
-    if separation == 'angle':
-        x = 0.5 * (zebu.THETA_BINS[1:] + zebu.THETA_BINS[:-1])
-    else:
+    if statistic in ['ds', 'ds_lm']:
         x = 0.5 * (zebu.RP_BINS[1:] + zebu.RP_BINS[:-1])
+    else:
+        x = 0.5 * (zebu.THETA_BINS[1:] + zebu.THETA_BINS[:-1])
 
     for i in range(len(ax_list)):
         for k in range(len(color_list)):
 
-            if separation == 'angle':
-                survey = sources
-            else:
+            if statistic in ['ds', 'ds_rel', 'ds_lm']:
                 survey = ['des', 'hsc', 'kids'][i]
+            else:
+                survey = sources
 
             stacking_kwargs = zebu.stacking_kwargs(survey, statistic=statistic)
 
@@ -208,125 +218,120 @@ def plot_difference(separation='physical', statistic='ds', sources=None,
             else:
                 raise ValueError("Unknown statistic '{}'.".format(statistic))
 
-            norm = function(cat_l_1[i][k], table_r=cat_r_1[i][k],
-                            **stacking_kwargs)
-            diff = difference(
-                cat_l_1[i][k], table_l_2=cat_l_2[i][k], function=function,
-                stacking_kwargs=stacking_kwargs) / norm
-            diff_cov = jackknife_resampling(
-                difference, cat_l_1[i][k], table_l_2=cat_l_2[i][k],
-                function=function, stacking_kwargs=stacking_kwargs) / np.outer(
-                    norm, norm)
-
-            if np.all(np.isclose(diff_cov, 0)):
-                diff_err = np.zeros(len(norm))
+            if kwargs_1 != kwargs_2:
+                y = difference(
+                    table_l_1[i][k], table_l_2=table_l_2[i][k],
+                    table_r=table_r_1[i][k], table_r_2=table_r_2[i][k],
+                    function=function, stacking_kwargs=stacking_kwargs)
+                y_cov = jackknife_resampling(
+                    difference, table_l_1[i][k], table_l_2=table_l_2[i][k],
+                    table_r=table_r_1[i][k], table_r_2=table_r_2[i][k],
+                    function=function, stacking_kwargs=stacking_kwargs)
             else:
-                diff_err = np.sqrt(np.diag(diff_cov))
+                y = function(table_l_1[i][k],  table_r=table_r_1[i][k],
+                             **stacking_kwargs)
+                y_cov = jackknife_resampling(
+                    function, table_l_1[i][k], table_r=table_r_1[i][k],
+                    **stacking_kwargs)
+
+            if statistic == 'gt':
+                y *= 1e3
+                y_cov *= 1e6
+
+            y_err = np.sqrt(np.diag(y_cov))
 
             plotline, caps, barlinecols = ax_list[i].errorbar(
-                x * (1 + k * 0.05), 100 * diff, yerr=100 * diff_err,
-                fmt='o', ms=2, color=color_list[k], zorder=i + 100)
+                x, x * y, yerr=x * y_err, fmt='-o', ms=2, color=color_list[k],
+                zorder=k + 100)
             plt.setp(barlinecols[0], capstyle='round')
-
-    if plot_lens_magnification:
-        camb_results = zebu.get_camb_results()
-        for i in range(len(ax_list)):
-            for k in range(len(color_list)):
-                diff = lens_magnification_bias(
-                    cat_l_1[i][k], zebu.ALPHA_L[k], camb_results,
-                    photo_z_correction=True) / norm
-                ax_list[i].plot(x * (1 + k * 0.05), 100 * diff,
-                                color=color_list[k], zorder=i + 100)
 
     for ax in ax_list[1:]:
         plt.setp(ax.get_yticklabels(), visible=False)
 
+    if title is not None:
+        ax_list[len(ax_list) // 2].set_title(title)
+    plt.subplots_adjust(wspace=0, hspace=0)
+    plt.tight_layout(pad=0.3)
+
     return fig, ax_list
 
 
-fig, ax_list = plot_difference(
-    separation='physical', statistic='ds',
-    config=dict(lens_magnification=(False, True)),
-    plot_lens_magnification=True)
-ax_list[0].set_ylabel(r'$\Delta\Sigma$ Lens Magn. Bias')
-plt.tight_layout(pad=0.3)
-plt.subplots_adjust(wspace=0, hspace=0)
+fig, ax_list = plot_results(
+    statistic='ds', config=dict(photometric_redshifts=False),
+    title='Intrinsic Signal')
+plt.savefig(path / 'intrinsic_ds.pdf')
+plt.savefig(path / 'intrinsic_ds.png', dpi=300)
+plt.close()
+
+for sources in ['des', 'hsc', 'kids']:
+    fig, ax_list = plot_results(
+        statistic='gt', sources=sources, title='Intrinsic Signal')
+    plt.savefig(path / 'intrinsic_gt_{}.pdf'.format(sources))
+    plt.savefig(path / 'intrinsic_gt_{}.png'.format(sources), dpi=300)
+    plt.close()
+
+
+fig, ax_list = plot_results(
+    statistic='ds', config=dict(lens_magnification=(False, True)),
+    title='Lens Magnification')
 plt.savefig(path / 'lens_magnification_ds.pdf')
 plt.savefig(path / 'lens_magnification_ds.png', dpi=300)
 plt.close()
 
 for sources in ['des', 'hsc', 'kids']:
-    fig, ax_list = plot_difference(
-        separation='angle', statistic='gt', sources=sources,
-        config=dict(lens_magnification=(False, True)))
-    ax_list[0].set_ylabel(r'$\gamma_t$ Lens Magn. Bias')
-    ax_list[0].set_ylim(-10, 100)
-    plt.tight_layout(pad=0.3)
-    plt.subplots_adjust(wspace=0, hspace=0)
+    fig, ax_list = plot_results(
+        statistic='gt', sources=sources,
+        config=dict(lens_magnification=(False, True)),
+        title='Lens Magnification')
     plt.savefig(path / 'lens_magnification_gt_{}.pdf'.format(sources))
     plt.savefig(path / 'lens_magnification_gt_{}.png'.format(sources), dpi=300)
     plt.close()
 
-fig, ax_list = plot_difference(separation='physical', statistic='ds',
-                               config=dict(source_magnification=(False, True)))
-ax_list[0].set_ylabel(r'$\Delta\Sigma$ Source Magn. Bias')
-plt.tight_layout(pad=0.3)
-plt.subplots_adjust(wspace=0, hspace=0)
+
+fig, ax_list = plot_results(
+    statistic='ds', config=dict(source_magnification=(False, True)),
+    title='Source Magnification')
 plt.savefig(path / 'source_magnification_ds.pdf')
 plt.savefig(path / 'source_magnification_ds.png', dpi=300)
 plt.close()
 
-fig, ax_list = plot_difference(
-    separation='physical', statistic='ds',
-    config=dict(photometric_redshifts=(False, True)))
-ax_list[0].set_ylabel(r'$\Delta\Sigma$ Photo-z Bias')
-plt.tight_layout(pad=0.3)
-plt.subplots_adjust(wspace=0, hspace=0)
+
+fig, ax_list = plot_results(
+    statistic='ds', config=dict(photometric_redshifts=(False, True)))
 plt.savefig(path / 'photometric_redshift_ds.pdf')
 plt.savefig(path / 'photometric_redshift_ds.png', dpi=300)
 plt.close()
 
-for sources in ['des', 'hsc', 'kids']:
-    fig, ax_list = plot_difference(
-        separation='angle', statistic='gt', sources=sources,
-        config=dict(intrinsic_alignment=(False, True),
-                    photometric_redshifts=True))
-    ax_list[0].set_ylabel(r'$\gamma_t$ IA Contamination')
-    ax_list[0].set_ylim(-10, 100)
-    plt.tight_layout(pad=0.3)
-    plt.subplots_adjust(wspace=0, hspace=0)
-    plt.savefig(path / 'ia_contamination_gt_{}.pdf'.format(sources))
-    plt.savefig(path / 'ia_contamination_gt_{}.png'.format(sources), dpi=300)
-    plt.close()
 
-fig, ax_list = plot_difference(
-    separation='physical', statistic='ds',
-    config=dict(intrinsic_alignment=(False, True), photometric_redshifts=True))
-ax_list[0].set_ylabel(r'$\Delta\Sigma$ IA Contamination')
-plt.tight_layout(pad=0.3)
-plt.subplots_adjust(wspace=0, hspace=0)
-plt.savefig(path / 'ia_contamination_ds.pdf')
-plt.savefig(path / 'ia_contamination_ds.png', dpi=300)
+fig, ax_list = plot_results(
+    statistic='ds', config=dict(intrinsic_alignment=(False, True)),
+    title='Intrinsic Alignments')
+plt.savefig(path / 'intrinsic_alignment_ds.pdf')
+plt.savefig(path / 'intrinsic_alignment_ds.png', dpi=300)
 plt.close()
 
 for sources in ['des', 'hsc', 'kids']:
-    fig, ax_list = plot_difference(
-        separation='angle', statistic='gt', sources=sources,
-        config=dict(shear_bias=(False, True)))
-    ax_list[0].set_ylabel(r'$\gamma_t$ Residual Shear Bias')
-    ax_list[0].set_ylim(-10, 100)
-    plt.tight_layout(pad=0.3)
-    plt.subplots_adjust(wspace=0, hspace=0)
-    plt.savefig(path / 'shear_bias_gt_{}.pdf'.format(sources))
-    plt.savefig(path / 'shear_bias_gt_{}.png'.format(sources), dpi=300)
+    fig, ax_list = plot_results(
+        statistic='gt', sources=sources,
+        config=dict(intrinsic_alignment=(False, True)),
+        title='Intrinsic Alignments')
+    plt.savefig(path / 'intrinsic_alignment_gt_{}.pdf'.format(sources))
+    plt.savefig(path / 'intrinsic_alignment_gt_{}.png'.format(sources),
+                dpi=300)
     plt.close()
 
-fig, ax_list = plot_difference(
-    separation='physical', statistic='ds',
-    config=dict(shear_bias=(False, True)))
-ax_list[0].set_ylabel(r'$\Delta\Sigma$ Residual Shear Bias')
-plt.tight_layout(pad=0.3)
-plt.subplots_adjust(wspace=0, hspace=0)
+
+fig, ax_list = plot_results(
+    statistic='ds', config=dict(shear_bias=(False, True)),
+    title='Residual Shear Bias')
 plt.savefig(path / 'shear_bias_ds.pdf')
 plt.savefig(path / 'shear_bias_ds.png', dpi=300)
 plt.close()
+
+for sources in ['des', 'hsc', 'kids']:
+    fig, ax_list = plot_results(
+        statistic='gt', sources=sources, config=dict(shear_bias=(False, True)),
+        title='Residual Shear Bias')
+    plt.savefig(path / 'shear_bias_gt_{}.pdf'.format(sources))
+    plt.savefig(path / 'shear_bias_gt_{}.png'.format(sources), dpi=300)
+    plt.close()
