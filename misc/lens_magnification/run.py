@@ -10,8 +10,15 @@ alpha = []
 
 for survey in ['bgs', 'lrg']:
 
-    table_l_mag = zebu.read_mock_catalog(survey, magnification=True)
-    table_l_nomag = zebu.read_mock_catalog(survey, magnification=False)
+    table_l_mag = zebu.read_mock_catalog(
+        survey, zebu.MOCK_PATH / 'buzzard-4', zebu.PIXELS, magnification=True)
+    table_l_nomag = zebu.read_mock_catalog(
+        survey, zebu.MOCK_PATH / 'buzzard-4', zebu.PIXELS, magnification=False)
+    if survey == 'bgs':
+        table_l_mag = table_l_mag[
+            table_l_mag['abs_mag_r'] < zebu.ABS_MAG_R_MAX]
+        table_l_nomag = table_l_nomag[
+            table_l_nomag['abs_mag_r'] < zebu.ABS_MAG_R_MAX]
 
     for z_min, z_max in zip(zebu.LENS_Z_BINS[survey][:-1],
                             zebu.LENS_Z_BINS[survey][1:]):

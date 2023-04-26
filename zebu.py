@@ -13,6 +13,7 @@ PIXELS = np.genfromtxt(MOCK_PATH / 'pixels.csv', dtype=int)
 COSMOLOGY = FlatLambdaCDM(Om0=0.286, H0=100)
 RP_BINS = np.logspace(0, 2, 21)[:-7]
 THETA_BINS = 3 * np.logspace(0, 2, 21)[:-8] * u.arcmin
+ABS_MAG_R_MAX = -19
 
 SOURCE_Z_BINS = {
     'des': np.array([0.0, 0.5, 1.0, 1.5, 2.0]),

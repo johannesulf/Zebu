@@ -238,7 +238,8 @@ def read_mock_catalog(survey, path, pixels, magnification=True,
             table_all[survey]['ra'] = ra
             table_all[survey]['dec'] = dec
             for key in table_all[survey].colnames:
-                if key not in ['ra', 'dec', 'z', 'bright', 'abs_mag_r', 'w_sys']:
+                if key not in ['ra', 'dec', 'z', 'bright', 'abs_mag_r',
+                               'w_sys']:
                     table_all[survey].remove_column(key)
 
     for survey in survey_list:
@@ -253,7 +254,7 @@ def read_mock_catalog(survey, path, pixels, magnification=True,
                 table_all[survey][key] = table_all[survey][key].astype(float)
 
     table_all = [table_all[survey] for survey in survey_list]
-    if isinstance(survey_list, str):
+    if isinstance(survey, str):
         table_all = table_all[0]
 
     return table_all
