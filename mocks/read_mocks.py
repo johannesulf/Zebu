@@ -127,7 +127,7 @@ def read_mock_catalog(survey, path, pixels, magnification=True,
                               stacklevel=2)
 
     # Assign properties from the Buzzard table to the survey tables.
-    for survey in survey_list:
+    for survey, magnification in zip(survey_list, magnification_list):
         if survey == 'other':
             continue
         for i in range(len(table_all['buzzard'])):
@@ -137,6 +137,9 @@ def read_mock_catalog(survey, path, pixels, magnification=True,
                 table_survey[key] = table_buzzard[key]
             if survey in ['bgs', 'bgs-r']:
                 table_survey['abs_mag_r'] = table_buzzard['abs_mag_r']
+                if magnification:
+                    table_survey['abs_mag_r'] += -2.5 * np.log10(
+                        table_buzzard['mu'])
             table_survey['z_true'] = table_buzzard['z']
 
     # Stack all the tables from the individual files together.
