@@ -88,7 +88,8 @@ def difference(table_l, table_l_2=None, table_r=None, table_r_2=None,
             function(table_l, table_r=table_r, **stacking_kwargs))
 
 
-def plot_results(statistic='ds', sources=None, config={}, title=None):
+def plot_results(statistic='ds', sources=None, config={}, title=None,
+                 plot_lens_magnification=False):
 
     config = dict(
         lens_magnification=False, source_magnification=False,
@@ -106,7 +107,7 @@ def plot_results(statistic='ds', sources=None, config={}, title=None):
             kwargs_1[key] = config[key]
             kwargs_2[key] = config[key]
 
-    if statistic in ['ds', 'ds_lm']:
+    if statistic == 'ds':
         table_l_1 = [[], [], []]
         table_r_1 = [[], [], []]
         table_l_2 = [[], [], []]
@@ -156,7 +157,7 @@ def plot_results(statistic='ds', sources=None, config={}, title=None):
         for i in range(len(zebu.LENS_Z_BINS[lenses]) - 1):
             lens_list.append(r'{}-{}'.format(lenses.upper(), i + 1))
 
-    if statistic in ['ds', 'ds_lm']:
+    if statistic == 'ds':
         text_list = ['DES', 'HSC', 'KiDS']
     else:
         text_list = lens_list
@@ -168,7 +169,7 @@ def plot_results(statistic='ds', sources=None, config={}, title=None):
         ax.axhline(0, ls='--', color='black')
         ax.text(0.08, 0.92, text, ha='left', va='top',
                 transform=ax.transAxes, zorder=200)
-        if statistic in ['ds', 'ds_lm']:
+        if statistic == 'ds':
             ax.set_xlabel(r'$r_p \, [h^{-1} \, \mathrm{Mpc}]$')
         else:
             ax.set_xlabel(r'$\theta \, [\mathrm{arcmin}]$')
@@ -185,7 +186,7 @@ def plot_results(statistic='ds', sources=None, config={}, title=None):
     cmap = mpl.colors.ListedColormap(color_list)
     sm = plt.cm.ScalarMappable(cmap=cmap)
     sm._A = []
-    if statistic in ['ds', 'ds_lm']:
+    if statistic == 'ds':
         tick_label_list = lens_list
     else:
         tick_label_list = source_list
@@ -196,7 +197,7 @@ def plot_results(statistic='ds', sources=None, config={}, title=None):
     cb.ax.minorticks_off()
     cb.ax.tick_params(size=0)
 
-    if statistic in ['ds', 'ds_lm']:
+    if statistic == 'ds':
         x = 0.5 * (zebu.RP_BINS[1:] + zebu.RP_BINS[:-1])
     else:
         x = 0.5 * (zebu.THETA_BINS[1:] + zebu.THETA_BINS[:-1])
@@ -204,7 +205,7 @@ def plot_results(statistic='ds', sources=None, config={}, title=None):
     for i in range(len(ax_list)):
         for k in range(len(color_list)):
 
-            if statistic in ['ds', 'ds_rel', 'ds_lm']:
+            if statistic == 'ds':
                 survey = ['des', 'hsc', 'kids'][i]
             else:
                 survey = sources
@@ -253,6 +254,24 @@ def plot_results(statistic='ds', sources=None, config={}, title=None):
     plt.subplots_adjust(wspace=0, hspace=0)
     plt.tight_layout(pad=0.3)
 
+    if plot_lens_magnification:
+        camb_results = zebu.get_camb_results()
+        for i in range(len(ax_list)):
+            for k in range(len(color_list)):
+                if statistic == 'ds' and i == 1:
+                    photo_z_correction = True
+                else:
+                    photo_z_correction = False
+                y = lens_magnification_bias(
+                    table_l_1[i][k], zebu.ALPHA_L[
+                        k if statistic == 'ds' else i],
+                    camb_results, photo_z_correction=photo_z_correction,
+                    shear=(statistic == 'gt'))
+                if statistic == 'gt':
+                    y *= 1e3
+                ax_list[i].plot(x, x * y, color=color_list[k], zorder=k + 100,
+                                ls='--')
+
     return fig, ax_list
 
 
@@ -273,7 +292,7 @@ for sources in ['des', 'hsc', 'kids']:
 
 fig, ax_list = plot_results(
     statistic='ds', config=dict(lens_magnification=(False, True)),
-    title='Lens Magnification')
+    title='Lens Magnification', plot_lens_magnification=True)
 plt.savefig(path / 'lens_magnification_ds.pdf')
 plt.savefig(path / 'lens_magnification_ds.png', dpi=300)
 plt.close()
@@ -282,7 +301,7 @@ for sources in ['des', 'hsc', 'kids']:
     fig, ax_list = plot_results(
         statistic='gt', sources=sources,
         config=dict(lens_magnification=(False, True)),
-        title='Lens Magnification')
+        title='Lens Magnification', plot_lens_magnification=True)
     plt.savefig(path / 'lens_magnification_gt_{}.pdf'.format(sources))
     plt.savefig(path / 'lens_magnification_gt_{}.png'.format(sources), dpi=300)
     plt.close()

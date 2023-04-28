@@ -79,7 +79,7 @@ for bin_l, (z_l_min, z_l_max) in enumerate(zip(z_l_bins[:-1], z_l_bins[1:])):
         precompute(table_l, table_s, zebu.THETA_BINS, **kwargs)
         table_l = compress_jackknife_fields(table_l)
         table_l.write(path / 'l{}_s{}_gt.hdf5'.format(bin_l, bin_s),
-                      path='data', overwrite=True)
+                      path='data', overwrite=True, serialize_meta=True)
 
 lens_source_cut = 0.2
 
@@ -154,7 +154,8 @@ for bin_l, (z_l_min, z_l_max) in enumerate(zip(z_l_bins[:-1], z_l_bins[1:])):
         else:
             fname = 'l{}_s{}_ds.hdf5'.format(bin_l, bin_s)
 
-        table_l.write(path / fname, path='data', overwrite=True)
+        table_l.write(path / fname, path='data', overwrite=True,
+                      serialize_meta=True)
 
 t_end = time()
 print('Finished in {:.1f} minutes.'.format((t_end - t_start) / 60.0))
