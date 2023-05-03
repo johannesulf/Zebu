@@ -101,8 +101,10 @@ def read_mock_catalog(survey, path, pixels, magnification=True,
                              '`intrinsic_alignment` must also be true.')
 
     if isinstance(survey, str):
+        return_array = False
         survey_list = [survey, ]
     else:
+        return_array = True
         survey_list = survey
 
     if isinstance(magnification, bool):
@@ -147,6 +149,7 @@ def read_mock_catalog(survey, path, pixels, magnification=True,
         if survey == 'other':
             continue
         meta = table_all[survey][0].meta
+        meta['bands'] = meta['bands'].astype('S2')
         if 'area' in table_all[survey][0].meta.keys():
             meta['area'] = np.sum([c.meta['area'] for c in table_all[survey]])
         table_all[survey] = vstack(
@@ -257,7 +260,7 @@ def read_mock_catalog(survey, path, pixels, magnification=True,
                 table_all[survey][key] = table_all[survey][key].astype(float)
 
     table_all = [table_all[survey] for survey in survey_list]
-    if isinstance(survey, str):
+    if not return_array:
         table_all = table_all[0]
 
     return table_all
