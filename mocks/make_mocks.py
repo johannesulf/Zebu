@@ -437,7 +437,7 @@ def main():
         z = np.linspace(0, 4, 1000)
         z = interp1d(cosmo.comoving_distance(z), z, kind='cubic')
         TABLE_IA.meta['z_bins'] = z(np.arange(81) * 50)
-        nside = 1024
+        nside = 2048
         ra, dec = hp.pix2ang(nside, np.arange(hp.nside2npix(nside)),
                              lonlat=True)
 
@@ -448,7 +448,7 @@ def main():
              pixel_all])
         pixel_ia = np.unique(pixel_ia)
 
-        # Calculate the nside=1024 pixels that correspond to the nside=8 pixels
+        # Calculate the nside=2048 pixels that correspond to the nside=8 pixels
         # calculated above.
         ra, dec = hp.pix2ang(nside, np.arange(hp.nside2npix(nside)),
                              lonlat=True)
@@ -457,7 +457,7 @@ def main():
             nside, ra, dec, nest=True, lonlat=True), pixel_ia)
 
         # Read the IA data.
-        nside = 1024
+        nside = 2048
         TABLE_IA['pix'] = np.arange(hp.nside2npix(nside))[select]
         TABLE_IA['ia_1'] = np.zeros((np.sum(select), 80), dtype=np.float32)
         TABLE_IA['ia_2'] = np.zeros((np.sum(select), 80), dtype=np.float32)
@@ -465,7 +465,8 @@ def main():
         path = BUZZARD_PATH.parent / 'ia_shear'
 
         for i in tqdm.tqdm(range(80)):
-            fname = 'ia_shear_buzzard-{}-{}.fits'.format(args.buzzard_mock, i)
+            fname = 'ia_shear_buzzard-{}_2048_A_IA2p5-{}.fits'.format(
+                args.buzzard_mock, i)
             ia = Table.read(os.path.join(path, fname))['T'].data.ravel()
             TABLE_IA['ia_1'][:, i] = np.real(ia)[select]
             TABLE_IA['ia_2'][:, i] = np.imag(ia)[select]

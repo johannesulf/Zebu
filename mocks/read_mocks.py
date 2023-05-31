@@ -333,8 +333,8 @@ The tables have the following columns (if applicable).
     else:
         filenames = [args.filename, ]
 
-    path = (Path(os.getenv('CFS')) / 'desi' / 'users' / 'julange' /
-            'Zebu' / 'mocks' / 'buzzard-{}'.format(args.buzzard))
+    path = (Path(os.getenv('CFS')) / 'desicollab' / 'science' / 'c3' /
+            'DESI-Lensing' / 'mocks' / 'buzzard-{}'.format(args.buzzard))
 
     if args.pixels is None:
         pixels = []
