@@ -280,15 +280,15 @@ The tables have the following columns (if applicable).
     * 'ra': (lensed) right ascension
     * 'dec': (lensed) declination
     * 'z': measured redshift
-    * 'z_true': true cosmological redshift
+    * 'z_true': true redshift
     * 'w_sys': lens or calibration systematic weight
-    * 'w': source weight
-    * 'e_1'/'e_2': ellipticity components
-    * 'g_1'/'g_2': true shear components
+    * 'w': source weight (lensing catalogs only)
+    * 'e_1'/'e_2': measured ellipticity components (lensing catalogs only)
+    * 'g_1'/'g_2': true gravitational shear components
     * 'ia_1'/'ia_2': IA components
-    * 'e_rms'/'m'/'R_11'/'R_22'/'R_21'/'R_12': shear biases
+    * 'e_rms'/'m'/'R_11'/'R_22'/'R_21'/'R_12': shear biases (lensing only)
     * 'bright': whether the object is in BGS_BRIGHT (BGS catalog only)
-    * 'abs_mag_r': absolute rest-frame r-band magnitude (for BGS cuts)''')
+    * 'abs_mag_r': absolute rest-frame r-band magnitude (BGS catalog only)''')
     parser.add_argument(
         'filename',
         help="Filename used for the result. Must contain the word 'SURVEY' " +
