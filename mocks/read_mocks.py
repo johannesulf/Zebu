@@ -100,6 +100,9 @@ def read_mock_catalog(survey, path, pixels, magnification=True,
             raise ValueError('If `shape_noise` is true, `shear_bias` and ' +
                              '`intrinsic_alignment` must also be true.')
 
+    if fiber_assignment:
+        raise ValueError('Fiber assignment not implemented, yet.')
+
     if isinstance(survey, str):
         return_array = False
         survey_list = [survey, ]
