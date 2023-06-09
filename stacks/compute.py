@@ -88,13 +88,6 @@ for bin_l, (z_l_min, z_l_max) in enumerate(zip(z_l_bins[:-1], z_l_bins[1:])):
     for bin_s, (z_s_min, z_s_max) in enumerate(
             zip(z_s_bins[:-1], z_s_bins[1:])):
 
-        if config['sources'] == 'hsc':
-            if bin_s == 0:
-                z_s_min = 0
-                z_s_max = np.inf
-            else:
-                break
-
         select = (z_l_min <= table_l_all['z']) & (table_l_all['z'] < z_l_max)
         table_l = table_l_all[select]
 
@@ -131,6 +124,9 @@ for bin_l, (z_l_min, z_l_max) in enumerate(zip(z_l_bins[:-1], z_l_bins[1:])):
                     z_l[i], table_n['z'], table_n['n'][:, 0],
                     zebu.COSMOLOGY)**-2
 
+        if config['sources'] == 'hsc' and np.any(w_sys_inv == 0):
+            continue
+
         w_sys_inv = w_sys_inv / np.amax(w_sys_inv)
         w_sys = interp1d(z_l, 1.0 / w_sys_inv, kind='cubic')
         table_l['w_sys'] *= w_sys(table_l['z'])
@@ -149,10 +145,7 @@ for bin_l, (z_l_min, z_l_max) in enumerate(zip(z_l_bins[:-1], z_l_bins[1:])):
         precompute(table_l, table_s, zebu.RP_BINS, **kwargs)
         table_l = compress_jackknife_fields(table_l)
 
-        if config['sources'] == 'hsc':
-            fname = 'l{}_ds.hdf5'.format(bin_l)
-        else:
-            fname = 'l{}_s{}_ds.hdf5'.format(bin_l, bin_s)
+        fname = 'l{}_s{}_ds.hdf5'.format(bin_l, bin_s)
 
         table_l.write(path / fname, path='data', overwrite=True,
                       serialize_meta=True)
