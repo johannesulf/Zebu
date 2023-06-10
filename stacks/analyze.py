@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import zebu
 
-from astropy.table import Table, vstack
+from astropy.table import Table
 from astropy.io.ascii import convert_numpy
 from dsigma.jackknife import jackknife_resampling
 from dsigma.stacking import excess_surface_density, lens_magnification_bias
@@ -11,40 +11,12 @@ from dsigma.stacking import tangential_shear
 from matplotlib import gridspec
 from pathlib import Path
 
-path = Path('plots')
 
-
-def read_compute_file(config, lens_bin, source_bin=None, delta_sigma=True):
-
-    path = Path('results', '{}'.format(config))
-
-    if delta_sigma:
-        try:
-            fname = 'l{}_ds.hdf5'.format(lens_bin)
-            compute = Table.read(path / fname)
-        except FileNotFoundError:
-            source_bin = 0
-            fname = 'l{}_s{}_ds.hdf5'
-            compute = []
-            while (path / fname.format(lens_bin, source_bin)).exists():
-                compute.append(Table.read(path / fname.format(
-                    lens_bin, source_bin)))
-                source_bin += 1
-            meta = compute[0].meta
-            compute = vstack(compute)
-            compute.meta = meta
-    else:
-        fname = 'l{}_s{}_gt.hdf5'.format(lens_bin, source_bin)
-        compute = Table.read(path / fname)
-
-    n_pairs = np.sum(compute['sum 1'], axis=1)
-    return compute[n_pairs > 0.01 * np.amax(n_pairs)]
-
-
-def read_compute(lenses, sources, delta_sigma=True, lens_magnification=False,
-                 source_magnification=False, fiber_assignment=False,
-                 intrinsic_alignment=False, photometric_redshifts=True,
-                 shear_bias=False, shape_noise=False):
+def read_precomputed_data(
+        lenses, sources, statistic, lens_magnification=False,
+        source_magnification=False, fiber_assignment=False,
+        intrinsic_alignment=False, photometric_redshifts=True,
+        shear_bias=False, shape_noise=False):
 
     if lenses in ['bgs-r', 'lrg-r']:
         source_magnification = False
@@ -67,18 +39,19 @@ def read_compute(lenses, sources, delta_sigma=True, lens_magnification=False,
         raise ValueError('Configuration with these options not available.')
 
     config = table['configuration'][select][0]
+    path = Path('results', '{}'.format(config))
 
-    compute = []
+    data = []
     for lens_bin in range(len(zebu.LENS_Z_BINS[lenses.split('-')[0]]) - 1):
-        if delta_sigma:
-            compute.append(read_compute_file(config, lens_bin))
-        else:
-            compute.append([])
-            for source_bin in range(len(zebu.SOURCE_Z_BINS[sources]) - 1):
-                compute[-1].append(read_compute_file(
-                    config, lens_bin, source_bin, delta_sigma=False))
+        data.append([])
+        for source_bin in range(len(zebu.SOURCE_Z_BINS[sources]) - 1):
+            fname = 'l{}_s{}_{}.hdf5'.format(lens_bin, source_bin, statistic)
+            table = Table.read(path / fname)
+            n_pairs = np.sum(table['sum 1'], axis=1)
+            table = table[n_pairs > 0.01 * np.amax(n_pairs)]
+            data[-1].append(table)
 
-    return compute
+    return data
 
 
 def difference(table_l, table_l_2=None, table_r=None, table_r_2=None,
@@ -88,7 +61,7 @@ def difference(table_l, table_l_2=None, table_r=None, table_r_2=None,
             function(table_l, table_r=table_r, **stacking_kwargs))
 
 
-def plot_results(statistic='ds', sources=None, config={}, title=None,
+def plot_results(file_stem, statistic='ds', config={}, title=None,
                  plot_lens_magnification=False):
 
     config = dict(
@@ -96,6 +69,7 @@ def plot_results(statistic='ds', sources=None, config={}, title=None,
         fiber_assignment=False, intrinsic_alignment=False,
         photometric_redshifts=True, shear_bias=False,
         shape_noise=False) | config
+    config['statistic'] = statistic
 
     kwargs_1 = {}
     kwargs_2 = {}
@@ -107,250 +81,142 @@ def plot_results(statistic='ds', sources=None, config={}, title=None,
             kwargs_1[key] = config[key]
             kwargs_2[key] = config[key]
 
-    if statistic == 'ds':
-        table_l_1 = [[], [], []]
-        table_r_1 = [[], [], []]
-        table_l_2 = [[], [], []]
-        table_r_2 = [[], [], []]
-        for i, sources in enumerate(['des', 'hsc', 'kids']):
-            for lenses in ['bgs', 'lrg']:
-                table_l_1[i] = table_l_1[i] + read_compute(
-                    lenses, sources, **kwargs_1)
-                table_r_1[i] = table_r_1[i] + read_compute(
-                    lenses + '-r', sources, **kwargs_1)
-                table_l_2[i] = table_l_2[i] + read_compute(
-                    lenses, sources, **kwargs_2)
-                table_r_2[i] = table_r_2[i] + read_compute(
-                    lenses + '-r', sources, **kwargs_2)
-    else:
-        if sources is None:
-            raise ValueError(
-                'Sources must be specified for statistic {}.'.format(
-                    statistic))
-        table_l_1 = (
-            read_compute('bgs', sources, delta_sigma=False, **kwargs_1) +
-            read_compute('lrg', sources, delta_sigma=False, **kwargs_1))
-        table_r_1 = (
-            read_compute('bgs-r', sources, delta_sigma=False, **kwargs_1) +
-            read_compute('lrg-r', sources, delta_sigma=False, **kwargs_1))
-        table_l_2 = (
-            read_compute('bgs', sources, delta_sigma=False, **kwargs_2) +
-            read_compute('lrg', sources, delta_sigma=False, **kwargs_2))
-        table_r_2 = (
-            read_compute('bgs-r', sources, delta_sigma=False, **kwargs_2) +
-            read_compute('lrg-r', sources, delta_sigma=False, **kwargs_2))
+    survey_list = ['des', 'des', 'kids']
+    table_l_1 = [read_precomputed_data('bgs', survey, **kwargs_1) +
+                 read_precomputed_data('lrg', survey, **kwargs_1) for
+                 survey in survey_list]
+    table_r_1 = [read_precomputed_data('bgs-r', survey, **kwargs_1) +
+                 read_precomputed_data('lrg-r', survey, **kwargs_1) for
+                 survey in survey_list]
+    table_l_2 = [read_precomputed_data('bgs', survey, **kwargs_2) +
+                 read_precomputed_data('lrg', survey, **kwargs_2) for
+                 survey in survey_list]
+    table_r_2 = [read_precomputed_data('bgs-r', survey, **kwargs_2) +
+                 read_precomputed_data('lrg-r', survey, **kwargs_2) for
+                 survey in survey_list]
 
-    fig = plt.figure(figsize=(7, 2.3))
-    gs = gridspec.GridSpec(1, len(table_l_1) + 1, wspace=0,
-                           width_ratios=[20] * len(table_l_1) + [1])
-    ax_list = []
-    for i in range(len(table_l_1)):
-        ax_list.append(fig.add_subplot(
-            gs[i], sharex=ax_list[-1] if i > 0 else None,
-            sharey=ax_list[-1] if i > 0 else None))
-    cax = fig.add_subplot(gs[-1])
+    n_s = len(table_l_1)
+    n_bins_l = len(table_l_1[0])
 
-    ax_list[0].set_xscale('log')
-
-    lens_list = []
-    for lenses in ['bgs', 'lrg']:
-        for i in range(len(zebu.LENS_Z_BINS[lenses]) - 1):
-            lens_list.append(r'{}-{}'.format(lenses.upper(), i + 1))
-
-    if statistic == 'ds':
-        text_list = ['DES', 'HSC', 'KiDS']
-    else:
-        text_list = lens_list
-        source_list = []
-        for i in range(len(zebu.SOURCE_Z_BINS[sources]) - 1):
-            source_list.append(r'{}-{}'.format(sources.upper(), i + 1))
-
-    for ax, text in zip(ax_list, text_list):
-        ax.axhline(0, ls='--', color='black')
-        ax.text(0.08, 0.92, text, ha='left', va='top',
-                transform=ax.transAxes, zorder=200)
-        if statistic == 'ds':
-            ax.set_xlabel(r'$r_p \, [h^{-1} \, \mathrm{Mpc}]$')
-        else:
-            ax.set_xlabel(r'$\theta \, [\mathrm{arcmin}]$')
-
-    if statistic in ['ds', 'ds_lm']:
-        ax_list[0].set_ylabel(
-            r'$r_p \Delta\Sigma \, [10^6 \, M_\odot / \mathrm{pc}]$')
-    else:
-        ax_list[0].set_ylabel(
-            r'$\theta \gamma_t \, [10^3 \, \mathrm{arcmin}]$')
-
-    color_list = plt.get_cmap('plasma')(
-        np.linspace(0.0, 0.8, len(table_l_1[0])))
-    cmap = mpl.colors.ListedColormap(color_list)
-    sm = plt.cm.ScalarMappable(cmap=cmap)
-    sm._A = []
-    if statistic == 'ds':
-        tick_label_list = lens_list
-    else:
-        tick_label_list = source_list
-    ticks = np.linspace(0, 1, len(tick_label_list) + 1)
-    ticks = 0.5 * (ticks[1:] + ticks[:-1])
-    cb = plt.colorbar(sm, cax=cax, pad=0.0, ticks=ticks)
-    cb.ax.set_yticklabels(tick_label_list)
-    cb.ax.minorticks_off()
-    cb.ax.tick_params(size=0)
+    fig = plt.figure(figsize=(7, 5))
+    gs = gridspec.GridSpec(n_s, n_bins_l + 1, wspace=0,
+                           width_ratios=[20] * n_bins_l + [1])
+    axes = []
+    colors = []
 
     if statistic == 'ds':
         x = 0.5 * (zebu.RP_BINS[1:] + zebu.RP_BINS[:-1])
     else:
         x = 0.5 * (zebu.THETA_BINS[1:] + zebu.THETA_BINS[:-1])
 
-    for i in range(len(ax_list)):
-        for k in range(len(color_list)):
-
+    for i, survey in enumerate(survey_list):
+        axes.append([])
+        for j in range(n_bins_l):
+            axes[-1].append(fig.add_subplot(
+                gs[i, j], sharex=axes[i][-1] if j > 0 else None,
+                sharey=axes[i][-1] if j > 0 else None))
+            ax = axes[-1][-1]
+            ax.axhline(0, ls='--', color='black')
+            n_bgs = len(zebu.LENS_Z_BINS['bgs']) - 1
+            text = '{}-{}'.format('BGS' if j < n_bgs else 'LRG', j + 1 -
+                                  n_bgs * (j >= n_bgs))
+            ax.text(0.08, 0.92, text, ha='left', va='top',
+                    transform=ax.transAxes, zorder=200)
             if statistic == 'ds':
-                survey = ['des', 'hsc', 'kids'][i]
+                ax.set_xlabel(r'$r_p \, [h^{-1} \, \mathrm{Mpc}]$')
             else:
-                survey = sources
+                ax.set_xlabel(r'$\theta \, [\mathrm{arcmin}]$')
 
+            if j > 0:
+                plt.setp(ax.get_yticklabels(), visible=False)
+
+        if statistic == 'ds':
+            axes[-1][0].set_ylabel(
+                r'$r_p \Delta\Sigma \, [10^6 \, M_\odot / \mathrm{pc}]$')
+        else:
+            axes[-1][0].set_ylabel(
+                r'$\theta \gamma_t \, [10^3 \, \mathrm{arcmin}]$')
+
+        axes[i][0].set_xscale('log')
+
+        axes[-1].append(fig.add_subplot(gs[i, -1]))
+        colors.append(plt.get_cmap('plasma')(
+            np.linspace(0.0, 0.8, len(table_l_1[i][0]))))
+        cmap = mpl.colors.ListedColormap(colors[-1])
+        sm = plt.cm.ScalarMappable(cmap=cmap)
+        sm._A = []
+        tick_label_list = [['DES', 'HSC', 'KiDS'][i] + '-{}'.format(k + 1) for
+                           k in range(len(table_l_1[i][0]))]
+        ticks = np.linspace(0, 1, len(tick_label_list) + 1)
+        ticks = 0.5 * (ticks[1:] + ticks[:-1])
+        cb = plt.colorbar(sm, cax=axes[-1][-1], pad=0.0, ticks=ticks)
+        cb.ax.set_yticklabels(tick_label_list)
+        cb.ax.minorticks_off()
+        cb.ax.tick_params(size=0)
+
+        for j in range(n_bins_l):
             stacking_kwargs = zebu.stacking_kwargs(survey, statistic=statistic)
-
             if statistic == 'ds':
                 function = excess_surface_density
             elif statistic == 'gt':
                 function = tangential_shear
             else:
                 raise ValueError("Unknown statistic '{}'.".format(statistic))
+            for k in range(len(table_l_1[i][0])):
 
-            if kwargs_1 != kwargs_2:
-                y = difference(
-                    table_l_1[i][k], table_l_2=table_l_2[i][k],
-                    table_r=table_r_1[i][k], table_r_2=table_r_2[i][k],
-                    function=function, stacking_kwargs=stacking_kwargs)
-                y_cov = jackknife_resampling(
-                    difference, table_l_1[i][k], table_l_2=table_l_2[i][k],
-                    table_r=table_r_1[i][k], table_r_2=table_r_2[i][k],
-                    function=function, stacking_kwargs=stacking_kwargs)
-            else:
-                y = function(table_l_1[i][k],  table_r=table_r_1[i][k],
-                             **stacking_kwargs)
-                y_cov = jackknife_resampling(
-                    function, table_l_1[i][k], table_r=table_r_1[i][k],
-                    **stacking_kwargs)
+                z_l_max = np.concatenate([
+                    zebu.LENS_Z_BINS['bgs'], zebu.LENS_Z_BINS['lrg']])[j + 1]
+                z_l_min = zebu.SOURCE_Z_BINS[survey_list[i]][k]
+                if z_l_max >= z_l_min:
+                    continue
 
-            if statistic == 'gt':
-                y *= 1e3
-                y_cov *= 1e6
-
-            y_err = np.sqrt(np.diag(y_cov))
-
-            plotline, caps, barlinecols = ax_list[i].errorbar(
-                x, x * y, yerr=x * y_err, fmt='-o', ms=2, color=color_list[k],
-                zorder=k + 100)
-            plt.setp(barlinecols[0], capstyle='round')
-
-    for ax in ax_list[1:]:
-        plt.setp(ax.get_yticklabels(), visible=False)
-
-    if title is not None:
-        ax_list[len(ax_list) // 2].set_title(title)
-    plt.subplots_adjust(wspace=0, hspace=0)
-    plt.tight_layout(pad=0.3)
-
-    if plot_lens_magnification:
-        camb_results = zebu.get_camb_results()
-        for i in range(len(ax_list)):
-            for k in range(len(color_list)):
-                if statistic == 'ds' and i == 1:
-                    photo_z_correction = True
+                if kwargs_1 != kwargs_2:
+                    y = difference(
+                        table_l_1[i][j][k], table_l_2=table_l_2[i][j][k],
+                        table_r=table_r_1[i][j][k],
+                        table_r_2=table_r_2[i][j][k], function=function,
+                        stacking_kwargs=stacking_kwargs)
+                    y_cov = jackknife_resampling(
+                        difference, table_l_1[i][j][k],
+                        table_l_2=table_l_2[i][j][k],
+                        table_r=table_r_1[i][j][k],
+                        table_r_2=table_r_2[i][j][k], function=function,
+                        stacking_kwargs=stacking_kwargs)
                 else:
-                    photo_z_correction = False
-                y = lens_magnification_bias(
-                    table_l_1[i][k], zebu.ALPHA_L[
-                        k if statistic == 'ds' else i],
-                    camb_results, photo_z_correction=photo_z_correction,
-                    shear=(statistic == 'gt'))
+                    y = function(
+                        table_l_1[i][j][k], table_r=table_r_1[i][j][k],
+                        **stacking_kwargs)
+                    y_cov = jackknife_resampling(
+                        function, table_l_1[i][j][k],
+                        table_r=table_r_1[i][j][k], **stacking_kwargs)
+
                 if statistic == 'gt':
                     y *= 1e3
-                ax_list[i].plot(x, x * y, color=color_list[k], zorder=k + 100,
-                                ls='--')
+                    y_cov *= 1e6
 
-    return fig, ax_list
+                y_err = np.sqrt(np.diag(y_cov))
 
+                plotline, caps, barlinecols = axes[i][j].errorbar(
+                    x, x * y, yerr=x * y_err, fmt='-o', ms=2,
+                    color=colors[i][k], zorder=k + 100)
+                plt.setp(barlinecols[0], capstyle='round')
 
-fig, ax_list = plot_results(
-    statistic='ds', config=dict(photometric_redshifts=False),
-    title='Intrinsic Signal')
-plt.savefig(path / 'intrinsic_ds.pdf')
-plt.savefig(path / 'intrinsic_ds.png', dpi=300)
-plt.close()
+    fig.suptitle(title, fontsize=16, y=0.99)
+    plt.subplots_adjust(wspace=0, hspace=0)
+    plt.tight_layout(pad=0.3)
+    plt.savefig(file_stem + '.pdf')
+    plt.savefig(file_stem + '.png', dpi=300)
 
-for sources in ['des', 'hsc', 'kids']:
-    fig, ax_list = plot_results(
-        statistic='gt', sources=sources, title='Intrinsic Signal')
-    plt.savefig(path / 'intrinsic_gt_{}.pdf'.format(sources))
-    plt.savefig(path / 'intrinsic_gt_{}.png'.format(sources), dpi=300)
     plt.close()
 
 
-fig, ax_list = plot_results(
-    statistic='ds', config=dict(lens_magnification=(False, True)),
-    title='Lens Magnification', plot_lens_magnification=True)
-plt.savefig(path / 'lens_magnification_ds.pdf')
-plt.savefig(path / 'lens_magnification_ds.png', dpi=300)
-plt.close()
-
-for sources in ['des', 'hsc', 'kids']:
-    fig, ax_list = plot_results(
-        statistic='gt', sources=sources,
-        config=dict(lens_magnification=(False, True)),
-        title='Lens Magnification', plot_lens_magnification=True)
-    plt.savefig(path / 'lens_magnification_gt_{}.pdf'.format(sources))
-    plt.savefig(path / 'lens_magnification_gt_{}.png'.format(sources), dpi=300)
-    plt.close()
-
-
-fig, ax_list = plot_results(
-    statistic='ds', config=dict(source_magnification=(False, True)),
-    title='Source Magnification')
-plt.savefig(path / 'source_magnification_ds.pdf')
-plt.savefig(path / 'source_magnification_ds.png', dpi=300)
-plt.close()
-
-
-fig, ax_list = plot_results(
-    statistic='ds', config=dict(photometric_redshifts=(False, True)))
-plt.savefig(path / 'photometric_redshift_ds.pdf')
-plt.savefig(path / 'photometric_redshift_ds.png', dpi=300)
-plt.close()
-
-
-fig, ax_list = plot_results(
-    statistic='ds', config=dict(intrinsic_alignment=(False, True)),
-    title='Intrinsic Alignments')
-plt.savefig(path / 'intrinsic_alignment_ds.pdf')
-plt.savefig(path / 'intrinsic_alignment_ds.png', dpi=300)
-plt.close()
-
-for sources in ['des', 'hsc', 'kids']:
-    fig, ax_list = plot_results(
-        statistic='gt', sources=sources,
-        config=dict(intrinsic_alignment=(False, True)),
-        title='Intrinsic Alignments')
-    plt.savefig(path / 'intrinsic_alignment_gt_{}.pdf'.format(sources))
-    plt.savefig(path / 'intrinsic_alignment_gt_{}.png'.format(sources),
-                dpi=300)
-    plt.close()
-
-
-fig, ax_list = plot_results(
-    statistic='ds', config=dict(shear_bias=(False, True)),
-    title='Residual Shear Bias')
-plt.savefig(path / 'shear_bias_ds.pdf')
-plt.savefig(path / 'shear_bias_ds.png', dpi=300)
-plt.close()
-
-for sources in ['des', 'hsc', 'kids']:
-    fig, ax_list = plot_results(
-        statistic='gt', sources=sources, config=dict(shear_bias=(False, True)),
-        title='Residual Shear Bias')
-    plt.savefig(path / 'shear_bias_gt_{}.pdf'.format(sources))
-    plt.savefig(path / 'shear_bias_gt_{}.png'.format(sources), dpi=300)
-    plt.close()
+for statistic in ['ds', 'gt']:
+    plot_results('intrinsic_' + statistic, statistic=statistic,
+                 config=dict(photometric_redshifts=False),
+                 title='Intrinsic Gravitational Signal')
+    plot_results('photometric_redshift_' + statistic, statistic=statistic,
+                 config=dict(photometric_redshifts=(False, True)),
+                 title='Photometric Redshifts')
+    plot_results('lens_magnification_' + statistic, statistic=statistic,
+                 config=dict(lens_magnification=(False, True)),
+                 title='Lens Magnification')
