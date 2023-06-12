@@ -185,8 +185,9 @@ def read_mock_catalog(survey, path, pixels, magnification=True,
                           'kids-c']:
             continue
 
+        table_survey = table_all[survey]
+
         if not shape_noise or survey in ['des-c', 'hsc-c', 'kids-c']:
-            table_survey = table_all[survey]
 
             if not shear_bias:
                 if 'm' in table_all[survey].colnames:
