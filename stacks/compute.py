@@ -9,11 +9,8 @@ from astropy.io.ascii import convert_numpy
 from astropy.table import Table
 from astropy_healpix import HEALPix
 from dsigma.jackknife import compress_jackknife_fields
-from dsigma.physics import critical_surface_density
-from dsigma.physics import effective_critical_surface_density
 from dsigma.precompute import precompute
 from pathlib import Path
-from scipy.interpolate import interp1d
 
 t_start = time()
 
@@ -60,6 +57,8 @@ if not config['photometric redshifts']:
 z_l_bins = zebu.LENS_Z_BINS[config['lenses'].split('-')[0]]
 z_s_bins = zebu.SOURCE_Z_BINS[config['sources']]
 
+lens_source_cut = 0.2
+
 for bin_l, (z_l_min, z_l_max) in enumerate(zip(z_l_bins[:-1], z_l_bins[1:])):
 
     for bin_s, (z_s_min, z_s_max) in enumerate(
@@ -81,20 +80,6 @@ for bin_l, (z_l_min, z_l_max) in enumerate(zip(z_l_bins[:-1], z_l_bins[1:])):
         table_l.write(path / 'l{}_s{}_gt.hdf5'.format(bin_l, bin_s),
                       path='data', overwrite=True, serialize_meta=True)
 
-lens_source_cut = 0.2
-
-for bin_l, (z_l_min, z_l_max) in enumerate(zip(z_l_bins[:-1], z_l_bins[1:])):
-
-    for bin_s, (z_s_min, z_s_max) in enumerate(
-            zip(z_s_bins[:-1], z_s_bins[1:])):
-
-        select = (z_l_min <= table_l_all['z']) & (table_l_all['z'] < z_l_max)
-        table_l = table_l_all[select]
-
-        select = ((z_s_min <= table_s_all['z_phot']) &
-                  (table_s_all['z_phot'] < z_s_max))
-        table_s = table_s_all[select]
-
         select = ((z_s_min <= table_c_all['z_phot']) &
                   (table_c_all['z_phot'] < z_s_max))
         table_c = table_c_all[select]
@@ -108,28 +93,6 @@ for bin_l, (z_l_min, z_l_max) in enumerate(zip(z_l_bins[:-1], z_l_bins[1:])):
             table_n['n'] = np.atleast_2d(np.histogram(
                 table_c['z_true'], weights=table_c['w_sys'] * table_c['w'],
                 bins=z_bins)[0]).T
-
-        z_l = np.linspace(z_l_min - 1e-6, z_l_max + 1e-6, 100)
-        w_sys_inv = np.zeros_like(z_l)
-
-        for i in range(len(z_l)):
-            if config['sources'] == 'hsc':
-                sigma_crit = critical_surface_density(
-                    z_l[i], table_c['z'], zebu.COSMOLOGY, comoving=True)
-                w_sys_inv[i] = np.sum(
-                    table_c['w'] * table_c['w_sys'] * sigma_crit**-2 *
-                    (z_l[i] + lens_source_cut < table_c['z']))
-            else:
-                w_sys_inv[i] = effective_critical_surface_density(
-                    z_l[i], table_n['z'], table_n['n'][:, 0],
-                    zebu.COSMOLOGY)**-2
-
-        if config['sources'] == 'hsc' and np.any(w_sys_inv == 0):
-            continue
-
-        w_sys_inv = w_sys_inv / np.amax(w_sys_inv)
-        w_sys = interp1d(z_l, 1.0 / w_sys_inv, kind='cubic')
-        table_l['w_sys'] *= w_sys(table_l['z'])
 
         kwargs = dict(
             cosmology=zebu.COSMOLOGY, n_jobs=multiprocessing.cpu_count(),
