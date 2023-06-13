@@ -57,8 +57,6 @@ if not config['photometric redshifts']:
 z_l_bins = zebu.LENS_Z_BINS[config['lenses'].split('-')[0]]
 z_s_bins = zebu.SOURCE_Z_BINS[config['sources']]
 
-lens_source_cut = 0.2
-
 for bin_l, (z_l_min, z_l_max) in enumerate(zip(z_l_bins[:-1], z_l_bins[1:])):
 
     for bin_s, (z_s_min, z_s_max) in enumerate(
@@ -76,9 +74,9 @@ for bin_l, (z_l_min, z_l_max) in enumerate(zip(z_l_bins[:-1], z_l_bins[1:])):
             n_jobs=multiprocessing.cpu_count(), progress_bar=False)
 
         precompute(table_l, table_s, zebu.THETA_BINS, **kwargs)
-        table_l = compress_jackknife_fields(table_l)
-        table_l.write(path / 'l{}_s{}_gt.hdf5'.format(bin_l, bin_s),
-                      path='data', overwrite=True, serialize_meta=True)
+        compress_jackknife_fields(table_l).write(
+            path / 'l{}_s{}_gt.hdf5'.format(bin_l, bin_s), path='data',
+            overwrite=True, serialize_meta=True)
 
         select = ((z_s_min <= table_c_all['z_phot']) &
                   (table_c_all['z_phot'] < z_s_max))
@@ -100,18 +98,15 @@ for bin_l, (z_l_min, z_l_max) in enumerate(zip(z_l_bins[:-1], z_l_bins[1:])):
 
         if config['sources'] == 'hsc':
             kwargs['table_c'] = table_c
-            kwargs['lens_source_cut'] = lens_source_cut
+            kwargs['lens_source_cut'] = 0.2
         else:
             kwargs['table_n'] = table_n
             kwargs['lens_source_cut'] = None
 
         precompute(table_l, table_s, zebu.RP_BINS, **kwargs)
-        table_l = compress_jackknife_fields(table_l)
-
-        fname = 'l{}_s{}_ds.hdf5'.format(bin_l, bin_s)
-
-        table_l.write(path / fname, path='data', overwrite=True,
-                      serialize_meta=True)
+        compress_jackknife_fields(table_l).write(
+            path / 'l{}_s{}_ds.hdf5'.format(bin_l, bin_s), path='data',
+            overwrite=True, serialize_meta=True)
 
 t_end = time()
 print('Finished in {:.1f} minutes.'.format((t_end - t_start) / 60.0))
