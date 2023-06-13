@@ -8,8 +8,16 @@ from astropy.io.ascii import convert_numpy
 from dsigma.jackknife import jackknife_resampling
 from dsigma.stacking import excess_surface_density, lens_magnification_bias
 from dsigma.stacking import tangential_shear
+from dsigma.stacking import boost_factor as boost_factor_dsigma
 from matplotlib import gridspec
 from pathlib import Path
+
+
+zebu.SOURCE_Z_BINS['des'] = np.array([0.0, 0.358, 0.631, 0.872, 2.0])
+
+
+def boost_factor(table_l, table_r, **kwargs):
+    return 1 - boost_factor_dsigma(table_l, table_r)
 
 
 def read_precomputed_data(
@@ -69,7 +77,7 @@ def plot_results(file_stem, statistic='ds', config={}, title=None,
         fiber_assignment=False, intrinsic_alignment=False,
         photometric_redshifts=True, shear_bias=False,
         shape_noise=False) | config
-    config['statistic'] = statistic
+    config['statistic'] = statistic.split('-')[0]
 
     kwargs_1 = {}
     kwargs_2 = {}
@@ -81,7 +89,7 @@ def plot_results(file_stem, statistic='ds', config={}, title=None,
             kwargs_1[key] = config[key]
             kwargs_2[key] = config[key]
 
-    survey_list = ['des', 'des', 'kids']
+    survey_list = ['des', 'hsc', 'kids']
     table_l_1 = [read_precomputed_data('bgs', survey, **kwargs_1) +
                  read_precomputed_data('lrg', survey, **kwargs_1) for
                  survey in survey_list]
@@ -104,7 +112,7 @@ def plot_results(file_stem, statistic='ds', config={}, title=None,
     axes = []
     colors = []
 
-    if statistic == 'ds':
+    if statistic.split('-')[0] == 'ds':
         x = 0.5 * (zebu.RP_BINS[1:] + zebu.RP_BINS[:-1])
     else:
         x = 0.5 * (zebu.THETA_BINS[1:] + zebu.THETA_BINS[:-1])
@@ -122,7 +130,7 @@ def plot_results(file_stem, statistic='ds', config={}, title=None,
                                   n_bgs * (j >= n_bgs))
             ax.text(0.08, 0.92, text, ha='left', va='top',
                     transform=ax.transAxes, zorder=200)
-            if statistic == 'ds':
+            if statistic.split('-')[0] == 'ds':
                 ax.set_xlabel(r'$r_p \, [h^{-1} \, \mathrm{Mpc}]$')
             else:
                 ax.set_xlabel(r'$\theta \, [\mathrm{arcmin}]$')
@@ -133,9 +141,11 @@ def plot_results(file_stem, statistic='ds', config={}, title=None,
         if statistic == 'ds':
             axes[-1][0].set_ylabel(
                 r'$r_p \Delta\Sigma \, [10^6 \, M_\odot / \mathrm{pc}]$')
-        else:
+        elif statistic == 'gt':
             axes[-1][0].set_ylabel(
                 r'$\theta \gamma_t \, [10^3 \, \mathrm{arcmin}]$')
+        else:
+            axes[-1][0].set_ylabel(r'Boost Factor $1 - b$')
 
         axes[i][0].set_xscale('log')
 
@@ -155,19 +165,23 @@ def plot_results(file_stem, statistic='ds', config={}, title=None,
         cb.ax.tick_params(size=0)
 
         for j in range(n_bins_l):
-            stacking_kwargs = zebu.stacking_kwargs(survey, statistic=statistic)
+            stacking_kwargs = zebu.stacking_kwargs(
+                survey, statistic=statistic.split('-')[0])
             if statistic == 'ds':
                 function = excess_surface_density
             elif statistic == 'gt':
                 function = tangential_shear
+            elif statistic in ['ds-boost', 'gt-boost']:
+                function = boost_factor
             else:
                 raise ValueError("Unknown statistic '{}'.".format(statistic))
             for k in range(len(table_l_1[i][0])):
 
-                z_l_max = np.concatenate([
-                    zebu.LENS_Z_BINS['bgs'], zebu.LENS_Z_BINS['lrg']])[j + 1]
-                z_l_min = zebu.SOURCE_Z_BINS[survey_list[i]][k]
-                if z_l_max >= z_l_min:
+                z_l = np.mean(np.concatenate([
+                    zebu.LENS_Z_BINS['bgs'], zebu.LENS_Z_BINS['lrg']])[
+                        [j, j+1]])
+                z_s = np.mean(zebu.SOURCE_Z_BINS[survey_list[i]][[k, k + 1]])
+                if z_l >= z_s:
                     continue
 
                 if kwargs_1 != kwargs_2:
@@ -196,10 +210,18 @@ def plot_results(file_stem, statistic='ds', config={}, title=None,
 
                 y_err = np.sqrt(np.diag(y_cov))
 
+                if statistic in ['ds', 'gt']:
+                    y = x * y
+                    y_err = x * y_err
+
                 plotline, caps, barlinecols = axes[i][j].errorbar(
-                    x, x * y, yerr=x * y_err, fmt='-o', ms=2,
-                    color=colors[i][k], zorder=k + 100)
+                    x, y, yerr=y_err, fmt='-o', ms=2, color=colors[i][k],
+                    zorder=k + 100)
                 plt.setp(barlinecols[0], capstyle='round')
+
+        ymin, ymax = axes[i][0].get_ylim()
+        ymax = max(ymax, -ymin / 3)
+        axes[i][0].set_ylim(ymin, ymax)
 
     fig.suptitle(title, fontsize=16, y=0.99)
     plt.subplots_adjust(wspace=0, hspace=0)
@@ -211,12 +233,23 @@ def plot_results(file_stem, statistic='ds', config={}, title=None,
 
 
 for statistic in ['ds', 'gt']:
-    plot_results('intrinsic_' + statistic, statistic=statistic,
+    plot_results('gravitational_' + statistic, statistic=statistic,
                  config=dict(photometric_redshifts=False),
                  title='Intrinsic Gravitational Signal')
     plot_results('photometric_redshift_' + statistic, statistic=statistic,
                  config=dict(photometric_redshifts=(False, True)),
                  title='Photometric Redshifts')
+    plot_results('boost_' + statistic, statistic=statistic + '-boost',
+                 title='Boost Factor Bias')
     plot_results('lens_magnification_' + statistic, statistic=statistic,
                  config=dict(lens_magnification=(False, True)),
-                 title='Lens Magnification')
+                 title='Lens Magnification Bias')
+    plot_results('source_magnification_' + statistic, statistic=statistic,
+                 config=dict(source_magnification=(False, True)),
+                 title='Source Magnification Bias')
+    plot_results('boost_source_' + statistic, statistic=statistic + '-boost',
+                 config=dict(source_magnification=(False, True)),
+                 title='Source Magnification Error on Boost Factor')
+    plot_results('intrinsic_alignment_' + statistic, statistic=statistic,
+                 config=dict(intrinsic_alignment=(False, True)),
+                 title='Intrinsic Alignment Bias')
