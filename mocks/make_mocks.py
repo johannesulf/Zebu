@@ -29,8 +29,12 @@ MOCK_INPUT_PATH = (Path(os.getenv('CFS')) / 'desi' / 'users' / 'cblake' /
 def read_buzzard_catalog(pixel):
 
     path = BUZZARD_PATH / 'truth'
-    fname = 'Chinchilla-{}_cam_rs_scat_shift_lensed.{}.fits'.format(
-        BUZZARD_MOCK, pixel)
+    ending = 'cam_rs_scat_shift_lensed'
+    if BUZZARD_MOCK == 3:
+        ending = 'lensed_rs_shift_rs_scat_cam'
+    elif BUZZARD_MOCK == 6:
+        ending = 'lensed_cam_rs_scat_shift'
+    fname = 'Chinchilla-{}_{}.{}.fits'.format(BUZZARD_MOCK, ending, pixel)
 
     columns = ['GAMMA1', 'GAMMA2', 'Z', 'MU', 'RA', 'DEC', 'SIZE', 'TSIZE',
                'AMAG']
@@ -80,7 +84,7 @@ def read_buzzard_catalog(pixel):
 
 def add_ia_information(table_b):
 
-    pixel = hp.ang2pix(1024, table_b['ra'], table_b['dec'],  lonlat=True)
+    pixel = hp.ang2pix(2048, table_b['ra'], table_b['dec'],  lonlat=True)
     row = np.searchsorted(TABLE_IA['pix'], pixel)
 
     table_b['ia_1'] = np.zeros(len(table_b), dtype=np.float32)
@@ -360,6 +364,7 @@ def apply_observed_shear(table_s, survey=None):
     idx = tree.query(mag, k=3)[1]
     idx = np.array(idx)
     idx = idx[np.arange(len(idx)), np.random.randint(3, size=len(idx))]
+    idx = np.where(idx == n_max, np.random.randint(n_max, size=len(idx)), idx)
 
     for key in table_s_ref.colnames:
         if key in ['m', 'w', 'R_11', 'R_22', 'R_12', 'R_21',
