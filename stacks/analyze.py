@@ -1,3 +1,4 @@
+from dsigma.stacking import lens_magnification_shear_bias
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
@@ -14,6 +15,7 @@ from pathlib import Path
 
 
 zebu.SOURCE_Z_BINS['des'] = np.array([0.0, 0.358, 0.631, 0.872, 2.0])
+camb_results = zebu.get_camb_results()
 
 
 def boost_factor(table_l, table_r, **kwargs):
@@ -177,11 +179,13 @@ def plot_results(file_stem, statistic='ds', config={}, title=None,
                 raise ValueError("Unknown statistic '{}'.".format(statistic))
             for k in range(len(table_l_1[i][0])):
 
-                z_l = np.mean(np.concatenate([
-                    zebu.LENS_Z_BINS['bgs'], zebu.LENS_Z_BINS['lrg']])[
-                        [j, j+1]])
+                z_l = np.concatenate([
+                    0.5 * (zebu.LENS_Z_BINS['bgs'][1:] +
+                           zebu.LENS_Z_BINS['bgs'][:-1]),
+                    0.5 * (zebu.LENS_Z_BINS['lrg'][1:] +
+                           zebu.LENS_Z_BINS['lrg'][:-1])])[j]
                 z_s = np.mean(zebu.SOURCE_Z_BINS[survey_list[i]][[k, k + 1]])
-                if z_l >= z_s:
+                if z_l >= z_s - 0.1:
                     continue
 
                 if kwargs_1 != kwargs_2:
@@ -219,11 +223,20 @@ def plot_results(file_stem, statistic='ds', config={}, title=None,
                     zorder=k + 100)
                 plt.setp(barlinecols[0], capstyle='round')
 
+                if plot_lens_magnification:
+                    y = lens_magnification_bias(
+                        table_l_1[i][j][k], zebu.ALPHA_L[j], camb_results,
+                        photo_z_correction=(
+                            survey == 'hsc' and
+                            (statistic.split('-')[0] == 'ds')),
+                        shear=(statistic.split('-')[0] == 'gt'))
+                    axes[i][j].plot(x, x * y, ls='--', color=colors[i][k])
+
         ymin, ymax = axes[i][0].get_ylim()
         ymax = max(ymax, -ymin / 3)
         axes[i][0].set_ylim(ymin, ymax)
 
-    fig.suptitle(title, fontsize=16, y=0.99)
+    fig.suptitle(title, fontsize=14, y=0.99)
     plt.subplots_adjust(wspace=0, hspace=0)
     plt.tight_layout(pad=0.3)
     plt.savefig(file_stem + '.pdf')
@@ -243,6 +256,7 @@ for statistic in ['ds', 'gt']:
                  title='Boost Factor Bias')
     plot_results('lens_magnification_' + statistic, statistic=statistic,
                  config=dict(lens_magnification=(False, True)),
+                 plot_lens_magnification=True,
                  title='Lens Magnification Bias')
     plot_results('source_magnification_' + statistic, statistic=statistic,
                  config=dict(source_magnification=(False, True)),
