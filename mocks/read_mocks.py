@@ -18,6 +18,9 @@ def random_ra_dec(n, pixels):
     """
     Compute random angular coordinates.
 
+    The function is hard-coded to only return coordinates from the quarter of
+    the sky covered by the Aemulus mocks.
+
     Attributes
     ----------
     n : float
@@ -32,11 +35,11 @@ def random_ra_dec(n, pixels):
 
     """
     hp = HEALPix(8, order='nested')
-    n = int(4 * np.pi * (180.0 / np.pi)**2 * n)
+    n = int(np.pi * (180.0 / np.pi)**2 * n)
     pos = np.random.normal(size=(n, 3))
     pos = pos / np.linalg.norm(pos, axis=1)[:, np.newaxis]
-    ra = np.rad2deg(np.arctan2(pos[:, 1], pos[:, 0]))
-    dec = np.rad2deg(np.arccos(pos[:, 2])) - 90
+    ra = np.rad2deg(np.arctan2(pos[:, 1], pos[:, 0])) % 180
+    dec = np.abs(np.rad2deg(np.arccos(pos[:, 2])) - 90)
     pix = hp.lonlat_to_healpix(ra * u.deg, dec * u.deg)
     mask = np.isin(pix, pixels)
     return ra[mask], dec[mask]
