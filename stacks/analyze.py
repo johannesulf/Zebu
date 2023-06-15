@@ -1,6 +1,7 @@
 from dsigma.stacking import lens_magnification_shear_bias
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
 import numpy as np
 import zebu
 
@@ -71,8 +72,8 @@ def difference(table_l, table_l_2=None, table_r=None, table_r_2=None,
             function(table_l, table_r=table_r, **stacking_kwargs))
 
 
-def plot_results(file_stem, statistic='ds', config={}, title=None,
-                 plot_lens_magnification=False):
+def plot_results(path, statistic='ds', config={}, title=None,
+                 plot_lens_magnification=False, relative=False):
 
     config = dict(
         lens_magnification=False, source_magnification=False,
@@ -137,19 +138,31 @@ def plot_results(file_stem, statistic='ds', config={}, title=None,
             else:
                 ax.set_xlabel(r'$\theta \, [\mathrm{arcmin}]$')
 
+            ax.set_xscale('log')
+            ax.xaxis.set_major_formatter(ticker.FuncFormatter(
+                lambda y, p: r'{:g}'.format(y)))
+            if relative:
+                ax.yaxis.set_major_formatter(ticker.FuncFormatter(
+                    lambda y, p: r'{:+g}\%'.format(y) if y != 0 else r'0\%'))
+
             if j > 0:
                 plt.setp(ax.get_yticklabels(), visible=False)
 
         if statistic == 'ds':
-            axes[-1][0].set_ylabel(
-                r'$r_p \Delta\Sigma \, [10^6 \, M_\odot / \mathrm{pc}]$')
+            if relative:
+                axes[-1][0].set_ylabel(
+                    r'$\delta \Delta\Sigma$')
+            else:
+                axes[-1][0].set_ylabel(
+                    r'$r_p \Delta\Sigma \, [10^6 \, M_\odot / \mathrm{pc}]$')
         elif statistic == 'gt':
-            axes[-1][0].set_ylabel(
-                r'$\theta \gamma_t \, [10^3 \, \mathrm{arcmin}]$')
+            if relative:
+                axes[-1][0].set_ylabel(r'$\delta \gamma_t$')
+            else:
+                axes[-1][0].set_ylabel(
+                    r'$\theta \gamma_t \, [10^3 \, \mathrm{arcmin}]$')
         else:
             axes[-1][0].set_ylabel(r'Boost Factor $1 - b$')
-
-        axes[i][0].set_xscale('log')
 
         axes[-1].append(fig.add_subplot(gs[i, -1]))
         colors.append(plt.get_cmap('plasma')(
@@ -208,15 +221,21 @@ def plot_results(file_stem, statistic='ds', config={}, title=None,
                         function, table_l_1[i][j][k],
                         table_r=table_r_1[i][j][k], **stacking_kwargs)
 
-                if statistic == 'gt':
-                    y *= 1e3
-                    y_cov *= 1e6
-
                 y_err = np.sqrt(np.diag(y_cov))
 
-                if statistic in ['ds', 'gt']:
-                    y = x * y
-                    y_err = x * y_err
+                if relative:
+                    y_norm = function(
+                        table_l_1[i][j][k], table_r=table_r_1[i][j][k],
+                        **stacking_kwargs) / 100
+                    y /= y_norm
+                    y_err /= y_norm
+                else:
+                    if statistic == 'gt':
+                        y *= 1e3
+                        y_err *= 1e3
+                    if statistic in ['ds', 'gt']:
+                        y = x * y
+                        y_err = x * y_err
 
                 plotline, caps, barlinecols = axes[i][j].errorbar(
                     x, y, yerr=y_err, fmt='-o', ms=2, color=colors[i][k],
@@ -230,7 +249,14 @@ def plot_results(file_stem, statistic='ds', config={}, title=None,
                             survey == 'hsc' and
                             (statistic.split('-')[0] == 'ds')),
                         shear=(statistic.split('-')[0] == 'gt'))
-                    axes[i][j].plot(x, x * y, ls='--', color=colors[i][k])
+                    if relative:
+                        y /= y_norm
+                    else:
+                        if statistic == 'gt':
+                            y *= 1e3
+                        if statistic in ['ds', 'gt']:
+                            y = x * y
+                    axes[i][j].plot(x, y, ls='--', color=colors[i][k])
 
         ymin, ymax = axes[i][0].get_ylim()
         ymax = max(ymax, -ymin / 3)
@@ -239,31 +265,43 @@ def plot_results(file_stem, statistic='ds', config={}, title=None,
     fig.suptitle(title, fontsize=14, y=0.99)
     plt.subplots_adjust(wspace=0, hspace=0)
     plt.tight_layout(pad=0.3)
-    plt.savefig(file_stem + '.pdf')
-    plt.savefig(file_stem + '.png', dpi=300)
+    plt.savefig(path.with_suffix('.pdf'))
+    plt.savefig(path.with_suffix('.png'), dpi=300)
 
     plt.close()
 
 
-for statistic in ['ds', 'gt']:
-    plot_results('gravitational_' + statistic, statistic=statistic,
-                 config=dict(photometric_redshifts=False),
-                 title='Intrinsic Gravitational Signal')
-    plot_results('photometric_redshift_' + statistic, statistic=statistic,
-                 config=dict(photometric_redshifts=(False, True)),
-                 title='Photometric Redshifts')
-    plot_results('boost_' + statistic, statistic=statistic + '-boost',
-                 title='Boost Factor Bias')
-    plot_results('lens_magnification_' + statistic, statistic=statistic,
-                 config=dict(lens_magnification=(False, True)),
-                 plot_lens_magnification=True,
-                 title='Lens Magnification Bias')
-    plot_results('source_magnification_' + statistic, statistic=statistic,
-                 config=dict(source_magnification=(False, True)),
-                 title='Source Magnification Bias')
-    plot_results('boost_source_' + statistic, statistic=statistic + '-boost',
-                 config=dict(source_magnification=(False, True)),
-                 title='Source Magnification Error on Boost Factor')
-    plot_results('intrinsic_alignment_' + statistic, statistic=statistic,
-                 config=dict(intrinsic_alignment=(False, True)),
-                 title='Intrinsic Alignment Bias')
+for path, relative in zip([Path('plots_absolute'), Path('plots_relative')],
+                          [False, True]):
+    for statistic in ['ds', 'gt']:
+        if not relative:
+            plot_results(path / ('gravitational_' + statistic),
+                         statistic=statistic,
+                         config=dict(photometric_redshifts=False),
+                         title='Intrinsic Gravitational Signal')
+        plot_results(path / ('photometric_redshift_' + statistic),
+                     statistic=statistic,
+                     config=dict(photometric_redshifts=(False, True)),
+                     title='Photometric Redshifts', relative=relative)
+        if relative:
+            plot_results(path / ('boost_' + statistic),
+                         statistic=statistic + '-boost',
+                         title='Boost Factor Bias')
+        plot_results(path / ('lens_magnification_' + statistic),
+                     statistic=statistic,
+                     config=dict(lens_magnification=(False, True)),
+                     plot_lens_magnification=True,
+                     title='Lens Magnification Bias', relative=relative)
+        plot_results(path / ('source_magnification_' + statistic),
+                     statistic=statistic,
+                     config=dict(source_magnification=(False, True)),
+                     title='Source Magnification Bias', relative=relative)
+        if relative:
+            plot_results(path / ('boost_source_' + statistic),
+                         statistic=statistic + '-boost',
+                         config=dict(source_magnification=(False, True)),
+                         title='Source Magnification Error on Boost Factor')
+        plot_results(path / ('intrinsic_alignment_' + statistic),
+                     statistic=statistic,
+                     config=dict(intrinsic_alignment=(False, True)),
+                     title='Intrinsic Alignment Bias', relative=relative)
