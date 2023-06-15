@@ -1,4 +1,3 @@
-from dsigma.stacking import lens_magnification_shear_bias
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
@@ -20,7 +19,7 @@ camb_results = zebu.get_camb_results()
 
 
 def boost_factor(table_l, table_r, **kwargs):
-    return 1 - boost_factor_dsigma(table_l, table_r)
+    return 100 * (1 - boost_factor_dsigma(table_l, table_r))
 
 
 def read_precomputed_data(
@@ -30,9 +29,7 @@ def read_precomputed_data(
         shear_bias=False, shape_noise=False):
 
     if lenses in ['bgs-r', 'lrg-r']:
-        source_magnification = False
         lens_magnification = False
-        intrinsic_alignment = False
 
     converters = {'*': [convert_numpy(typ) for typ in (int, float, bool, str)]}
     table = Table.read('config.csv', converters=converters)
@@ -73,7 +70,8 @@ def difference(table_l, table_l_2=None, table_r=None, table_r_2=None,
 
 
 def plot_results(path, statistic='ds', config={}, title=None,
-                 plot_lens_magnification=False, relative=False):
+                 plot_lens_magnification=False, relative=False,
+                 boost_correction=False):
 
     config = dict(
         lens_magnification=False, source_magnification=False,
@@ -141,7 +139,7 @@ def plot_results(path, statistic='ds', config={}, title=None,
             ax.set_xscale('log')
             ax.xaxis.set_major_formatter(ticker.FuncFormatter(
                 lambda y, p: r'{:g}'.format(y)))
-            if relative:
+            if relative or statistic[-5:] == 'boost':
                 ax.yaxis.set_major_formatter(ticker.FuncFormatter(
                     lambda y, p: r'{:+g}\%'.format(y) if y != 0 else r'0\%'))
 
@@ -182,6 +180,7 @@ def plot_results(path, statistic='ds', config={}, title=None,
         for j in range(n_bins_l):
             stacking_kwargs = zebu.stacking_kwargs(
                 survey, statistic=statistic.split('-')[0])
+            stacking_kwargs['boost_correction'] = boost_correction
             if statistic == 'ds':
                 function = excess_surface_density
             elif statistic == 'gt':
@@ -278,7 +277,8 @@ for path, relative in zip([Path('plots_absolute'), Path('plots_relative')],
             plot_results(path / ('gravitational_' + statistic),
                          statistic=statistic,
                          config=dict(photometric_redshifts=False),
-                         title='Intrinsic Gravitational Signal')
+                         title='Intrinsic Gravitational Signal',
+                         boost_correction=True)
         plot_results(path / ('photometric_redshift_' + statistic),
                      statistic=statistic,
                      config=dict(photometric_redshifts=(False, True)),
@@ -305,3 +305,7 @@ for path, relative in zip([Path('plots_absolute'), Path('plots_relative')],
                      statistic=statistic,
                      config=dict(intrinsic_alignment=(False, True)),
                      title='Intrinsic Alignment Bias', relative=relative)
+        plot_results(path / ('shear_bias_' + statistic),
+                     statistic=statistic,
+                     config=dict(shear_bias=(False, True)),
+                     title='Residual Shear Bias', relative=relative)
