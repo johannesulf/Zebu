@@ -98,10 +98,9 @@ def read_mock_catalog(survey, path, pixels, magnification=True,
         * 'abs_mag_r': absolute rest-frame r-band magnitude (for BGS cuts)
 
     """
-    if shape_noise:
-        if not (shear_bias and intrinsic_alignment):
-            raise ValueError('If `shape_noise` is true, `shear_bias` and ' +
-                             '`intrinsic_alignment` must also be true.')
+    if shape_noise and not shear_bias:
+        raise ValueError('If `shape_noise` is true, `shear_bias` must also ' +
+                         'be true.')
 
     if fiber_assignment:
         raise ValueError('Fiber assignment not implemented, yet.')
@@ -223,6 +222,9 @@ def read_mock_catalog(survey, path, pixels, magnification=True,
                 if intrinsic_alignment:
                     table_survey['e_1'] += table_survey['ia_1'] * r
                     table_survey['e_2'] += table_survey['ia_2'] * r
+            elif shape_noise and not intrinsic_alignment:
+                table_survey['e_1'] -= table_survey['ia_1'] * r
+                table_survey['e_2'] -= table_survey['ia_2'] * r
 
         table_survey['e_2'] = - table_survey['e_2']
 
