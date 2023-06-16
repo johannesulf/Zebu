@@ -258,6 +258,8 @@ def plot_results(path, statistic='ds', config={}, title=None,
                     axes[i][j].plot(x, y, ls='--', color=colors[i][k])
 
         ymin, ymax = axes[i][0].get_ylim()
+        ymin = min(ymin, -0.01)
+        ymax = max(ymax, +0.01)
         ymax = max(ymax, -ymin / 3)
         axes[i][0].set_ylim(ymin, ymax)
 

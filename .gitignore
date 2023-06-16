@@ -1,7 +1,7 @@
 .spyproject/
 __pycache__/
 draft
-!draft/Makefile
+~draft/Makefile
 *.hdf5
 *.csv
 *.fits
