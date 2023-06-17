@@ -189,42 +189,40 @@ def read_mock_catalog(survey, path, pixels, magnification=True,
 
         table_survey = table_all[survey]
 
-        if not shape_noise or survey in ['des-c', 'hsc-c', 'kids-c']:
+        if not shear_bias:
+            if 'm' in table_all[survey].colnames:
+                table_survey['m'] = 0
+            if 'e_rms' in table_all[survey].colnames:
+                table_survey['e_rms'] = np.sqrt(0.5)
+            if 'R_11' in table_all[survey].colnames:
+                table_survey['R_11'] = 1
+            if 'R_22' in table_all[survey].colnames:
+                table_survey['R_22'] = 1
+            if 'R_21' in table_all[survey].colnames:
+                table_survey['R_21'] = 0
+            if 'R_12' in table_all[survey].colnames:
+                table_survey['R_12'] = 0
 
-            if not shear_bias:
-                if 'm' in table_all[survey].colnames:
-                    table_survey['m'] = 0
-                if 'e_rms' in table_all[survey].colnames:
-                    table_survey['e_rms'] = np.sqrt(0.5)
-                if 'R_11' in table_all[survey].colnames:
-                    table_survey['R_11'] = 1
-                if 'R_22' in table_all[survey].colnames:
-                    table_survey['R_22'] = 1
-                if 'R_21' in table_all[survey].colnames:
-                    table_survey['R_21'] = 0
-                if 'R_12' in table_all[survey].colnames:
-                    table_survey['R_12'] = 0
+        r = np.ones(len(table_survey))
+        if 'm' in table_survey.colnames:
+            r *= 1 + table_survey['m']
+        if 'R_11' in table_survey.colnames:
+            r *= 0.5 * (table_survey['R_11'] + table_survey['R_22'])
+        if 'e_rms' in table_survey.colnames:
+            r *= 2 * (1 - table_survey['e_rms']**2)
 
-            r = np.ones(len(table_survey))
-            if 'm' in table_survey.colnames:
-                r *= 1 + table_survey['m']
-            if 'R_11' in table_survey.colnames:
-                r *= 0.5 * (table_survey['R_11'] + table_survey['R_22'])
-            if 'e_rms' in table_survey.colnames:
-                r *= 2 * (1 - table_survey['e_rms']**2)
+        if survey in ['des-c', 'hsc-c', 'kids-c']:
+            table_survey['w_sys'] = r
 
-            if survey in ['des-c', 'hsc-c', 'kids-c']:
-                table_survey['w_sys'] = r
-
-            if not shape_noise:
-                table_survey['e_1'] = table_survey['g_1'] * r
-                table_survey['e_2'] = table_survey['g_2'] * r
-                if intrinsic_alignment:
-                    table_survey['e_1'] += table_survey['ia_1'] * r
-                    table_survey['e_2'] += table_survey['ia_2'] * r
-            elif shape_noise and not intrinsic_alignment:
-                table_survey['e_1'] -= table_survey['ia_1'] * r
-                table_survey['e_2'] -= table_survey['ia_2'] * r
+        if not shape_noise:
+            table_survey['e_1'] = table_survey['g_1'] * r
+            table_survey['e_2'] = table_survey['g_2'] * r
+            if intrinsic_alignment:
+                table_survey['e_1'] += table_survey['ia_1'] * r
+                table_survey['e_2'] += table_survey['ia_2'] * r
+        elif shape_noise and not intrinsic_alignment:
+            table_survey['e_1'] -= table_survey['ia_1'] * r
+            table_survey['e_2'] -= table_survey['ia_2'] * r
 
         table_survey['e_2'] = - table_survey['e_2']
 
