@@ -273,6 +273,7 @@ def read_mock_catalog(survey, path, pixels, magnification=True,
                     np.binary_repr(table['BITWEIGHT1'][i],
                                    width=64).count('1'))
             table['w_sys'] *= (table['n_obs'] / 128)**-1
+            table_all[survey] = table
 
     for survey in survey_list:
         columns_keep = ['ra', 'dec', 'e_1', 'e_2', 'z_true', 'z', 'e_rms',
