@@ -252,7 +252,7 @@ def read_mock_catalog(survey, path, pixels, magnification=True,
                 if key not in ['ra', 'dec', 'z', 'bright', 'abs_mag_r',
                                'w_sys']:
                     table_all[survey].remove_column(key)
-        if survey in ['bgs', 'lrg']:
+        if survey in ['bgs', 'lrg'] and fiber_assignment:
             table = table_all[survey]
             if magnification:
                 fname = 'withmag_assigned_{}_mocks.fits'.format(survey)
