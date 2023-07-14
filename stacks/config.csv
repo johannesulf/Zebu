@@ -65,9 +65,9 @@ configuration,lenses,sources,photometric redshifts,lens magnification,source mag
 63,lrg-r,des,True,False,False,False,True,False,False
 64,lrg-r,hsc,True,False,False,False,True,False,False
 65,lrg-r,kids,True,False,False,False,True,False,False
-66,bgs,des,True,False,False,False,False,False,True
-67,bgs,hsc,True,False,False,False,False,False,True
-68,bgs,kids,True,False,False,False,False,False,True
-69,lrg,des,True,False,False,False,False,False,True
-70,lrg,hsc,True,False,False,False,False,False,True
-71,lrg,kids,True,False,False,False,False,False,True
+66,bgs,des,True,False,False,False,False,True,False
+67,bgs,hsc,True,False,False,False,False,True,False
+68,bgs,kids,True,False,False,False,False,True,False
+69,lrg,des,True,False,False,False,False,True,False
+70,lrg,hsc,True,False,False,False,False,True,False
+71,lrg,kids,True,False,False,False,False,True,False

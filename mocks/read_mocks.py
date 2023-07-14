@@ -264,7 +264,6 @@ def read_mock_catalog(survey, path, pixels, magnification=True,
             idx, sep2d, dist3d = match_coordinates_sky(coord, coord_f)
             for key in ['has_fiber', 'BITWEIGHT0', 'BITWEIGHT1']:
                 table[key] = table_f[key][idx]
-            table = table[table['has_fiber']]
             table['n_obs'] = np.zeros(len(table), dtype=int)
             for i in range(len(table)):
                 table['n_obs'][i] = (
@@ -272,6 +271,9 @@ def read_mock_catalog(survey, path, pixels, magnification=True,
                                    width=64).count('1') +
                     np.binary_repr(table['BITWEIGHT1'][i],
                                    width=64).count('1'))
+                table['has_fiber'][i] = np.binary_repr(
+                    table['BITWEIGHT0'][i], width=64)[0] == '1'
+            table = table[table['has_fiber']]
             table['w_sys'] *= (table['n_obs'] / 128)**-1
             table_all[survey] = table
 
