@@ -350,9 +350,6 @@ The tables have the following columns (if applicable).
         raise ValueError("More than one survey specified but 'SURVEY' not " +
                          "included in the filename.")
 
-    if args.fiber_assignment:
-        raise ValueError("Fiber assignments haven't been implemented, yet.")
-
     if len(args.surveys) > 1:
         filenames = [args.filename.replace('SURVEY', survey) for survey in
                      args.surveys]
