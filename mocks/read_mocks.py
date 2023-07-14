@@ -4,6 +4,7 @@ import os
 import warnings
 
 from astropy import units as u
+from astropy.coordinates import SkyCoord, match_coordinates_sky
 from astropy.table import Table, vstack
 from astropy_healpix import HEALPix
 from pathlib import Path
@@ -102,9 +103,6 @@ def read_mock_catalog(survey, path, pixels, magnification=True,
         raise ValueError('If `shape_noise` is true, `shear_bias` must also ' +
                          'be true.')
 
-    if fiber_assignment:
-        raise ValueError('Fiber assignment not implemented, yet.')
-
     if isinstance(survey, str):
         return_array = False
         survey_list = [survey, ]
@@ -138,16 +136,16 @@ def read_mock_catalog(survey, path, pixels, magnification=True,
         if survey == 'other':
             continue
         for i in range(len(table_all['buzzard'])):
-            table_survey = table_all[survey][i]
-            table_buzzard = table_all['buzzard'][i][table_survey['id_buzzard']]
+            table = table_all[survey][i]
+            table_buzzard = table_all['buzzard'][i][table['id_buzzard']]
             for key in ['ra', 'dec', 'mu', 'g_1', 'g_2', 'ia_1', 'ia_2']:
-                table_survey[key] = table_buzzard[key]
+                table[key] = table_buzzard[key]
             if survey in ['bgs', 'bgs-r']:
-                table_survey['abs_mag_r'] = table_buzzard['abs_mag_r']
+                table['abs_mag_r'] = table_buzzard['abs_mag_r']
                 if magnification:
-                    table_survey['abs_mag_r'] += -2.5 * np.log10(
+                    table['abs_mag_r'] += -2.5 * np.log10(
                         table_buzzard['mu'])
-            table_survey['z_true'] = table_buzzard['z']
+            table['z_true'] = table_buzzard['z']
 
     # Stack all the tables from the individual files together.
     for survey in survey_list:
@@ -187,44 +185,44 @@ def read_mock_catalog(survey, path, pixels, magnification=True,
                           'kids-c']:
             continue
 
-        table_survey = table_all[survey]
+        table = table_all[survey]
 
         if not shear_bias:
             if 'm' in table_all[survey].colnames:
-                table_survey['m'] = 0
+                table['m'] = 0
             if 'e_rms' in table_all[survey].colnames:
-                table_survey['e_rms'] = np.sqrt(0.5)
+                table['e_rms'] = np.sqrt(0.5)
             if 'R_11' in table_all[survey].colnames:
-                table_survey['R_11'] = 1
+                table['R_11'] = 1
             if 'R_22' in table_all[survey].colnames:
-                table_survey['R_22'] = 1
+                table['R_22'] = 1
             if 'R_21' in table_all[survey].colnames:
-                table_survey['R_21'] = 0
+                table['R_21'] = 0
             if 'R_12' in table_all[survey].colnames:
-                table_survey['R_12'] = 0
+                table['R_12'] = 0
 
-        r = np.ones(len(table_survey))
-        if 'm' in table_survey.colnames:
-            r *= 1 + table_survey['m']
-        if 'R_11' in table_survey.colnames:
-            r *= 0.5 * (table_survey['R_11'] + table_survey['R_22'])
-        if 'e_rms' in table_survey.colnames:
-            r *= 2 * (1 - table_survey['e_rms']**2)
+        r = np.ones(len(table))
+        if 'm' in table.colnames:
+            r *= 1 + table['m']
+        if 'R_11' in table.colnames:
+            r *= 0.5 * (table['R_11'] + table['R_22'])
+        if 'e_rms' in table.colnames:
+            r *= 2 * (1 - table['e_rms']**2)
 
         if survey in ['des-c', 'hsc-c', 'kids-c']:
-            table_survey['w_sys'] = r
+            table['w_sys'] = r
 
         if not shape_noise:
-            table_survey['e_1'] = table_survey['g_1'] * r
-            table_survey['e_2'] = table_survey['g_2'] * r
+            table['e_1'] = table['g_1'] * r
+            table['e_2'] = table['g_2'] * r
             if intrinsic_alignment:
-                table_survey['e_1'] += table_survey['ia_1'] * r
-                table_survey['e_2'] += table_survey['ia_2'] * r
+                table['e_1'] += table['ia_1'] * r
+                table['e_2'] += table['ia_2'] * r
         elif shape_noise and not intrinsic_alignment:
-            table_survey['e_1'] -= table_survey['ia_1'] * r
-            table_survey['e_2'] -= table_survey['ia_2'] * r
+            table['e_1'] -= table['ia_1'] * r
+            table['e_2'] -= table['ia_2'] * r
 
-        table_survey['e_2'] = - table_survey['e_2']
+        table['e_2'] = - table['e_2']
 
     for survey in survey_list:
         if survey in ['bgs', 'lrg', 'bgs-r', 'lrg-r']:
@@ -254,6 +252,27 @@ def read_mock_catalog(survey, path, pixels, magnification=True,
                 if key not in ['ra', 'dec', 'z', 'bright', 'abs_mag_r',
                                'w_sys']:
                     table_all[survey].remove_column(key)
+        if survey in ['bgs', 'lrg']:
+            table = table_all[survey]
+            if magnification:
+                fname = 'withmag_assigned_{}_mocks.fits'.format(survey)
+            else:
+                fname = 'nomag_assigned_{}_mocks.fits'.format(survey)
+            table_f = Table.read(path / fname)
+            coord = SkyCoord(table['ra'], table['dec'], unit='deg')
+            coord_f = SkyCoord(table_f['ra'], table_f['dec'], unit='deg')
+            idx, sep2d, dist3d = match_coordinates_sky(coord, coord_f)
+            for key in ['has_fiber', 'BITWEIGHT0', 'BITWEIGHT1']:
+                table[key] = table_f[key][idx]
+            table = table[table['has_fiber']]
+            table['n_obs'] = np.zeros(len(table), dtype=int)
+            for i in range(len(table)):
+                table['n_obs'][i] = (
+                    np.binary_repr(table['BITWEIGHT0'][i],
+                                   width=64).count('1') +
+                    np.binary_repr(table['BITWEIGHT1'][i],
+                                   width=64).count('1'))
+            table['w_sys'] *= (table['n_obs'] / 128)**-1
 
     for survey in survey_list:
         columns_keep = ['ra', 'dec', 'e_1', 'e_2', 'z_true', 'z', 'e_rms',
