@@ -47,8 +47,9 @@ def random_ra_dec(n, pixels):
 
 
 def read_mock_catalog(survey, path, pixels, magnification=True,
-                      fiber_assignment=False, intrinsic_alignment=False,
-                      shear_bias=True, shape_noise=False):
+                      fiber_assignment=False, iip_weights=True,
+                      intrinsic_alignment=False, shear_bias=True,
+                      shape_noise=False):
     """
     Read in one or multiple mock catalogs.
 
@@ -68,8 +69,9 @@ def read_mock_catalog(survey, path, pixels, magnification=True,
         Whether to include magnification effects. If list, specifies whether
         magnification effects are included for each survey. Default is True.
     fiber_assignment : bool, optional
-        Whether to include fiber assignment for BGS and LRG. NOT IMPLEMENTED,
-        YET. Default is False.
+        Whether to include fiber assignment for BGS and LRG. Default is False.
+    iip_weights : bool, optional
+        Whether to include IIP weights to correct for fiber incompleteness.
     intrinsic_alignment : bool, optional
         Whether to include intrinsic alignment effects on the measured shears.
         Default is False.
@@ -274,7 +276,8 @@ def read_mock_catalog(survey, path, pixels, magnification=True,
                 table['has_fiber'][i] = np.binary_repr(
                     table['BITWEIGHT0'][i], width=64)[0] == '1'
             table = table[table['has_fiber']]
-            table['w_sys'] *= (table['n_obs'] / 128)**-1
+            if iip_weights:
+                table['w_sys'] *= (table['n_obs'] / 128)**-1
             table_all[survey] = table
 
     for survey in survey_list:

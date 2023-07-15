@@ -36,6 +36,7 @@ table_l_all, table_s_all, table_c_all = zebu.read_mock_catalog(
         config['lens magnification'], config['source magnification'],
         config['source magnification']],
     fiber_assignment=config['fiber assignment'],
+    iip_weights=config['iip weights'],
     intrinsic_alignment=config['intrinsic alignment'],
     shear_bias=config['shear bias'],
     shape_noise=config['shape noise'])
