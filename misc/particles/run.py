@@ -68,6 +68,15 @@ if args.compute:
             8, table_r_all['ra'], table_r_all['dec'], nest=True, lonlat=True)
         table_l_all = table_l_all[np.isin(table_l_all['field_jk'], pixels)]
         table_r_all = table_r_all[np.isin(table_r_all['field_jk'], pixels)]
+        table_r_all = table_r_all[::3]
+
+        if lenses == 'bgs':
+            table_l_all = table_l_all[
+                table_l_all['abs_mag_r'] < zebu.ABS_MAG_R_MAX]
+            table_l_all = table_l_all[table_l_all['bright'] == 1]
+            table_r_all = table_r_all[
+                table_r_all['abs_mag_r'] < zebu.ABS_MAG_R_MAX]
+            table_r_all = table_r_all[table_r_all['bright'] == 1]
 
         n = 10
         rp_bins = np.geomspace(zebu.RP_BINS[0], zebu.RP_BINS[-1],
