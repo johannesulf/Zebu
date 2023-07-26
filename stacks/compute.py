@@ -45,6 +45,7 @@ table_l_all['field_jk'] = HEALPix(8, order='nested').lonlat_to_healpix(
 
 if config['lenses'] in ['bgs', 'bgs-r']:
     table_l_all = table_l_all[table_l_all['abs_mag_r'] < zebu.ABS_MAG_R_MAX]
+    table_l_all = table_l_all[table_l_all['bright'] == 1]
 
 if config['lenses'] in ['bgs-r', 'lrg-r']:
     table_l_all = table_l_all[::3]
