@@ -71,7 +71,7 @@ if args.compute:
         table_r_all = table_r_all[np.isin(table_r_all['field_jk'], pixels)]
         table_r_all = table_r_all[::3]
 
-        z = np.linspace(0.1, 0.9, 10000)
+        z = np.linspace(1e-6, 0.9, 10000)
         table_l_all['w_sys'] = interp1d(
             z, zebu.COSMOLOGY.comoving_distance(z).value**-2,
             kind='cubic')(table_l_all['z'])
@@ -203,7 +203,7 @@ for lenses in ['bgs', 'lrg']:
         results = Table.read('{}_{}.csv'.format(lenses, lens_bin))
         rp = np.sqrt(zebu.RP_BINS[1:] * zebu.RP_BINS[:-1])
         plotline, caps, barlinecols = plt.errorbar(
-            rp * (1 + offset * 0.03), results['ds_ptcl'] / results['ds_shear'],
+            rp * (1 + offset * 0.03), results['ds_shear'] / results['ds_ptcl'],
             yerr=results['ds_diff_err'] / results['ds_shear'], fmt='-o',
             label='{}-{}'.format(lenses.upper(), lens_bin + 1), zorder=offset)
         plt.setp(barlinecols[0], capstyle='round')
@@ -215,6 +215,6 @@ plt.xlabel(r'Projected radius $r_p \, [h^{-1} \, \mathrm{Mpc}]$')
 plt.ylabel(r'$\Delta \Sigma_{\rm shear} / \Delta \Sigma_{\rm ptcl}$')
 plt.legend(loc='best', frameon=False)
 plt.tight_layout(pad=0.3)
-plt.savefig('pctl_shear_ratio.pdf')
-plt.savefig('pctl_shear_ratio.png', dpi=300)
+plt.savefig('ptcl_shear_ratio.pdf')
+plt.savefig('ptcl_shear_ratio.png', dpi=300)
 plt.close()
