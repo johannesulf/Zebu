@@ -10,7 +10,7 @@ from dsigma.helpers import dsigma_table
 from dsigma.precompute import precompute
 from dsigma.jackknife import compress_jackknife_fields
 from dsigma.stacking import excess_surface_density
-from scipy.interpolate import inter1pd
+from scipy.interpolate import interp1d
 
 # %%
 
