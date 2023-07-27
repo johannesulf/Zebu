@@ -43,7 +43,7 @@ args = parser.parse_args()
 if args.compute:
 
     pixels = zebu.PIXELS
-    downsample = 4
+    downsample = 1
     ptcl = vstack([Table.read(os.path.join(
         'files', 'downsampled_particles.{}.fits'.format(i))) for i in
         range(64)])[::downsample]
@@ -78,7 +78,7 @@ if args.compute:
                 table_r_all['abs_mag_r'] < zebu.ABS_MAG_R_MAX]
             table_r_all = table_r_all[table_r_all['bright'] == 1]
 
-        n = 10
+        n = 30
         rp_bins = np.geomspace(zebu.RP_BINS[0], zebu.RP_BINS[-1],
                                (len(zebu.RP_BINS) - 1) * n + 1)
         rp_bins = np.append(rp_bins[::-1], 1e-6)[::-1]
@@ -151,7 +151,6 @@ for lenses in ['bgs', 'lrg']:
     for lens_bin in range(len(zebu.LENS_Z_BINS[lenses]) - 1):
         results = Table.read('{}_{}.csv'.format(lenses, lens_bin))
         rp = np.sqrt(zebu.RP_BINS[1:] * zebu.RP_BINS[:-1])
-
         p = plt.plot(rp, rp * results['ds_ptcl'], ls='-', label='{}-{}'.format(
             lenses.upper(), lens_bin + 1))
         plt.plot(rp, rp * results['ds_shear'], ls='--', color=p[0].get_color())
@@ -163,4 +162,29 @@ plt.legend(loc='best', frameon=False)
 plt.tight_layout(pad=0.3)
 plt.savefig('pctl_shear.pdf')
 plt.savefig('pctl_shear.png', dpi=300)
+plt.close()
+
+# %%
+
+offset = 0
+
+for lenses in ['bgs', 'lrg']:
+    for lens_bin in range(len(zebu.LENS_Z_BINS[lenses]) - 1):
+        results = Table.read('{}_{}.csv'.format(lenses, lens_bin))
+        rp = np.sqrt(zebu.RP_BINS[1:] * zebu.RP_BINS[:-1])
+        plotline, caps, barlinecols = plt.errorbar(
+            rp * (1 + offset * 0.03), results['ds_ptcl'] / results['ds_shear'],
+            yerr=results['ds_diff_err'] / results['ds_shear'], fmt='-o',
+            label='{}-{}'.format(lenses.upper(), lens_bin + 1), zorder=offset)
+        plt.setp(barlinecols[0], capstyle='round')
+        offset += 1
+
+plt.axhline(1.0, ls='--', color='black', zorder=-1)
+plt.xscale('log')
+plt.xlabel(r'Projected radius $r_p \, [h^{-1} \, \mathrm{Mpc}]$')
+plt.ylabel(r'$\Delta \Sigma_{\rm shear} / \Delta \Sigma_{\rm ptcl}$')
+plt.legend(loc='best', frameon=False)
+plt.tight_layout(pad=0.3)
+plt.savefig('pctl_shear_ratio.pdf')
+plt.savefig('pctl_shear_ratio.png', dpi=300)
 plt.close()
