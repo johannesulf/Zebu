@@ -84,23 +84,42 @@ if args.compute:
         rp_bins = np.append(rp_bins[::-1], 1e-6)[::-1]
 
         for lens_bin in range(len(zebu.LENS_Z_BINS[lenses]) - 1):
-            z_min = zebu.LENS_Z_BINS[lenses][lens_bin]
-            z_max = zebu.LENS_Z_BINS[lenses][lens_bin + 1]
-            table_l = table_l_all[
-                (table_l_all['z'] > z_min) & (table_l_all['z'] <= z_max)]
-            table_r = table_r_all[
-                (table_r_all['z'] > z_min) & (table_r_all['z'] <= z_max)]
-            table_s = table_s_all[(table_s_all['z'] > z_min - 0.1) &
-                                  (table_s_all['z'] < z_max + 0.1)]
+            for i in range(10):
+                dz = (zebu.LENS_Z_BINS[lenses][lens_bin] -
+                      zebu.LENS_Z_BINS[lenses][lens_bin + 1]) / 10.0
+                z_min = zebu.lens_z_bins[lens_bin] + i * dz
+                z_max = z_min + dz
+                print('lens redshift: {:.2f} - {:.2f}'.format(z_min, z_max))
+                select_l = ((table_l_all['z'] > z_min) &
+                            (table_l_all['z'] <= z_max))
+                select_r = ((table_r_all['z'] > z_min) &
+                            (table_r_all['z'] <= z_max))
+                select_s = ((table_s_all['z'] > z_min - 0.075) &
+                            (table_s_all['z'] < z_max + 0.075))
 
-            kwargs = dict(cosmology=zebu.COSMOLOGY, progress_bar=True,
-                          n_jobs=40, lens_source_cut=None, weighting=0)
-            table_l = precompute(table_l, table_s, rp_bins, **kwargs)
-            table_r = precompute(table_r, table_s, rp_bins, **kwargs)
-            table_l['sigma'] = (table_l['sum 1'] * 7.935e12 * downsample /
-                                (np.pi * np.diff(rp_bins**2)))
-            table_r['sigma'] = (table_r['sum 1'] * 7.935e12 * downsample /
-                                (np.pi * np.diff(rp_bins**2)))
+                table_l = table_l_all[select_l]
+                table_r = table_r_all[select_r]
+                table_s = table_s_all[select_s]
+
+                kwargs = dict(cosmology=zebu.COSMOLOGY, progress_bar=True,
+                              n_jobs=40, lens_source_cut=None, weighting=0)
+                table_l = precompute(table_l, table_s, rp_bins, **kwargs)
+                table_r = precompute(table_r, table_s, rp_bins, **kwargs)
+                table_l_all['sigma'][select_l] = (
+                    table_l['sum 1'] * 7.935e12 * downsample /
+                    (np.pi * np.diff(rp_bins**2)))
+                table_r_all['sigma'][select_r] = (
+                    table_r['sum 1'] * 7.935e12 * downsample /
+                    (np.pi * np.diff(rp_bins**2)))
+
+            z_min = zebu.lens_z_bins[lens_bin]
+            z_max = zebu.lens_z_bins[lens_bin + 1]
+            select_l = ((table_l_all['z'] > z_min) &
+                        (table_l_all['z'] <= z_max))
+            select_r = ((table_r_all['z'] > z_min) &
+                        (table_r_all['z'] <= z_max))
+            table_l = table_l_all[select_l]
+            table_r = table_r_all[select_r]
             table_l = compress_jackknife_fields(table_l)
             table_r = compress_jackknife_fields(table_r)
 
