@@ -10,6 +10,7 @@ from dsigma.helpers import dsigma_table
 from dsigma.precompute import precompute
 from dsigma.jackknife import compress_jackknife_fields
 from dsigma.stacking import excess_surface_density
+from scipy.interpolate import inter1pd
 
 # %%
 
@@ -69,6 +70,14 @@ if args.compute:
         table_l_all = table_l_all[np.isin(table_l_all['field_jk'], pixels)]
         table_r_all = table_r_all[np.isin(table_r_all['field_jk'], pixels)]
         table_r_all = table_r_all[::3]
+
+        z = np.linspace(0.1, 0.9, 10000)
+        table_l_all['w_sys'] = interp1d(
+            z, zebu.COSMOLOGY.comoving_distance(z).value**-2,
+            kind='cubic')(table_l_all['z'])
+        table_r_all['w_sys'] = interp1d(
+            z, zebu.COSMOLOGY.comoving_distance(z).value**-2,
+            kind='cubic')(table_r_all['z'])
 
         if lenses == 'bgs':
             table_l_all = table_l_all[
