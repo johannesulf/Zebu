@@ -89,7 +89,7 @@ if args.compute:
             for i in range(10):
                 dz = (zebu.LENS_Z_BINS[lenses][lens_bin] -
                       zebu.LENS_Z_BINS[lenses][lens_bin + 1]) / 10.0
-                z_min = zebu.lens_z_bins[lens_bin] + i * dz
+                z_min = zebu.LENS_Z_BINS[lenses][lens_bin] + i * dz
                 z_max = z_min + dz
                 print('lens redshift: {:.2f} - {:.2f}'.format(z_min, z_max))
                 select_l = ((table_l_all['z'] > z_min) &
@@ -114,8 +114,8 @@ if args.compute:
                     table_r['sum 1'] * 7.935e12 * downsample /
                     (np.pi * np.diff(rp_bins**2)))
 
-            z_min = zebu.lens_z_bins[lens_bin]
-            z_max = zebu.lens_z_bins[lens_bin + 1]
+            z_min = zebu.LENS_Z_BINS[lenses][lens_bin]
+            z_max = zebu.LENS_Z_BINS[lenses][lens_bin + 1]
             select_l = ((table_l_all['z'] > z_min) &
                         (table_l_all['z'] <= z_max))
             select_r = ((table_r_all['z'] > z_min) &
