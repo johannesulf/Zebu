@@ -82,6 +82,8 @@ if args.compute:
         rp_bins = np.geomspace(zebu.RP_BINS[0], zebu.RP_BINS[-1],
                                (len(zebu.RP_BINS) - 1) * n + 1)
         rp_bins = np.append(rp_bins[::-1], 1e-6)[::-1]
+        table_l_all['sigma'] = np.zeros((len(table_l_all), len(rp_bins) - 1))
+        table_r_all['sigma'] = np.zeros((len(table_r_all), len(rp_bins) - 1))
 
         for lens_bin in range(len(zebu.LENS_Z_BINS[lenses]) - 1):
             for i in range(10):
