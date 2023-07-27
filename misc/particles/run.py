@@ -87,8 +87,8 @@ if args.compute:
 
         for lens_bin in range(len(zebu.LENS_Z_BINS[lenses]) - 1):
             for i in range(10):
-                dz = (zebu.LENS_Z_BINS[lenses][lens_bin] -
-                      zebu.LENS_Z_BINS[lenses][lens_bin + 1]) / 10.0
+                dz = (zebu.LENS_Z_BINS[lenses][lens_bin + 1] -
+                      zebu.LENS_Z_BINS[lenses][lens_bin]) / 10.0
                 z_min = zebu.LENS_Z_BINS[lenses][lens_bin] + i * dz
                 z_max = z_min + dz
                 print('lens redshift: {:.2f} - {:.2f}'.format(z_min, z_max))
