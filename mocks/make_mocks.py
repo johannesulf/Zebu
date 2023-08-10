@@ -41,7 +41,6 @@ def read_buzzard_catalog(pixel):
     table = Table(fitsio.read(path / fname, columns=columns))
     table.rename_column('GAMMA1', 'g_1')
     table.rename_column('GAMMA2', 'g_2')
-    table.rename_column('Z', 'z')
     table.rename_column('MU', 'mu')
     table.rename_column('RA', 'ra')
     table.rename_column('DEC', 'dec')
