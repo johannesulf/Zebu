@@ -37,7 +37,8 @@ def read_buzzard_catalog(pixel):
     fname = 'Chinchilla-{}_{}.{}.fits'.format(BUZZARD_MOCK, ending, pixel)
 
     columns = ['GAMMA1', 'GAMMA2', 'MU', 'RA', 'DEC', 'TRA', 'TDEC', 'SIZE',
-               'TSIZE', 'AMAG']
+               'TSIZE', 'AMAG', 'PX', 'PY', 'PZ', 'VX', 'VY', 'VZ', 'Z_COS',
+               'CENTRAL']
     table = Table(fitsio.read(path / fname, columns=columns))
     table.rename_column('GAMMA1', 'g_1')
     table.rename_column('GAMMA2', 'g_2')
@@ -49,7 +50,17 @@ def read_buzzard_catalog(pixel):
     table.rename_column('SIZE', 'size')
     table.rename_column('TSIZE', 'size_t')
     table['abs_mag_r'] = table['AMAG'][:, 1]
-    table.remove_column('AMAG')
+
+    pos = np.vstack((table['PX'], table['PY'], table['PZ'])).T
+    vel = np.vstack((table['VX'], table['VY'], table['VZ'])).T
+    table['z'] = (
+        table['Z_COS'] + np.sum(pos * vel, axis=1) /
+        np.linalg.norm(pos, axis=1) *
+        (1 + table['Z_COS'])**(1 + table['CENTRAL'] * 0.5) / 299792.458)
+
+    for key in ['AMAG', 'PX', 'PY', 'PZ', 'VX', 'VY', 'VZ', 'Z_COS',
+                'CENTRAL']:
+        table.remove_column(key)
 
     path = BUZZARD_PATH / 'surveymags'
     if BUZZARD_MOCK != 0:
