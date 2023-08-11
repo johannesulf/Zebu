@@ -36,17 +36,14 @@ def read_buzzard_catalog(pixel):
         ending = 'lensed_cam_rs_scat_shift'
     fname = 'Chinchilla-{}_{}.{}.fits'.format(BUZZARD_MOCK, ending, pixel)
 
-    columns = ['GAMMA1', 'GAMMA2', 'MU', 'RA', 'DEC', 'TRA', 'TDEC', 'SIZE',
-               'TSIZE', 'AMAG', 'PX', 'PY', 'PZ', 'VX', 'VY', 'VZ', 'Z_COS',
-               'CENTRAL']
+    columns = ['GAMMA1', 'GAMMA2', 'MU', 'RA', 'DEC', 'SIZE', 'TSIZE', 'AMAG',
+               'PX', 'PY', 'PZ', 'VX', 'VY', 'VZ', 'Z_COS', 'CENTRAL']
     table = Table(fitsio.read(path / fname, columns=columns))
     table.rename_column('GAMMA1', 'g_1')
     table.rename_column('GAMMA2', 'g_2')
     table.rename_column('MU', 'mu')
     table.rename_column('RA', 'ra')
     table.rename_column('DEC', 'dec')
-    table.rename_column('TRA', 'ra_t')
-    table.rename_column('TDEC', 'dec_t')
     table.rename_column('SIZE', 'size')
     table.rename_column('TSIZE', 'size_t')
     table['abs_mag_r'] = table['AMAG'][:, 1]
@@ -57,6 +54,8 @@ def read_buzzard_catalog(pixel):
         table['Z_COS'] + np.sum(pos * vel, axis=1) /
         np.linalg.norm(pos, axis=1) *
         (1 + table['Z_COS'])**(1 + table['CENTRAL'] * 0.5) / 299792.458)
+    table.rename_column('Z_COS', 'z_cos')
+    table['ra_t'], table['dec_t'] = hp.vec2ang(pos, lonlat=True)
 
     for key in ['AMAG', 'PX', 'PY', 'PZ', 'VX', 'VY', 'VZ', 'Z_COS',
                 'CENTRAL']:
