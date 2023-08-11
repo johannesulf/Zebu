@@ -57,8 +57,7 @@ def read_buzzard_catalog(pixel):
     table.rename_column('Z_COS', 'z_cos')
     table['ra_t'], table['dec_t'] = hp.vec2ang(pos, lonlat=True)
 
-    for key in ['AMAG', 'PX', 'PY', 'PZ', 'VX', 'VY', 'VZ', 'Z_COS',
-                'CENTRAL']:
+    for key in ['AMAG', 'PX', 'PY', 'PZ', 'VX', 'VY', 'VZ', 'CENTRAL']:
         table.remove_column(key)
 
     path = BUZZARD_PATH / 'surveymags'
