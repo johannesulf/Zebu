@@ -530,7 +530,7 @@ def main():
         path = Path('buzzard-{}'.format(args.buzzard_mock)) / fname
 
         buzzard_columns = ['z', 'mu', 'g_1', 'g_2', 'ra', 'dec', 'mag', 'ia_1',
-                           'ia_2', 'abs_mag_r']
+                           'ia_2', 'abs_mag_r', 'ra_t', 'dec_t', 'z_cos']
         table_b[buzzard_columns].write(path, path='buzzard', overwrite=True)
 
         for survey in ['bgs', 'lrg', 'des', 'hsc', 'kids']:
