@@ -142,6 +142,9 @@ def read_mock_catalog(survey, path, pixels, magnification=True,
             table_buzzard = table_all['buzzard'][i][table['id_buzzard']]
             for key in ['ra', 'dec', 'mu', 'g_1', 'g_2', 'ia_1', 'ia_2']:
                 table[key] = table_buzzard[key]
+            if not magnification:
+                table['ra'] = table_buzzard['ra_t']
+                table['dec'] = table_buzzard['dec_t']
             if survey in ['bgs', 'bgs-r']:
                 table['abs_mag_r'] = table_buzzard['abs_mag_r']
                 if magnification:
@@ -173,12 +176,6 @@ def read_mock_catalog(survey, path, pixels, magnification=True,
         else:
             table_all[survey] = table_all[survey][
                 table_all[survey]['target_t']]
-            if survey in ['bgs', 'lrg']:
-                key = 'w_sys'
-            else:
-                key = 'w'
-            table_all[survey][key] = table_all[survey][key] * \
-                table_all[survey]['mu']
             if survey == 'bgs':
                 table_all[survey]['bright'] = table_all[survey]['bright_t']
 
