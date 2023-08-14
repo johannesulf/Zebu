@@ -24,12 +24,13 @@ def boost_factor(table_l, table_r, **kwargs):
 
 def read_precomputed_data(
         lenses, sources, statistic, lens_magnification=False,
-        source_magnification=False, fiber_assignment=False,
+        source_magnification=False, fiber_assignment=False, iip_weights=True,
         intrinsic_alignment=False, photometric_redshifts=True,
         shear_bias=False, shape_noise=False):
 
     if lenses in ['bgs-r', 'lrg-r']:
         lens_magnification = False
+        fiber_assignment = False
 
     converters = {'*': [convert_numpy(typ) for typ in (int, float, bool, str)]}
     table = Table.read('config.csv', converters=converters)
@@ -39,6 +40,8 @@ def read_precomputed_data(
     select &= table['lens magnification'] == lens_magnification
     select &= table['source magnification'] == source_magnification
     select &= table['fiber assignment'] == fiber_assignment
+    if fiber_assignment:
+        select &= table['iip weights'] == iip_weights
     select &= table['intrinsic alignment'] == intrinsic_alignment
     select &= table['photometric redshifts'] == photometric_redshifts
     select &= table['shear bias'] == shear_bias
@@ -75,7 +78,7 @@ def plot_results(path, statistic='ds', config={}, title=None,
 
     config = dict(
         lens_magnification=False, source_magnification=False,
-        fiber_assignment=False, intrinsic_alignment=False,
+        fiber_assignment=False, iip_weights=True, intrinsic_alignment=False,
         photometric_redshifts=True, shear_bias=False,
         shape_noise=False) | config
     config['statistic'] = statistic.split('-')[0]
@@ -275,6 +278,20 @@ def plot_results(path, statistic='ds', config={}, title=None,
 for path, relative in zip([Path('plots_absolute'), Path('plots_relative')],
                           [False, True]):
     for statistic in ['ds', 'gt']:
+
+        plot_results(path / ('fiber_assignment_no_iip_' + statistic),
+                     statistic=statistic,
+                     config=dict(fiber_assignment=(False, True),
+                                 iip_weights=False),
+                     title='Fiber Assignment Bias',
+                     relative=relative)
+
+        plot_results(path / ('fiber_assignment_' + statistic),
+                     statistic=statistic,
+                     config=dict(fiber_assignment=(False, True)),
+                     title='Residual Fiber Assignment Bias',
+                     relative=relative)
+
         if not relative:
             plot_results(path / ('gravitational_' + statistic),
                          statistic=statistic,

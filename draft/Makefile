@@ -1,10 +1,12 @@
 all:
 	cp ../stacks/plots_absolute/gravitational_gt.pdf ./
 	cp ../stacks/plots_absolute/gravitational_ds.pdf ./
+	cp ../misc/particles/particles_vs_shear.pdf ./
 	cp ../stacks/plots_relative/shear_bias_ds.pdf ./
 	cp ../stacks/plots_relative/boost_gt.pdf ./
 	cp ../stacks/plots_relative/intrinsic_alignment_ds.pdf ./
-	cp ../stacks/plots_relative/intrinsic_alignment_ds.pdf ./fiber_incompleteness_ds.pdf
+	cp ../stacks/plots_relative/fiber_assignment_no_iip_ds.pdf ./
+	cp ../stacks/plots_relative/fiber_assignment_ds.pdf ./
 	cp ../stacks/plots_relative/lens_magnification_ds.pdf ./
 	cp ../stacks/plots_relative/source_magnification_ds.pdf ./
 	
