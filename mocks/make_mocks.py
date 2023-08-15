@@ -485,8 +485,8 @@ def main():
             fname = 'ia_shear_buzzard-{}_2048_A_IA2p5-{}.fits'.format(
                 args.buzzard_mock, i)
             ia = Table.read(os.path.join(path, fname))['T'].data.ravel()
-            TABLE_IA['ia_1'][:, i] = np.real(ia)[select]
-            TABLE_IA['ia_2'][:, i] = np.imag(ia)[select]
+            TABLE_IA['ia_1'][:, i] = np.real(ia)[select] * -0.2
+            TABLE_IA['ia_2'][:, i] = np.imag(ia)[select] * -0.2
 
     Path('buzzard-{}'.format(args.buzzard_mock)).mkdir(exist_ok=True)
 
