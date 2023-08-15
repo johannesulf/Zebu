@@ -49,7 +49,7 @@ def random_ra_dec(n, pixels):
 def read_mock_catalog(survey, path, pixels, magnification=True,
                       fiber_assignment=False, iip_weights=True,
                       intrinsic_alignment=False, shear_bias=True,
-                      shape_noise=False):
+                      shape_noise=False, unlensed_coordinates=False):
     """
     Read in one or multiple mock catalogs.
 
@@ -81,6 +81,10 @@ def read_mock_catalog(survey, path, pixels, magnification=True,
     shape_noise : bool, optional
         Whether to include shape noise on the measured ellipticities. Default
         is False.
+    unlensed_coordinates : bool, optional
+        Whether to account for the absence of magnification on angular
+        coordinates by using systematic weights or by using unlensed
+        coordinates.
 
     Returns
     -------
@@ -142,7 +146,7 @@ def read_mock_catalog(survey, path, pixels, magnification=True,
             table_buzzard = table_all['buzzard'][i][table['id_buzzard']]
             for key in ['ra', 'dec', 'mu', 'g_1', 'g_2', 'ia_1', 'ia_2']:
                 table[key] = table_buzzard[key]
-            if not magnification:
+            if not magnification and unlensed_coordinates:
                 table['ra'] = table_buzzard['ra_t']
                 table['dec'] = table_buzzard['dec_t']
             if survey in ['bgs', 'bgs-r']:
@@ -176,6 +180,13 @@ def read_mock_catalog(survey, path, pixels, magnification=True,
         else:
             table_all[survey] = table_all[survey][
                 table_all[survey]['target_t']]
+            if not unlensed_coordinates:
+                if survey in ['bgs', 'lrg']:
+                    key = 'w_sys'
+                else:
+                    key = 'w'
+                table_all[survey][key] = table_all[survey][key] * \
+                    table_all[survey]['mu']
             if survey == 'bgs':
                 table_all[survey]['bright'] = table_all[survey]['bright_t']
 
@@ -335,6 +346,9 @@ The tables have the following columns (if applicable).
         '--magnification', help='Include magnification effects.',
         action='store_true')
     parser.add_argument(
+        '--unlensed_coordinates', help='If magnification is off, use ' +
+        'unlensed coordinates.', action='store_true')
+    parser.add_argument(
         '--fiber_assignment', help='Include fiber assignments.',
         action='store_true')
     parser.add_argument(
@@ -359,8 +373,9 @@ The tables have the following columns (if applicable).
     else:
         filenames = [args.filename, ]
 
-    path = (Path(os.getenv('CFS')) / 'desicollab' / 'science' / 'c3' /
-            'DESI-Lensing' / 'mocks' / 'buzzard-{}'.format(args.buzzard))
+    # path = (Path(os.getenv('CFS')) / 'desicollab' / 'science' / 'c3' /
+    #        'DESI-Lensing' / 'mocks' / 'buzzard-{}'.format(args.buzzard))
+    path = Path('buzzard-4')
 
     if args.pixels is None:
         pixels = []
@@ -376,6 +391,8 @@ The tables have the following columns (if applicable).
     print('Pixels: {}'.format(', '.join(pixels.astype(str))))
     print('Surveys: {}'.format(', '.join(args.surveys)))
     print('Magnification: {}'.format(args.magnification))
+    if not args.magnification:
+        print('Unlensed Coordinates: {}'.format(args.unlensed_coordinates))
     print('Fiber Assignment: {}'.format(args.fiber_assignment))
     print('Intrinsic Alignment: {}'.format(args.intrinsic_alignment))
     print('Shear Bias: {}'.format(args.shear_bias))
@@ -386,7 +403,8 @@ The tables have the following columns (if applicable).
         args.surveys, path, pixels, magnification=args.magnification,
         fiber_assignment=args.fiber_assignment,
         intrinsic_alignment=args.intrinsic_alignment,
-        shear_bias=args.shear_bias, shape_noise=args.shape_noise)
+        shear_bias=args.shear_bias, shape_noise=args.shape_noise,
+        unlensed_coordinates=args.unlensed_coordinates)
     tables = [tables] if not isinstance(tables, list) else tables
 
     for table, filename, survey in zip(tables, filenames, args.surveys):
