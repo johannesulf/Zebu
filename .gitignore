@@ -1,7 +1,7 @@
 .spyproject/
 __pycache__/
 draft
-~draft/Makefile
+!draft/Makefile
 *.hdf5
 *.csv
 *.fits
@@ -14,9 +14,9 @@ draft
 *.tex~
 *.toc
 lwb/raw
-~lwb/raw/MD5SUM
+!lwb/raw/MD5SUM
 scratch
 lux/env
 stacks/precompute
-~stacks/*.py
+!stacks/*.py
 *.asc
