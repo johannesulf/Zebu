@@ -7,6 +7,7 @@ import zebu
 from astropy_healpix.healpy import vec2ang, ang2pix
 from astropy.table import Table, vstack
 from dsigma.helpers import dsigma_table
+from dsigma.physics import critical_surface_density
 from dsigma.precompute import precompute
 from dsigma.jackknife import compress_jackknife_fields
 from dsigma.stacking import excess_surface_density
@@ -68,12 +69,17 @@ if args.compute:
         table_r_all = table_r_all[np.isin(table_r_all['field_jk'], pixels)]
         table_r_all = table_r_all[::3]
 
-        z = np.linspace(1e-6, 3.0, 100000)
+        # Account for the fact that the GGL estimator weights lenses
+        # differently depending on redshift.
+        z_l = np.linspace(1e-6, 3.0, 100000)
+        z_s = 1.35  # rough redshift of HSC galaxies we'll compare against
         table_l_all['w_sys'] = interp1d(
-            z, zebu.COSMOLOGY.comoving_distance(z).value**-2,
+            z_l, zebu.COSMOLOGY.comoving_distance(z_l).value**-2 *
+            critical_surface_density(z_l, z_s, cosmology=zebu.COSMOLOGY)**-2,
             kind='cubic')(table_l_all['z'])
         table_r_all['w_sys'] = interp1d(
-            z, zebu.COSMOLOGY.comoving_distance(z).value**-2,
+            z_l, zebu.COSMOLOGY.comoving_distance(z_l).value**-2 *
+            critical_surface_density(z_l, z_s, cosmology=zebu.COSMOLOGY)**-2,
             kind='cubic')(table_r_all['z'])
 
         if lenses == 'bgs':
@@ -193,8 +199,7 @@ plt.close()
 
 # %%
 
-fig, axarr = plt.subplots(nrows=2, sharex=True,
-                          sharey=True, figsize=(3.33, 3.33))
+fig, axarr = plt.subplots(nrows=2, sharex=True, figsize=(3.33, 3.33))
 
 for ax, lenses in zip(axarr, ['bgs', 'lrg']):
     for lens_bin in range(len(zebu.LENS_Z_BINS[lenses]) - 1):
