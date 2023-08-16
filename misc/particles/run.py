@@ -57,12 +57,9 @@ if args.compute:
     table_s_all = dsigma_table(ptcl, 'source', z='Z_COS', w=1, e_1=0, e_2=0)
 
     for lenses in ['bgs', 'lrg']:
-        table_l_all = zebu.read_mock_catalog(
-            lenses, zebu.MOCK_PATH / 'buzzard-4', pixels)
-        table_l_all['w_sys'] = 1
-        table_r_all = zebu.read_mock_catalog(
-            lenses + '-r', zebu.MOCK_PATH / 'buzzard-4', pixels)
-        table_r_all['w_sys'] = 1
+        table_l_all, table_r_all = zebu.read_mock_catalog(
+            [lenses, lenses + '-r'], zebu.MOCK_PATH / 'buzzard-4', pixels,
+            magnification=False, unlensed_coordinates=True)
         table_l_all['field_jk'] = ang2pix(
             8, table_l_all['ra'], table_l_all['dec'], nest=True, lonlat=True)
         table_r_all['field_jk'] = ang2pix(
@@ -190,31 +187,34 @@ plt.xlabel(r'Projected radius $r_p \, [h^{-1} \, \mathrm{Mpc}]$')
 plt.ylabel(r'$r_p \Delta \Sigma \, [10^6 M_\odot / \mathrm{pc}]$')
 plt.legend(loc='best', frameon=False)
 plt.tight_layout(pad=0.3)
-plt.savefig('pctl_shear.pdf')
-plt.savefig('pctl_shear.png', dpi=300)
+plt.savefig('ptcl_shear.pdf')
+plt.savefig('ptcl_shear.png', dpi=300)
 plt.close()
 
 # %%
 
-offset = 0
+fig, axarr = plt.subplots(nrows=2, sharex=True,
+                          sharey=True, figsize=(3.33, 3.33))
 
-for lenses in ['bgs', 'lrg']:
+for ax, lenses in zip(axarr, ['bgs', 'lrg']):
     for lens_bin in range(len(zebu.LENS_Z_BINS[lenses]) - 1):
         results = Table.read('{}_{}.csv'.format(lenses, lens_bin))
         rp = np.sqrt(zebu.RP_BINS[1:] * zebu.RP_BINS[:-1])
-        plotline, caps, barlinecols = plt.errorbar(
-            rp * (1 + offset * 0.03), results['ds_shear'] / results['ds_ptcl'],
+        plotline, caps, barlinecols = ax.errorbar(
+            rp * (1 + lens_bin *
+                  0.03), results['ds_shear'] / results['ds_ptcl'],
             yerr=results['ds_diff_err'] / results['ds_shear'], fmt='-o',
-            label='{}-{}'.format(lenses.upper(), lens_bin + 1), zorder=offset)
+            label='{}-{}'.format(lenses.upper(), lens_bin + 1), zorder=lens_bin)
         plt.setp(barlinecols[0], capstyle='round')
-        offset += 1
 
-plt.axhline(1.0, ls='--', color='black', zorder=-1)
+for ax in axarr:
+    ax.axhline(1.0, ls='--', color='black', zorder=-1)
+    ax.set_ylabel(r'$\Delta \Sigma_{\rm shear} / \Delta \Sigma_{\rm ptcl}$')
+    ax.legend(loc='best', frameon=False)
 plt.xscale('log')
-plt.xlabel(r'Projected radius $r_p \, [h^{-1} \, \mathrm{Mpc}]$')
-plt.ylabel(r'$\Delta \Sigma_{\rm shear} / \Delta \Sigma_{\rm ptcl}$')
-plt.legend(loc='best', frameon=False)
+axarr[1].set_xlabel(r'Projected radius $r_p \, [h^{-1} \, \mathrm{Mpc}]$')
 plt.tight_layout(pad=0.3)
+plt.subplots_adjust(hspace=0)
 plt.savefig('ptcl_shear_ratio.pdf')
 plt.savefig('ptcl_shear_ratio.png', dpi=300)
 plt.close()
