@@ -69,8 +69,8 @@ if args.compute:
         table_r_all = table_r_all[np.isin(table_r_all['field_jk'], pixels)]
         table_r_all = table_r_all[::3]
 
-        # Account for the fact that the GGL estimator weights lenses
-        # differently depending on redshift.
+        # Account for the fact that the GGL estimator weighs lenses differently
+        # depending on redshift.
         z_l = np.linspace(1e-6, 3.0, 100000)
         z_s = 1.35  # rough redshift of HSC galaxies we'll compare against
         table_l_all['w_sys'] = interp1d(
@@ -108,8 +108,8 @@ if args.compute:
                             (table_l_all['z'] <= z_max))
                 select_r = ((table_r_all['z'] > z_min) &
                             (table_r_all['z'] <= z_max))
-                select_s = ((table_s_all['z'] > z_min - 0.075) &
-                            (table_s_all['z'] < z_max + 0.075))
+                select_s = ((table_s_all['z'] > z_min - 0.15) &
+                            (table_s_all['z'] < z_max + 0.15))
 
                 table_l = table_l_all[select_l]
                 table_r = table_r_all[select_r]
@@ -120,10 +120,10 @@ if args.compute:
                 table_l = precompute(table_l, table_s, rp_bins, **kwargs)
                 table_r = precompute(table_r, table_s, rp_bins, **kwargs)
                 table_l_all['sigma'][select_l] = (
-                    table_l['sum 1'] * 7.935e12 * downsample /
+                    table_l['sum 1'] * 7.94069e12 * downsample /
                     (np.pi * np.diff(rp_bins**2)))
                 table_r_all['sigma'][select_r] = (
-                    table_r['sum 1'] * 7.935e12 * downsample /
+                    table_r['sum 1'] * 7.94069e12 * downsample /
                     (np.pi * np.diff(rp_bins**2)))
 
             z_min = zebu.LENS_Z_BINS[lenses][lens_bin]
