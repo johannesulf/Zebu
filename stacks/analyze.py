@@ -57,10 +57,13 @@ def read_precomputed_data(
         data.append([])
         for source_bin in range(len(zebu.SOURCE_Z_BINS[sources]) - 1):
             fname = 'l{}_s{}_{}.hdf5'.format(lens_bin, source_bin, statistic)
-            table = Table.read(path / fname)
-            n_pairs = np.sum(table['sum 1'], axis=1)
-            table = table[n_pairs > 0.01 * np.amax(n_pairs)]
-            data[-1].append(table)
+            try:
+                table = Table.read(path / fname)
+                n_pairs = np.sum(table['sum 1'], axis=1)
+                table = table[n_pairs > 0.01 * np.amax(n_pairs)]
+                data[-1].append(table)
+            except FileNotFoundError:
+                data[-1].append(None)
 
     return data
 
@@ -279,19 +282,6 @@ for path, relative in zip([Path('plots_absolute'), Path('plots_relative')],
                           [False, True]):
     for statistic in ['ds', 'gt']:
 
-        plot_results(path / ('fiber_assignment_no_iip_' + statistic),
-                     statistic=statistic,
-                     config=dict(fiber_assignment=(False, True),
-                                 iip_weights=False),
-                     title='Fiber Assignment Bias',
-                     relative=relative)
-
-        plot_results(path / ('fiber_assignment_' + statistic),
-                     statistic=statistic,
-                     config=dict(fiber_assignment=(False, True)),
-                     title='Residual Fiber Assignment Bias',
-                     relative=relative)
-
         if not relative:
             plot_results(path / ('gravitational_' + statistic),
                          statistic=statistic,
@@ -328,3 +318,16 @@ for path, relative in zip([Path('plots_absolute'), Path('plots_relative')],
                      statistic=statistic,
                      config=dict(shear_bias=(False, True)),
                      title='Residual Shear Bias', relative=relative)
+
+        plot_results(path / ('fiber_assignment_no_iip_' + statistic),
+                     statistic=statistic,
+                     config=dict(fiber_assignment=(False, True),
+                                 iip_weights=False),
+                     title='Fiber Assignment Bias',
+                     relative=relative)
+
+        plot_results(path / ('fiber_assignment_' + statistic),
+                     statistic=statistic,
+                     config=dict(fiber_assignment=(False, True)),
+                     title='Residual Fiber Assignment Bias',
+                     relative=relative)
