@@ -444,7 +444,7 @@ def main():
         TABLE_C[survey] = read_real_calibration_catalog(survey)
 
     pixel_all = [int(str(fname.stem).split('.')[-1]) for fname in
-                 (BUZZARD_PATH / 'truth').iterdir()]
+                 (BUZZARD_PATH / 'truth').iterdir() if fname.is_file()]
 
     global TABLE_IA
     if TABLE_IA is None:
