@@ -453,7 +453,8 @@ def main():
         cosmo = FlatLambdaCDM(Om0=0.286, H0=100)
         z = np.linspace(0, 4, 1000)
         z = interp1d(cosmo.comoving_distance(z), z, kind='cubic')
-        TABLE_IA.meta['z_bins'] = z(np.arange(81) * 50)
+        n_shell = 80 if args.buzzard_mock != 8 else 79
+        TABLE_IA.meta['z_bins'] = z(np.arange(n_shell + 1) * 50)
         nside = 2048
         ra, dec = hp.pix2ang(nside, np.arange(hp.nside2npix(nside)),
                              lonlat=True)
@@ -476,12 +477,14 @@ def main():
         # Read the IA data.
         nside = 2048
         TABLE_IA['pix'] = np.arange(hp.nside2npix(nside))[select]
-        TABLE_IA['ia_1'] = np.zeros((np.sum(select), 80), dtype=np.float32)
-        TABLE_IA['ia_2'] = np.zeros((np.sum(select), 80), dtype=np.float32)
+        TABLE_IA['ia_1'] = np.zeros((np.sum(select), n_shell),
+                                    dtype=np.float32)
+        TABLE_IA['ia_2'] = np.zeros((np.sum(select), n_shell),
+                                    dtype=np.float32)
 
         path = BUZZARD_PATH.parent / 'ia_shear'
 
-        for i in tqdm.tqdm(range(80)):
+        for i in tqdm.tqdm(range(n_shell)):
             fname = 'ia_shear_buzzard-{}_2048_A_IA2p5-{}.fits'.format(
                 args.buzzard_mock, i)
             ia = Table.read(os.path.join(path, fname))['T'].data.ravel()
