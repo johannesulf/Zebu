@@ -367,6 +367,10 @@ The tables have the following columns (if applicable).
         raise ValueError("More than one survey specified but 'SURVEY' not " +
                          "included in the filename.")
 
+    if args.buzzard == 5 and args.intrinsic_alignment:
+        raise ValueError("Intrinsic alignment effect not available for " +
+                         "Buzzard-5.")
+
     if len(args.surveys) > 1:
         filenames = [args.filename.replace('SURVEY', survey) for survey in
                      args.surveys]

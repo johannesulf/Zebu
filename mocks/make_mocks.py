@@ -17,11 +17,6 @@ SOURCE_Z_BINS = {
     'hsc': np.array([0.3, 0.6, 0.9, 1.2, 1.5]),
     'kids': np.array([0.1, 0.3, 0.5, 0.7, 0.9, 1.2])}
 MAG_BINS = np.linspace(18, 26, 81)
-TABLE_S = {}
-TABLE_C = {}
-TABLE_IA = None
-BUZZARD_PATH = None
-BUZZARD_MOCK = None
 MOCK_INPUT_PATH = (Path(os.getenv('CFS')) / 'desi' / 'users' / 'cblake' /
                    'lensing' / 'mock_inputs')
 
@@ -439,6 +434,8 @@ def main():
         'addgalspostprocess')
 
     global TABLE_S, TABLE_C
+    TABLE_S = {}
+    TABLE_C = {}
     for survey in ['des', 'hsc', 'kids']:
         TABLE_S[survey] = read_real_source_catalog(survey)
         TABLE_C[survey] = read_real_calibration_catalog(survey)
@@ -447,41 +444,41 @@ def main():
                  (BUZZARD_PATH / 'truth').iterdir() if fname.is_file()]
 
     global TABLE_IA
-    if TABLE_IA is None:
-        print('Reading in the IA map...')
-        TABLE_IA = Table()
-        cosmo = FlatLambdaCDM(Om0=0.286, H0=100)
-        z = np.linspace(0, 4, 1000)
-        z = interp1d(cosmo.comoving_distance(z), z, kind='cubic')
-        n_shell = 80 if args.buzzard_mock != 8 else 79
-        TABLE_IA.meta['z_bins'] = z(np.arange(n_shell + 1) * 50)
-        nside = 2048
-        ra, dec = hp.pix2ang(nside, np.arange(hp.nside2npix(nside)),
-                             lonlat=True)
+    print('Reading in the IA map...')
+    TABLE_IA = Table()
+    cosmo = FlatLambdaCDM(Om0=0.286, H0=100)
+    z = np.linspace(0, 4, 1000)
+    z = interp1d(cosmo.comoving_distance(z), z, kind='cubic')
+    n_shell = 80 if args.buzzard_mock != 8 else 79
+    TABLE_IA.meta['z_bins'] = z(np.arange(n_shell + 1) * 50)
+    nside = 2048
+    ra, dec = hp.pix2ang(nside, np.arange(hp.nside2npix(nside)),
+                         lonlat=True)
 
-        # Retrieve IA information for all pixels we selected and their
-        # neighbours.
-        pixel_ia = np.concatenate(
-            [hp.pixelfunc.get_all_neighbours(8, p, nest=True) for p in
-             pixel_all])
-        pixel_ia = np.unique(pixel_ia)
+    # Retrieve IA information for all pixels we selected and their
+    # neighbours.
+    pixel_ia = np.concatenate(
+        [hp.pixelfunc.get_all_neighbours(8, p, nest=True) for p in
+         pixel_all])
+    pixel_ia = np.unique(pixel_ia)
 
-        # Calculate the nside=2048 pixels that correspond to the nside=8 pixels
-        # calculated above.
-        ra, dec = hp.pix2ang(nside, np.arange(hp.nside2npix(nside)),
-                             lonlat=True)
-        nside = 8
-        select = np.isin(hp.pixelfunc.ang2pix(
-            nside, ra, dec, nest=True, lonlat=True), pixel_ia)
+    # Calculate the nside=2048 pixels that correspond to the nside=8 pixels
+    # calculated above.
+    ra, dec = hp.pix2ang(nside, np.arange(hp.nside2npix(nside)),
+                         lonlat=True)
+    nside = 8
+    select = np.isin(hp.pixelfunc.ang2pix(
+        nside, ra, dec, nest=True, lonlat=True), pixel_ia)
 
-        # Read the IA data.
-        nside = 2048
-        TABLE_IA['pix'] = np.arange(hp.nside2npix(nside))[select]
-        TABLE_IA['ia_1'] = np.zeros((np.sum(select), n_shell),
-                                    dtype=np.float32)
-        TABLE_IA['ia_2'] = np.zeros((np.sum(select), n_shell),
-                                    dtype=np.float32)
+    # Read the IA data.
+    nside = 2048
+    TABLE_IA['pix'] = np.arange(hp.nside2npix(nside))[select]
+    TABLE_IA['ia_1'] = np.zeros((np.sum(select), n_shell),
+                                dtype=np.float32)
+    TABLE_IA['ia_2'] = np.zeros((np.sum(select), n_shell),
+                                dtype=np.float32)
 
+    if args.buzzard_mock != 5:
         path = BUZZARD_PATH.parent / 'ia_shear'
 
         for i in tqdm.tqdm(range(n_shell)):
