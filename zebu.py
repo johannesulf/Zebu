@@ -48,11 +48,11 @@ def stacking_kwargs(survey, statistic='ds'):
 
 def get_camb_results():
 
-    h = COSMOLOGY.H0.value / 100
+    h = 0.7
     pars = camb.CAMBparams()
     pars.set_cosmology(H0=100 * h, ombh2=0.046 * h**2,
                        omch2=(COSMOLOGY.Om0 - 0.046) * h**2)
-    pars.InitPower.set_params(ns=0.96, As=9.93075e-10)
+    pars.InitPower.set_params(ns=0.96, As=2.179661598125922e-09)
     pars.set_matter_power(redshifts=np.linspace(2, 0, 20), kmax=2000.0,
                           nonlinear=True)
 
