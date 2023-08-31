@@ -71,15 +71,6 @@ for bin_l, (z_l_min, z_l_max) in enumerate(zip(z_l_bins[:-1], z_l_bins[1:])):
                   (table_s_all['z_phot'] < z_s_max))
         table_s = table_s_all[select]
 
-        kwargs = dict(
-            cosmology=zebu.COSMOLOGY, weighting=0, lens_source_cut=None,
-            n_jobs=multiprocessing.cpu_count(), progress_bar=False)
-
-        precompute(table_l, table_s, zebu.THETA_BINS, **kwargs)
-        compress_jackknife_fields(table_l).write(
-            path / 'l{}_s{}_gt.hdf5'.format(bin_l, bin_s), path='data',
-            overwrite=True, serialize_meta=True)
-
         select = ((z_s_min <= table_c_all['z_phot']) &
                   (table_c_all['z_phot'] < z_s_max))
         table_c = table_c_all[select]
@@ -96,19 +87,25 @@ for bin_l, (z_l_min, z_l_max) in enumerate(zip(z_l_bins[:-1], z_l_bins[1:])):
 
         kwargs = dict(
             cosmology=zebu.COSMOLOGY, n_jobs=multiprocessing.cpu_count(),
-            progress_bar=False)
+            progress_bar=False, weighting=0, lens_source_cut=None)
 
         if config['sources'] == 'hsc':
             kwargs['table_c'] = table_c
-            kwargs['lens_source_cut'] = 0.2
         else:
             kwargs['table_n'] = table_n
-            kwargs['lens_source_cut'] = None
 
-        if config['sources'] == 'hsc' and not np.any(
-                table_c['z'] > np.amax(table_l['z']) +
-                kwargs['lens_source_cut']):
-            continue
+        precompute(table_l, table_s, zebu.THETA_BINS, **kwargs)
+        compress_jackknife_fields(table_l).write(
+            path / 'l{}_s{}_gt.hdf5'.format(bin_l, bin_s), path='data',
+            overwrite=True, serialize_meta=True)
+
+        kwargs['weighting'] = -2
+
+        if config['sources'] == 'hsc':
+            kwargs['lens_source_cut'] = 0.2
+            if not np.any(table_c['z'] > np.amax(table_l['z']) +
+                          kwargs['lens_source_cut']):
+                continue
 
         precompute(table_l, table_s, zebu.RP_BINS, **kwargs)
         compress_jackknife_fields(table_l).write(

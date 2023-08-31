@@ -1,14 +1,16 @@
 all:
-	cp ../stacks/plots_absolute/gravitational_gt.pdf ./
-	cp ../stacks/plots_absolute/gravitational_ds.pdf ./
+	cp ../stacks/plots_absolute/gravitational_gt_des.pdf ./
+	cp ../stacks/plots_absolute/gravitational_ds_des.pdf ./
 	cp ../misc/particles/ptcl_shear_ratio.pdf ./
-	cp ../stacks/plots_relative/shear_bias_ds.pdf ./
-	cp ../stacks/plots_relative/boost_gt.pdf ./
-	cp ../stacks/plots_relative/intrinsic_alignment_ds.pdf ./
-	cp ../stacks/plots_relative/fiber_assignment_no_iip_ds.pdf ./
-	cp ../stacks/plots_relative/fiber_assignment_ds.pdf ./
-	cp ../stacks/plots_relative/lens_magnification_ds.pdf ./
-	cp ../stacks/plots_relative/source_magnification_ds.pdf ./
+	cp ../stacks/plots_relative/shear_bias_ds_des.pdf ./
+	cp ../stacks/plots_relative/shear_bias_ds_hsc.pdf ./
+	cp ../stacks/plots_relative/boost_gt_des.pdf ./
+	cp ../stacks/plots_relative/boost_gt_hsc.pdf ./
+	cp ../stacks/plots_relative/intrinsic_alignment_ds_*.pdf ./
+	cp ../stacks/plots_relative/fiber_assignment_no_iip_ds_hsc.pdf ./
+	cp ../stacks/plots_relative/fiber_assignment_ds_hsc.pdf ./
+	cp ../stacks/plots_relative/lens_magnification_ds_*.pdf ./
+	cp ../stacks/plots_relative/source_magnification_ds_hsc.pdf ./
 	
 	bibm pdflatex ms.tex
 	zip source.zip *.tex ms.bbl bibliography.bib *.pdf

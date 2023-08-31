@@ -19,7 +19,7 @@ camb_results = zebu.get_camb_results()
 
 
 def boost_factor(table_l, table_r, **kwargs):
-    return 100 * (1 - boost_factor_dsigma(table_l, table_r))
+    return 100 * (boost_factor_dsigma(table_l, table_r) - 1)
 
 
 def read_precomputed_data(
@@ -108,7 +108,7 @@ def plot_results(path, statistic='ds', survey='des', config={},
     n_bins_l = len(table_l_1)
     n_bins_s = len(table_l_1[0])
 
-    fig = plt.figure(figsize=(7, 1.66))
+    fig = plt.figure(figsize=(7, 1.5))
     gs = gridspec.GridSpec(1, n_bins_l + 1, wspace=0,
                            width_ratios=[20] * n_bins_l + [1])
     axes = []
@@ -157,7 +157,7 @@ def plot_results(path, statistic='ds', survey='des', config={},
             axes[0].set_ylabel(
                 r'$\theta \gamma_t \, [10^3 \, \mathrm{arcmin}]$')
     else:
-        axes[0].set_ylabel(r'Boost Factor $1 - b$')
+        axes[0].set_ylabel(r'Boost Factor $b - 1$')
 
     axes.append(fig.add_subplot(gs[0, -1]))
     colors = plt.get_cmap('plasma')(np.linspace(0.0, 0.8, n_bins_s))
@@ -237,9 +237,6 @@ def plot_results(path, statistic='ds', survey='des', config={},
             if plot_lens_magnification:
                 y = lens_magnification_bias(
                     table_l_1[j][k], zebu.ALPHA_L[j], camb_results,
-                    photo_z_correction=(
-                        survey == 'hsc' and
-                        (statistic.split('-')[0] == 'ds')),
                     shear=(statistic.split('-')[0] == 'gt'))
                 if relative:
                     y /= y_norm
@@ -266,7 +263,7 @@ def plot_results(path, statistic='ds', survey='des', config={},
 
 for path, relative in zip([Path('plots_absolute'), Path('plots_relative')],
                           [False, True]):
-    for statistic in ['ds', 'gt']:
+    for statistic in ['gt', 'ds']:
         for survey in ['des', 'hsc', 'kids']:
 
             if not relative:
