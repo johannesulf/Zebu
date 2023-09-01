@@ -11,9 +11,9 @@ BASE_PATH = Path(__file__).absolute().parent
 MOCK_PATH = BASE_PATH / 'mocks'
 PIXELS = np.genfromtxt(MOCK_PATH / 'pixels.csv', dtype=int)
 COSMOLOGY = FlatLambdaCDM(Om0=0.286, H0=100)
-RP_BINS = np.logspace(0, 2, 21)[:-7]
-THETA_BINS = 3 * np.logspace(0, 2, 21)[:-8] * u.arcmin
-ABS_MAG_R_MAX = -19
+RP_BINS = np.geomspace(0.08, 80, 16)[:-3]
+THETA_BINS = np.geomspace(3, 300, 16) * u.arcmin
+ABS_MAG_R_MAX = [-19, -20, -21]
 
 SOURCE_Z_BINS = {
     'des': np.array([0.0, 0.5, 1.0, 1.5, 2.0]),

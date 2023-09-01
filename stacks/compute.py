@@ -44,7 +44,6 @@ table_l_all['field_jk'] = HEALPix(8, order='nested').lonlat_to_healpix(
     table_l_all['ra'] * u.deg, table_l_all['dec'] * u.deg)
 
 if config['lenses'] in ['bgs', 'bgs-r']:
-    table_l_all = table_l_all[table_l_all['abs_mag_r'] < zebu.ABS_MAG_R_MAX]
     table_l_all = table_l_all[table_l_all['bright'] == 1]
 
 if config['lenses'] in ['bgs-r', 'lrg-r']:
@@ -66,6 +65,9 @@ for bin_l, (z_l_min, z_l_max) in enumerate(zip(z_l_bins[:-1], z_l_bins[1:])):
 
         select = (z_l_min <= table_l_all['z']) & (table_l_all['z'] < z_l_max)
         table_l = table_l_all[select]
+
+        if config['lenses'] in ['bgs', 'bgs-r']:
+            table_l = table_l[table_l['abs_mag_r'] < zebu.ABS_MAG_R_MAX[bin_l]]
 
         select = ((z_s_min <= table_s_all['z_phot']) &
                   (table_s_all['z_phot'] < z_s_max))
