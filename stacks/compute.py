@@ -1,7 +1,6 @@
 import argparse
 import multiprocessing
 import numpy as np
-from time import time
 import zebu
 
 from astropy import units as u
@@ -11,6 +10,8 @@ from astropy_healpix import HEALPix
 from dsigma.jackknife import compress_jackknife_fields
 from dsigma.precompute import precompute
 from pathlib import Path
+from time import time
+from warnings import filterwarnings
 
 t_start = time()
 
@@ -96,7 +97,9 @@ for bin_l, (z_l_min, z_l_max) in enumerate(zip(z_l_bins[:-1], z_l_bins[1:])):
         else:
             kwargs['table_n'] = table_n
 
-        precompute(table_l, table_s, zebu.THETA_BINS, **kwargs)
+        with filterwarnings('ignore' if kwargs['sources'] == 'hsc' else
+                            'default'):
+            precompute(table_l, table_s, zebu.THETA_BINS, **kwargs)
         compress_jackknife_fields(table_l).write(
             path / 'l{}_s{}_gt.hdf5'.format(bin_l, bin_s), path='data',
             overwrite=True, serialize_meta=True)
