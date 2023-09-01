@@ -1,6 +1,7 @@
 import argparse
 import multiprocessing
 import numpy as np
+import warnings
 import zebu
 
 from astropy import units as u
@@ -11,8 +12,6 @@ from dsigma.jackknife import compress_jackknife_fields
 from dsigma.precompute import precompute
 from pathlib import Path
 from time import time
-from warnings import filterwarnings
-
 t_start = time()
 
 # This is necessary for lux because otherwise the temporary directory is on
@@ -97,8 +96,9 @@ for bin_l, (z_l_min, z_l_max) in enumerate(zip(z_l_bins[:-1], z_l_bins[1:])):
         else:
             kwargs['table_n'] = table_n
 
-        with filterwarnings('ignore' if config['sources'] == 'hsc' else
-                            'default'):
+        with warnings.catch_warnings():
+            if config['sources'] == 'hsc':
+                warnings.simplefilter("ignore")
             precompute(table_l, table_s, zebu.THETA_BINS, **kwargs)
         compress_jackknife_fields(table_l).write(
             path / 'l{}_s{}_gt.hdf5'.format(bin_l, bin_s), path='data',
