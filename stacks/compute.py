@@ -97,7 +97,7 @@ for bin_l, (z_l_min, z_l_max) in enumerate(zip(z_l_bins[:-1], z_l_bins[1:])):
         else:
             kwargs['table_n'] = table_n
 
-        with filterwarnings('ignore' if kwargs['sources'] == 'hsc' else
+        with filterwarnings('ignore' if config['sources'] == 'hsc' else
                             'default'):
             precompute(table_l, table_s, zebu.THETA_BINS, **kwargs)
         compress_jackknife_fields(table_l).write(
