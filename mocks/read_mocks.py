@@ -237,8 +237,8 @@ def read_mock_catalog(survey, path, pixels, magnification=True,
             table['e_2'] -= table['ia_2'] * r
 
         if not reduced_shear:
-            table['e_1'] -= table['g_1'] * table['mu'] * r
-            table['e_2'] -= table['g_2'] * table['mu'] * r
+            table['e_1'] -= table['g_1'] * (table['mu'] - 1) / 2.0 * r
+            table['e_2'] -= table['g_2'] * (table['mu'] - 1) / 2.0 * r
 
         table['e_2'] = - table['e_2']
 
@@ -385,8 +385,9 @@ The tables have the following columns (if applicable).
     else:
         filenames = [args.filename, ]
 
-    path = (Path(os.getenv('CFS')) / 'desicollab' / 'science' / 'c3' /
-            'DESI-Lensing' / 'mocks' / 'buzzard-{}'.format(args.buzzard))
+    # path = (Path(os.getenv('CFS')) / 'desicollab' / 'science' / 'c3' /
+    #        'DESI-Lensing' / 'mocks' / 'buzzard-{}'.format(args.buzzard))
+    path = Path('buzzard-4')
 
     if args.pixels is None:
         pixels = []
