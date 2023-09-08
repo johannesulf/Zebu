@@ -39,6 +39,7 @@ table_l_all, table_s_all, table_c_all = zebu.read_mock_catalog(
     iip_weights=config['iip weights'],
     intrinsic_alignment=config['intrinsic alignment'],
     shear_bias=config['shear bias'],
+    reduced_shear=config['reduced shear'],
     shape_noise=config['shape noise'])
 table_l_all['field_jk'] = HEALPix(8, order='nested').lonlat_to_healpix(
     table_l_all['ra'] * u.deg, table_l_all['dec'] * u.deg)

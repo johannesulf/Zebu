@@ -4,6 +4,7 @@ import matplotlib.ticker as ticker
 import numpy as np
 import zebu
 
+from astropy import units as u
 from astropy.table import Table
 from astropy.io.ascii import convert_numpy
 from dsigma.jackknife import jackknife_resampling
@@ -16,6 +17,15 @@ from pathlib import Path
 
 zebu.SOURCE_Z_BINS['des'] = np.array([0.0, 0.358, 0.631, 0.872, 2.0])
 camb_results = zebu.get_camb_results()
+errors = zebu.errors()
+for statistic in ['ds', 'gt']:
+    for sources in ['des', 'hsc', 'kids']:
+        errors[statistic][sources] = np.hstack([
+            errors[statistic][sources]['bgs'],
+            errors[statistic][sources]['lrg']])
+z_l_all = np.concatenate([
+    0.5 * (zebu.LENS_Z_BINS['bgs'][1:] + zebu.LENS_Z_BINS['bgs'][:-1]),
+    0.5 * (zebu.LENS_Z_BINS['lrg'][1:] + zebu.LENS_Z_BINS['lrg'][:-1])])
 
 
 def boost_factor(table_l, table_r, **kwargs):
@@ -26,7 +36,10 @@ def read_precomputed_data(
         lenses, sources, statistic, lens_magnification=False,
         source_magnification=False, fiber_assignment=False, iip_weights=True,
         intrinsic_alignment=False, photometric_redshifts=True,
-        shear_bias=False, shape_noise=False):
+        shear_bias=False, shape_noise=False, reduced_shear=True):
+
+    if sources != 'hsc':
+        photometric_redshifts = True
 
     if lenses in ['bgs-r', 'lrg-r']:
         lens_magnification = False
@@ -45,6 +58,7 @@ def read_precomputed_data(
     select &= table['intrinsic alignment'] == intrinsic_alignment
     select &= table['photometric redshifts'] == photometric_redshifts
     select &= table['shear bias'] == shear_bias
+    select &= table['reduced_shear'] == reduced_shear
     select &= table['shape noise'] == shape_noise
     if np.sum(select) == 0:
         raise ValueError('Configuration with these options not available.')
@@ -187,11 +201,7 @@ def plot_results(path, statistic='ds', survey='des', config={},
             raise ValueError("Unknown statistic '{}'.".format(statistic))
         for k in range(n_bins_s):
 
-            z_l = np.concatenate([
-                0.5 * (zebu.LENS_Z_BINS['bgs'][1:] +
-                       zebu.LENS_Z_BINS['bgs'][:-1]),
-                0.5 * (zebu.LENS_Z_BINS['lrg'][1:] +
-                       zebu.LENS_Z_BINS['lrg'][:-1])])[j]
+            z_l = z_l_all[j]
             z_s = np.mean(zebu.SOURCE_Z_BINS[survey][[k, k + 1]])
             if z_l >= z_s - 0.1:
                 continue
@@ -252,6 +262,32 @@ def plot_results(path, statistic='ds', survey='des', config={},
     ymax = max(ymax, +0.01)
     ymax = max(ymax, -ymin / 3)
     axes[0].set_ylim(ymin, ymax)
+    axes[0].set_xlim(axes[0].get_xlim())
+
+    for j in range(n_bins_l):
+        z_l = z_l_all[j]
+
+        if statistic.split('-')[0] == 'ds':
+            x_res = 1
+        else:
+            x_res = (1 * u.Mpc / zebu.COSMOLOGY.comoving_distance(z_l) *
+                     u.rad).to(u.arcmin).value
+        for ax in axes:
+            axes[j].axvspan(0, x_res, color='lightgrey', zorder=-99)
+
+        for k in range(n_bins_s):
+            if kwargs_1 != kwargs_2 and statistic in ['ds', 'gt']:
+                err = np.copy(errors[statistic][sources][k, j])
+                if relative:
+                    err = err / y_norm
+                else:
+                    if statistic == 'gt':
+                        err *= 1e3
+                    err = x * err
+                # axes[j].plot(x, +0.1 * err, color=colors[k], zorder=k + 100,
+                #             ls='-', lw=1)
+                # axes[j].plot(x, -0.1 * err, color=colors[k], zorder=k + 100,
+                #             ls='-', lw=1)
 
     plt.subplots_adjust(wspace=0, hspace=0)
     plt.tight_layout(pad=0.3)
@@ -273,12 +309,13 @@ for path, relative in zip([Path('plots_absolute'), Path('plots_relative')],
                     config=dict(photometric_redshifts=False),
                     boost_correction=True)
 
-            plot_results(
-                path / ('photometric_redshift_{}_{}'.format(
-                    statistic, survey)),
-                statistic=statistic, survey=survey,
-                config=dict(photometric_redshifts=(False, True)),
-                relative=relative)
+            if survey == 'hsc':
+                plot_results(
+                    path / ('photometric_redshift_{}_{}'.format(
+                        statistic, survey)),
+                    statistic=statistic, survey=survey,
+                    config=dict(photometric_redshifts=(False, True)),
+                    relative=relative)
 
             if relative:
                 plot_results(

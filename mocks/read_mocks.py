@@ -49,7 +49,8 @@ def random_ra_dec(n, pixels):
 def read_mock_catalog(survey, path, pixels, magnification=True,
                       fiber_assignment=False, iip_weights=True,
                       intrinsic_alignment=False, shear_bias=True,
-                      shape_noise=False, unlensed_coordinates=False):
+                      shape_noise=False, unlensed_coordinates=False,
+                      reduced_shear=True):
     """
     Read in one or multiple mock catalogs.
 
@@ -85,6 +86,9 @@ def read_mock_catalog(survey, path, pixels, magnification=True,
         Whether to account for the absence of magnification on angular
         coordinates by using systematic weights or by using unlensed
         coordinates.
+    reduced_shear : bool, optional
+        Whether to use the reduced shear or just the shear for the intrinsic
+        gravitational signal. Default is True.
 
     Returns
     -------
@@ -231,6 +235,10 @@ def read_mock_catalog(survey, path, pixels, magnification=True,
         elif shape_noise and not intrinsic_alignment:
             table['e_1'] -= table['ia_1'] * r
             table['e_2'] -= table['ia_2'] * r
+
+        if not reduced_shear:
+            table['e_1'] -= table['g_1'] * table['mu'] * r
+            table['e_2'] -= table['g_2'] * table['mu'] * r
 
         table['e_2'] = - table['e_2']
 
