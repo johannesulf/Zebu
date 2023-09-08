@@ -58,7 +58,7 @@ def read_precomputed_data(
     select &= table['intrinsic alignment'] == intrinsic_alignment
     select &= table['photometric redshifts'] == photometric_redshifts
     select &= table['shear bias'] == shear_bias
-    select &= table['reduced_shear'] == reduced_shear
+    select &= table['reduced shear'] == reduced_shear
     select &= table['shape noise'] == shape_noise
     if np.sum(select) == 0:
         raise ValueError('Configuration with these options not available.')
@@ -154,6 +154,9 @@ def plot_results(path, statistic='ds', survey='des', config={},
         if relative or statistic[-5:] == 'boost':
             ax.yaxis.set_major_formatter(ticker.FuncFormatter(
                 lambda y, p: r'{:+g}\%'.format(y) if y != 0 else r'0\%'))
+        if relative or statistic[-5:] == 'boost':
+            ax.yaxis.set_major_locator(
+                ticker.MaxNLocator(integer=True, nbins=3))
 
         if j > 0:
             plt.setp(ax.get_yticklabels(), visible=False)
@@ -231,6 +234,7 @@ def plot_results(path, statistic='ds', survey='des', config={},
                     **stacking_kwargs) / 100
                 y /= y_norm
                 y_err /= y_norm
+                y_err = np.abs(y_err)
             else:
                 if statistic == 'gt':
                     y *= 1e3
@@ -299,6 +303,7 @@ def plot_results(path, statistic='ds', survey='des', config={},
 
 for path, relative in zip([Path('plots_absolute'), Path('plots_relative')],
                           [False, True]):
+
     for statistic in ['gt', 'ds']:
         for survey in ['des', 'hsc', 'kids']:
 
@@ -363,3 +368,8 @@ for path, relative in zip([Path('plots_absolute'), Path('plots_relative')],
                 path / ('fiber_assignment_{}_{}'.format(statistic, survey)),
                 statistic=statistic, survey=survey,
                 config=dict(fiber_assignment=(False, True)), relative=relative)
+
+            plot_results(
+                path / ('reduced_shear_{}_{}'.format(statistic, survey)),
+                statistic=statistic, survey=survey,
+                config=dict(reduced_shear=(False, True)), relative=relative)
