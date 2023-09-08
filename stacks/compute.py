@@ -20,7 +20,7 @@ multiprocessing.process.current_process()._config['tempdir'] = '/dev/shm'
 
 parser = argparse.ArgumentParser()
 parser.add_argument('config', type=int, help='configuration number',
-                    choices=range(1, 77))
+                    choices=range(76))
 args = parser.parse_args()
 
 path = Path('results', '{}'.format(args.config))
