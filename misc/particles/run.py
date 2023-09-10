@@ -1,11 +1,13 @@
 import argparse
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import os
 import zebu
 
-from astropy_healpix.healpy import vec2ang, ang2pix
 from astropy.table import Table, vstack
+from astropy import units as u
+from astropy_healpix.healpy import vec2ang, ang2pix
 from dsigma.helpers import dsigma_table
 from dsigma.physics import critical_surface_density
 from dsigma.precompute import precompute
@@ -86,7 +88,7 @@ if args.compute:
             table_l_all = table_l_all[table_l_all['bright'] == 1]
             table_r_all = table_r_all[table_r_all['bright'] == 1]
 
-        n = 30
+        n = 25
         rp_bins = np.geomspace(zebu.RP_BINS[0], zebu.RP_BINS[-1],
                                (len(zebu.RP_BINS) - 1) * n + 1)
         rp_bins = np.append(rp_bins[::-1], 1e-6)[::-1]
@@ -120,12 +122,13 @@ if args.compute:
                               n_jobs=40, lens_source_cut=None, weighting=0)
                 table_l = precompute(table_l, table_s, rp_bins, **kwargs)
                 table_r = precompute(table_r, table_s, rp_bins, **kwargs)
+                d = zebu.COSMOLOGY.comoving_distance(0.5 * (z_min + z_max)).to(
+                    u.Mpc).value
+                area = - 2 * np.pi * d**2 * np.diff(np.cos(rp_bins / d))
                 table_l_all['sigma'][select_l] = (
-                    table_l['sum 1'] * 7.94069e12 * downsample /
-                    (np.pi * np.diff(rp_bins**2)))
+                    table_l['sum 1'] * 7.94069e12 * downsample / area)
                 table_r_all['sigma'][select_r] = (
-                    table_r['sum 1'] * 7.94069e12 * downsample /
-                    (np.pi * np.diff(rp_bins**2)))
+                    table_r['sum 1'] * 7.94069e12 * downsample / area)
 
             z_min = zebu.LENS_Z_BINS[lenses][lens_bin]
             z_max = zebu.LENS_Z_BINS[lenses][lens_bin + 1]
@@ -133,6 +136,11 @@ if args.compute:
                         (table_l_all['z'] <= z_max))
             select_r = ((table_r_all['z'] > z_min) &
                         (table_r_all['z'] <= z_max))
+            if lenses == 'bgs':
+                select_l = select_l & (table_l_all['abs_mag_r'] <
+                                       zebu.ABS_MAG_R_MAX[lens_bin])
+                select_r = select_r & (table_r_all['abs_mag_r'] <
+                                       zebu.ABS_MAG_R_MAX[lens_bin])
             table_l = table_l_all[select_l]
             table_r = table_r_all[select_r]
             table_l = compress_jackknife_fields(table_l)
@@ -185,9 +193,11 @@ for lenses in ['bgs', 'lrg']:
     for lens_bin in range(len(zebu.LENS_Z_BINS[lenses]) - 1):
         results = Table.read('{}_{}.csv'.format(lenses, lens_bin))
         rp = np.sqrt(zebu.RP_BINS[1:] * zebu.RP_BINS[:-1])
-        p = plt.plot(rp, rp * results['ds_ptcl'], ls='-', label='{}-{}'.format(
-            lenses.upper(), lens_bin + 1))
-        plt.plot(rp, rp * results['ds_shear'], ls='--', color=p[0].get_color())
+        color = mpl.colormaps['viridis' if lenses == 'bgs' else 'plasma'](
+            (lens_bin + 0.5) / 3.0)
+        plt.plot(rp, rp * results['ds_ptcl'], ls='-', label='{}-{}'.format(
+            lenses.upper(), lens_bin + 1), color=color)
+        plt.plot(rp, rp * results['ds_shear'], ls='--', color=color)
 
 plt.xscale('log')
 plt.xlabel(r'Projected radius $r_p \, [h^{-1} \, \mathrm{Mpc}]$')
@@ -204,19 +214,24 @@ fig, axarr = plt.subplots(nrows=2, sharex=True, figsize=(3.33, 3.33))
 
 for ax, lenses in zip(axarr, ['bgs', 'lrg']):
     for lens_bin in range(len(zebu.LENS_Z_BINS[lenses]) - 1):
-        results = Table.read('{}_{}.csv'.format(lenses, lens_bin))
-        rp = np.sqrt(zebu.RP_BINS[1:] * zebu.RP_BINS[:-1])
+        results = Table.read('{}_{}.csv'.format(lenses, lens_bin))[:-3]
+        rp = np.sqrt(zebu.RP_BINS[1:] * zebu.RP_BINS[:-1])[:-3]
+        color = mpl.colormaps['viridis' if lenses == 'bgs' else 'plasma'](
+            (lens_bin + 0.5) / 3.0)
+        x = rp * (1 + lens_bin * 0.03)
+        y = results['ds_shear'] / results['ds_ptcl']
+        y_err = results['ds_diff_err'] / results['ds_shear']
+        ax.plot(x, y, label='{}-{}'.format(lenses.upper(), lens_bin + 1),
+                zorder=lens_bin, color=color)
         plotline, caps, barlinecols = ax.errorbar(
-            rp * (1 + lens_bin *
-                  0.03), results['ds_shear'] / results['ds_ptcl'],
-            yerr=results['ds_diff_err'] / results['ds_shear'], fmt='-o',
-            label='{}-{}'.format(lenses.upper(), lens_bin + 1), zorder=lens_bin)
+            x, y, yerr=y_err, fmt='o', zorder=lens_bin, color=color)
         plt.setp(barlinecols[0], capstyle='round')
 
 for ax in axarr:
     ax.axhline(1.0, ls='--', color='black', zorder=-1)
     ax.set_ylabel(r'$\Delta \Sigma_{\rm shear} / \Delta \Sigma_{\rm ptcl}$')
     ax.legend(loc='best', frameon=False)
+    ax.set_ylim(0.75, 1.09)
 plt.xscale('log')
 axarr[1].set_xlabel(r'Projected radius $r_p \, [h^{-1} \, \mathrm{Mpc}]$')
 plt.tight_layout(pad=0.3)
