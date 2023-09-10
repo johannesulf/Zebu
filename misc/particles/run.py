@@ -139,10 +139,10 @@ if args.compute:
 
             path = zebu.BASE_PATH / 'stacks' / 'results'
             table_l_shear = Table.read(
-                path / ('1' if lenses == 'bgs' else '4') /
+                path / ('0' if lenses == 'bgs' else '1') /
                 'l{}_s3_ds.hdf5'.format(lens_bin))
             table_r_shear = Table.read(
-                path / ('7' if lenses == 'bgs' else '10') /
+                path / ('2' if lenses == 'bgs' else '3') /
                 'l{}_s3_ds.hdf5'.format(lens_bin))
             table_l_shear = table_l_shear[np.isin(
                 table_l_shear['field_jk'], pixels)]
