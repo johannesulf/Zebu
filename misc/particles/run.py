@@ -83,11 +83,7 @@ if args.compute:
             kind='cubic')(table_r_all['z'])
 
         if lenses == 'bgs':
-            table_l_all = table_l_all[
-                table_l_all['abs_mag_r'] < zebu.ABS_MAG_R_MAX]
             table_l_all = table_l_all[table_l_all['bright'] == 1]
-            table_r_all = table_r_all[
-                table_r_all['abs_mag_r'] < zebu.ABS_MAG_R_MAX]
             table_r_all = table_r_all[table_r_all['bright'] == 1]
 
         n = 30
@@ -108,6 +104,11 @@ if args.compute:
                             (table_l_all['z'] <= z_max))
                 select_r = ((table_r_all['z'] > z_min) &
                             (table_r_all['z'] <= z_max))
+                if lenses == 'bgs':
+                    select_l = select_l & (table_l_all['abs_mag_r'] <
+                                           zebu.ABS_MAG_R_MAX[lens_bin])
+                    select_r = select_r & (table_r_all['abs_mag_r'] <
+                                           zebu.ABS_MAG_R_MAX[lens_bin])
                 select_s = ((table_s_all['z'] > z_min - 0.15) &
                             (table_s_all['z'] < z_max + 0.15))
 
