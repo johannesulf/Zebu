@@ -75,8 +75,8 @@ def errors():
             for lenses in ['bgs', 'lrg']:
 
                 err[statistic][sources][lenses] = np.zeros((
-                    len(SOURCE_Z_BINS[sources]) - 1,
                     len(LENS_Z_BINS[lenses]) - 1,
+                    len(SOURCE_Z_BINS[sources]) - 1,
                     len(RP_BINS if statistic == 'ds' else THETA_BINS) - 1))
 
                 if sources == 'des':
@@ -109,7 +109,7 @@ def errors():
                         continue
                     if l > 2 and lenses == 'lrg':
                         continue
-                    err[statistic][sources][lenses][s - 1, l - 1, r - 1] =\
+                    err[statistic][sources][lenses][l - 1, s - 1, r - 1] =\
                         table_err['error'][i]
 
     return err

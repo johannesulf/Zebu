@@ -189,6 +189,7 @@ def plot_results(path, statistic='ds', survey='des', config={},
     cb.ax.set_yticklabels(tick_labels)
     cb.ax.minorticks_off()
     cb.ax.tick_params(size=0)
+    y_all = np.zeros((n_bins_l, n_bins_s, len(x)))
 
     for j in range(n_bins_l):
         stacking_kwargs = zebu.stacking_kwargs(
@@ -206,7 +207,7 @@ def plot_results(path, statistic='ds', survey='des', config={},
 
             z_l = z_l_all[j]
             z_s = np.mean(zebu.SOURCE_Z_BINS[survey][[k, k + 1]])
-            if z_l >= z_s - 0.1:
+            if table_l_1[j][k] is None or table_l_2[j][k] is None:
                 continue
 
             if kwargs_1 != kwargs_2:
@@ -233,15 +234,20 @@ def plot_results(path, statistic='ds', survey='des', config={},
                     table_l_1[j][k], table_r=table_r_1[j][k],
                     **stacking_kwargs) / 100
                 y /= y_norm
+                y_all[j, k, :] = y
                 y_err /= y_norm
                 y_err = np.abs(y_err)
             else:
+                y_all[j, k, :] = y
                 if statistic == 'gt':
                     y *= 1e3
                     y_err *= 1e3
                 if statistic in ['ds', 'gt']:
                     y = x * y
                     y_err = x * y_err
+
+            if z_l >= z_s - 0.1:
+                continue
 
             plotline, caps, barlinecols = axes[j].errorbar(
                 x, y, yerr=y_err, fmt='-o', ms=2, color=colors[k],
@@ -295,6 +301,7 @@ def plot_results(path, statistic='ds', survey='des', config={},
 
     plt.subplots_adjust(wspace=0, hspace=0)
     plt.tight_layout(pad=0.3)
+    np.save(path.with_suffix('.npy'), y_all, allow_pickle=False)
     plt.savefig(path.with_suffix('.pdf'))
     plt.savefig(path.with_suffix('.png'), dpi=300)
 
