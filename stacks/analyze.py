@@ -17,12 +17,6 @@ from pathlib import Path
 
 zebu.SOURCE_Z_BINS['des'] = np.array([0.0, 0.358, 0.631, 0.872, 2.0])
 camb_results = zebu.get_camb_results()
-errors = zebu.errors()
-for statistic in ['ds', 'gt']:
-    for sources in ['des', 'hsc', 'kids']:
-        errors[statistic][sources] = np.hstack([
-            errors[statistic][sources]['bgs'],
-            errors[statistic][sources]['lrg']])
 z_l_all = np.concatenate([
     0.5 * (zebu.LENS_Z_BINS['bgs'][1:] + zebu.LENS_Z_BINS['bgs'][:-1]),
     0.5 * (zebu.LENS_Z_BINS['lrg'][1:] + zebu.LENS_Z_BINS['lrg'][:-1])])
@@ -189,7 +183,9 @@ def plot_results(path, statistic='ds', survey='des', config={},
     cb.ax.set_yticklabels(tick_labels)
     cb.ax.minorticks_off()
     cb.ax.tick_params(size=0)
-    y_all = np.zeros((n_bins_l, n_bins_s, len(x)))
+
+    table_w = zebu.covariance(statistic.split('-')[0], survey)[1]
+    table_w['value'] = np.repeat(np.nan, len(table_w))
 
     for j in range(n_bins_l):
         stacking_kwargs = zebu.stacking_kwargs(
@@ -229,16 +225,19 @@ def plot_results(path, statistic='ds', survey='des', config={},
 
             y_err = np.sqrt(np.diag(y_cov))
 
+            use = (table_w['lens_bin'] == j) & ((table_w['source_bin'] == k))
+            assert np.all(np.diff(table_w['radial_bin'][use])) > 0
+
             if relative:
                 y_norm = function(
                     table_l_1[j][k], table_r=table_r_1[j][k],
                     **stacking_kwargs) / 100
                 y /= y_norm
-                y_all[j, k, :] = y
+                table_w['value'][use] = y
                 y_err /= y_norm
                 y_err = np.abs(y_err)
             else:
-                y_all[j, k, :] = y
+                table_w['value'][use] = y
                 if statistic == 'gt':
                     y *= 1e3
                     y_err *= 1e3
@@ -285,23 +284,9 @@ def plot_results(path, statistic='ds', survey='des', config={},
         for ax in axes:
             axes[j].axvspan(0, x_res, color='lightgrey', zorder=-99)
 
-        for k in range(n_bins_s):
-            if kwargs_1 != kwargs_2 and statistic in ['ds', 'gt']:
-                err = np.copy(errors[statistic][sources][k, j])
-                if relative:
-                    err = err / y_norm
-                else:
-                    if statistic == 'gt':
-                        err *= 1e3
-                    err = x * err
-                # axes[j].plot(x, +0.1 * err, color=colors[k], zorder=k + 100,
-                #             ls='-', lw=1)
-                # axes[j].plot(x, -0.1 * err, color=colors[k], zorder=k + 100,
-                #             ls='-', lw=1)
-
     plt.subplots_adjust(wspace=0, hspace=0)
     plt.tight_layout(pad=0.3)
-    np.save(path.with_suffix('.npy'), y_all, allow_pickle=False)
+    table_w.write(path.with_suffix('.csv'))
     plt.savefig(path.with_suffix('.pdf'))
     plt.savefig(path.with_suffix('.png'), dpi=300)
 

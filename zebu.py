@@ -3,7 +3,7 @@ import numpy as np
 
 from astropy import units as u
 from astropy.cosmology import FlatLambdaCDM
-from astropy.table import Table
+from astropy.table import Table, vstack
 from mocks.read_mocks import read_mock_catalog
 from pathlib import Path
 
@@ -60,56 +60,42 @@ def get_camb_results():
     return camb.get_results(pars)
 
 
-def errors():
+def covariance(statistic, sources):
 
-    err = dict()
+    if sources == 'des':
+        sources = 'desy3'
+    elif sources == 'kids':
+        sources = 'kids1000'
 
-    for statistic in ['ds', 'gt']:
+    table_bin_1 = Table.read(
+        MOCK_PATH / 'theory' / 'bin_{}_{}desiy1{}.dat'.format(
+            statistic, sources, 'bgs'), format='ascii', delimiter=' ')
+    table_bin_2 = Table.read(
+        MOCK_PATH / 'theory' / 'bin_{}_{}desiy1{}.dat'.format(
+            statistic, sources, 'lrg'), format='ascii', delimiter=' ')
+    table_bin_2['col1'] += len(table_bin_1)
+    table_bin_2['col2'] += 3
+    table_bin = vstack([table_bin_1, table_bin_2])
+    for i, name in enumerate(['bin', 'lens_bin', 'source_bin',
+                              'radial_bin', 'r']):
+        table_bin.rename_column('col{}'.format(i + 1), name)
+        if i != 4:
+            table_bin[name] -= 1
 
-        err[statistic] = dict()
+    cov = np.zeros((len(table_bin), len(table_bin)))
 
-        for sources in ['des', 'hsc', 'kids']:
+    cov_bgs = np.genfromtxt(
+        MOCK_PATH / 'theory' / '{}covcorr_{}desiy1{}_pzwei.dat'.format(
+            statistic, sources, 'bgs'), skip_header=1)[:, -1]
+    cov_bgs = cov_bgs.reshape(int(np.sqrt(len(cov_bgs))),
+                              int(np.sqrt(len(cov_bgs))))
+    cov[len(cov_bgs):, len(cov_bgs):] = cov_bgs
 
-            err[statistic][sources] = dict()
+    cov_lrg = np.genfromtxt(
+        MOCK_PATH / 'theory' / '{}covcorr_{}desiy1{}_pzwei.dat'.format(
+            statistic, sources, 'lrg'), skip_header=1)[:, -1]
+    cov_lrg = cov_lrg.reshape(int(np.sqrt(len(cov_lrg))),
+                              int(np.sqrt(len(cov_lrg))))
+    cov[:-len(cov_lrg), :-len(cov_lrg):] = cov_lrg
 
-            for lenses in ['bgs', 'lrg']:
-
-                err[statistic][sources][lenses] = np.zeros((
-                    len(LENS_Z_BINS[lenses]) - 1,
-                    len(SOURCE_Z_BINS[sources]) - 1,
-                    len(RP_BINS if statistic == 'ds' else THETA_BINS) - 1))
-
-                if sources == 'des':
-                    sources_file = 'desy3'
-                elif sources == 'kids':
-                    sources_file = 'kids1000'
-                else:
-                    sources_file = 'hsc'
-
-                table_bin = Table.read(
-                    MOCK_PATH / 'theory' / 'bin_{}_{}desiy1{}.dat'.format(
-                        statistic, sources_file, lenses), format='ascii',
-                    delimiter=' ')
-                for i, name in enumerate(['bin', 'lens_bin', 'source_bin',
-                                          'radial_bin', 'r']):
-                    table_bin.rename_column('col{}'.format(i + 1), name)
-
-                table_err = Table.read(
-                    MOCK_PATH / 'theory' /
-                    '{}erranavec_{}desiy1{}{}.dat'.format(
-                        statistic, sources_file, lenses, '_pzwei' if
-                        statistic == 'ds' else ''), format='ascii',
-                    delimiter=' ')
-                table_err.rename_column('col2', 'error')
-
-                for i, (l, s, r) in enumerate(zip(
-                        table_bin['lens_bin'], table_bin['source_bin'],
-                        table_bin['radial_bin'])):
-                    if statistic == 'ds' and r >= len(RP_BINS):
-                        continue
-                    if l > 2 and lenses == 'lrg':
-                        continue
-                    err[statistic][sources][lenses][l - 1, s - 1, r - 1] =\
-                        table_err['error'][i]
-
-    return err
+    return cov, table_bin
