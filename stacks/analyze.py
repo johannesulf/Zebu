@@ -286,7 +286,7 @@ def plot_results(path, statistic='ds', survey='des', config={},
 
     plt.subplots_adjust(wspace=0, hspace=0)
     plt.tight_layout(pad=0.3)
-    table_w.write(path.with_suffix('.csv'))
+    table_w.write(path.with_suffix('.csv'), overwrite=True)
     plt.savefig(path.with_suffix('.pdf'))
     plt.savefig(path.with_suffix('.png'), dpi=300)
 

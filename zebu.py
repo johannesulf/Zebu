@@ -85,17 +85,19 @@ def covariance(statistic, sources):
     cov = np.zeros((len(table_bin), len(table_bin)))
 
     cov_bgs = np.genfromtxt(
-        MOCK_PATH / 'theory' / '{}covcorr_{}desiy1{}_pzwei.dat'.format(
-            statistic, sources, 'bgs'), skip_header=1)[:, -1]
+        MOCK_PATH / 'theory' / '{}covcorr_{}desiy1{}{}.dat'.format(
+            statistic, sources, 'bgs', '_pzwei' if statistic == 'ds' else ''),
+        skip_header=1)[:, -1]
     cov_bgs = cov_bgs.reshape(int(np.sqrt(len(cov_bgs))),
                               int(np.sqrt(len(cov_bgs))))
-    cov[len(cov_bgs):, len(cov_bgs):] = cov_bgs
+    cov[:len(cov_bgs), :len(cov_bgs)] = cov_bgs
 
     cov_lrg = np.genfromtxt(
-        MOCK_PATH / 'theory' / '{}covcorr_{}desiy1{}_pzwei.dat'.format(
-            statistic, sources, 'lrg'), skip_header=1)[:, -1]
+        MOCK_PATH / 'theory' / '{}covcorr_{}desiy1{}{}.dat'.format(
+            statistic, sources, 'lrg', '_pzwei' if statistic == 'ds' else ''),
+        skip_header=1)[:, -1]
     cov_lrg = cov_lrg.reshape(int(np.sqrt(len(cov_lrg))),
                               int(np.sqrt(len(cov_lrg))))
-    cov[:-len(cov_lrg), :-len(cov_lrg):] = cov_lrg
+    cov[-len(cov_lrg):, -len(cov_lrg):] = cov_lrg
 
     return cov, table_bin
