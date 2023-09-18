@@ -66,6 +66,8 @@ def covariance(statistic, sources):
         sources = 'desy3'
     elif sources == 'kids':
         sources = 'kids1000'
+    else:
+        sources = 'hscy1'
 
     table_bin_1 = Table.read(
         MOCK_PATH / 'theory' / 'bin_{}_{}desiy1{}.dat'.format(
