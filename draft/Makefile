@@ -10,6 +10,7 @@ all:
 	cp ../stacks/plots_relative/fiber_assignment_no_iip_ds_hsc.pdf ./
 	cp ../stacks/plots_relative/fiber_assignment_ds_hsc.pdf ./
 	cp ../stacks/plots_relative/lens_magnification_ds_*.pdf ./
+	cp ../stacks/plots_relative/lens_magnification_gt_des.pdf ./
 	cp ../stacks/plots_relative/source_magnification_ds_hsc.pdf ./
 	cp ../stacks/plots_relative/reduced_shear_ds_hsc.pdf ./
 	
