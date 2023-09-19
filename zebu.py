@@ -83,6 +83,13 @@ def covariance(statistic, sources):
         table_bin.rename_column('col{}'.format(i + 1), name)
         if i != 4:
             table_bin[name] -= 1
+    table_bin['fiducial'] = vstack([
+        Table.read(MOCK_PATH / 'theory' / '{}modvec_{}desiy1{}{}.dat'.format(
+            statistic, sources, 'bgs',  '_pzwei' if statistic == 'ds' else ''),
+            format='ascii', delimiter=' '),
+        Table.read(MOCK_PATH / 'theory' / '{}modvec_{}desiy1{}{}.dat'.format(
+            statistic, sources, 'lrg',  '_pzwei' if statistic == 'ds' else ''),
+            format='ascii', delimiter=' ')])['col2']
 
     cov = np.zeros((len(table_bin), len(table_bin)))
 
