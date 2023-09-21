@@ -70,6 +70,14 @@ def read_precomputed_data(
                 n_pairs = np.sum(table['sum 1'], axis=1)
                 table = table[n_pairs > 0.01 * np.amax(n_pairs)]
                 data[-1].append(table)
+                if statistic == 'gt':
+                    bins = zebu.THETA_BINS.value
+                else:
+                    bins = zebu.RP_BINS
+                if len(bins) != len(table.meta['bins']) or not np.all(
+                        np.isclose(bins, table.meta['bins'].value)):
+                    print('Warning! Bins do not match for {}.'.format(
+                        path / fname))
             except FileNotFoundError:
                 data[-1].append(None)
 
