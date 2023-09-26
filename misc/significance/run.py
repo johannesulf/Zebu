@@ -30,24 +30,18 @@ def significance(bias, cov, use=None):
 
 # %%
 
-fig = plt.figure(tight_layout=True, figsize=(7, 3.5))
-gs = gridspec.GridSpec(5, 6)
-axs = []
-for i in range(2):
-    axs.append([])
-    for j in range(3):
-        axs[-1].append(
-            fig.add_subplot(
-                gs[2*i:2*i+2, 2*j:2*j+2],
-                sharex=axs[-1][-1] if j > 0 else None,
-                sharey=axs[-1][-1] if j > 0 else None))
-legend = fig.add_subplot(gs[-1, :])
+fig, axs = plt.subplots(ncols=3, nrows=3, figsize=(7, 3.5), sharex='row',
+                        sharey='row',
+                        gridspec_kw={'height_ratios': [0.1, 1, 1]})
 
 z_l = np.array([0.15, 0.25, 0.35, 0.5, 0.7, 0.95])
 
 for i, statistic in enumerate(['gt', 'ds']):
     for j, survey in enumerate(['des', 'hsc', 'kids']):
-        ax = axs[i][j]
+        ax = axs[i + 1][j]
+        ax.axhline(0.1, color='black', ls='--')
+        ax.axvspan(0, 1.0, color='lightgrey', zorder=-99)
+        ax.set_xlabel(r'Minimum Scale $r_p \, [h^{-1} \, \mathrm{Mpc}]$')
         for name, label in zip([
                 'fiber_assignment_no_iip', 'lens_magnification',
                 'intrinsic_alignment', 'boost', 'reduced_shear'],
@@ -96,11 +90,34 @@ for i, statistic in enumerate(['gt', 'ds']):
                 chi_sq.append(significance(bias, cov, use))
             ax.plot(rp_min, chi_sq, label=label)
 
-for ax in [axs[0][0], axs[1][0]]:
+            text = '{}: '.format(survey.upper() if survey != 'kids' else
+                                 'KiDS')
+
+            if statistic == 'gt':
+                text += r'$\gamma_t$, no redshift cuts'
+            else:
+                text += r'$\Delta\Sigma$, redshift cuts'
+
+            ax.text(0.95, 0.95, text, transform=ax.transAxes, ha='right',
+                    va='top')
+
+for ax in [axs[1][0], axs[2][0]]:
     ax.set_xscale('log')
     ax.set_yscale('log')
     ax.set_ylim(ymin=5e-2)
+    ax.set_ylabel(r'Significance $\chi^2$')
 
-handles, labels = axs[0][0].get_legend_handles_labels()
-legend.legend(handles, labels, loc='center', frameon=False, ncols=4)
-legend.axis('off')
+for i in range(1, 3):
+    plt.setp(axs[1][i].get_yticklabels(), visible=False)
+    plt.setp(axs[2][i].get_yticklabels(), visible=False)
+
+handles, labels = axs[1][1].get_legend_handles_labels()
+axs[0, 1].legend(handles, labels, loc='center', frameon=False, ncols=3,
+                 borderpad=-10, bbox_to_anchor=(0.5, -0.9))
+axs[0, 0].axis('off')
+axs[0, 1].axis('off')
+axs[0, 2].axis('off')
+
+plt.tight_layout(pad=0.3)
+plt.savefig('significance.pdf')
+plt.savefig('significance.png', dpi=300)
