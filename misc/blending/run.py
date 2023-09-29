@@ -1,74 +1,59 @@
-import os
-import zebu
-import numpy as np
-from astropy.table import Table
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-from dsigma.precompute import add_precompute_results
-from dsigma.physics import critical_surface_density
+import numpy as np
+import os
+import zebu
+
+from astropy.io.ascii import convert_numpy
+from astropy.table import Table, vstack
+from dsigma.stacking import boost_factor
 
 # %%
 
-w = []
-table_s = Table.read(os.path.join(
-    zebu.base_dir, 'mocks', 'mocks', 'i_band_sample.hdf5'))
-table_s['z'] = 10.0
-table_s['z_l_max'] = 10.0
-table_s['e_1'] = 0.0
-table_s['e_2'] = 0.0
-table_s = table_s[table_s['w'] < 100]
-
-for key in table_s.colnames:
-    table_s[key] = table_s[key].astype(float)
-
-w = []
-
-for i in range(len(zebu.lens_z_bins) - 1):
-    table_l = zebu.read_mock_data('lens', i)
-    table_r = zebu.read_mock_data('random', i)
-    if i == 0:
-        table_l = table_l[::10]
-        table_r = table_r[::10]
-    if i < 2:
-        table_s_use = table_s[::10]
-    else:
-        table_s_use = table_s
-    table_l['w_sys'] = critical_surface_density(
-        table_l['z'], 10.0, cosmology=zebu.cosmo)**2
-    table_r['w_sys'] = critical_surface_density(
-        table_r['z'], 10.0, cosmology=zebu.cosmo)**2
-    add_precompute_results(
-        table_l, table_s_use, zebu.rp_bins, cosmology=zebu.cosmo,
-        progress_bar=True)
-    add_precompute_results(
-        table_r, table_s_use, zebu.rp_bins, cosmology=zebu.cosmo,
-        progress_bar=True)
-    w.append(np.mean(table_l['sum w_ls'].data *
-                     table_l['w_sys'].data[:, None], axis=0) /
-             np.mean(table_r['sum w_ls'].data *
-                     table_r['w_sys'].data[:, None], axis=0) - 1)
+converters = {'*': [convert_numpy(typ) for typ in (int, float, bool, str)]}
+table_c = Table.read(zebu.BASE_PATH / 'stacks' / 'config.csv',
+                     converters=converters)
 
 # %%
 
-rp = np.sqrt(zebu.rp_bins[1:] * zebu.rp_bins[:-1])
-z_bins = zebu.lens_z_bins
-color_list = plt.get_cmap('plasma')(np.linspace(0.0, 0.8, len(z_bins) - 1))
-cmap = mpl.colors.ListedColormap(color_list)
-sm = plt.cm.ScalarMappable(cmap=cmap)
-sm._A = []
-cb = plt.colorbar(sm, pad=0.0, ticks=np.linspace(0, 1, len(z_bins)))
-cb.ax.set_yticklabels(['{:g}'.format(z) for z in z_bins])
-cb.ax.minorticks_off()
-cb.set_label(r'Lens redshift $z_l$')
+for sources in ['des', 'kids']:
+    for i in range(5):
+        lens_bin = i % 3
+        lenses = 'bgs' if i < 3 else 'lrg'
+        n_s = 4 if sources != 'kids' else 5
 
-for i, color in enumerate(color_list):
-    plt.plot(rp, w[i], color=color)
+        config = table_c['configuration'][
+            (table_c['lenses'] == lenses) & (table_c['sources'] == sources) &
+            (table_c['photometric redshifts'])][0]
 
-plt.xscale('log')
-plt.xlabel(r'Projected radius $r_p \, [h^{-1} \, \mathrm{Mpc}]$')
-plt.ylabel(r'Angular clustering $w_i$')
-plt.xscale('log')
-plt.tight_layout(pad=0.8)
-plt.savefig('clustering.pdf')
-plt.savefig('clustering.png', dpi=300)
-plt.close()
+        table_l = vstack([Table.read(
+            zebu.BASE_PATH / 'stacks' / 'results' / '{}'.format(
+                config) / 'l{}_s{}_ds.hdf5'.format(lens_bin, source_bin)) for
+            source_bin in range(n_s)])
+
+        config = table_c['configuration'][
+            (table_c['lenses'] == lenses + '-r') &
+            (table_c['sources'] == sources) &
+            (table_c['photometric redshifts'])][0]
+
+        table_r = vstack([Table.read(
+            zebu.BASE_PATH / 'stacks' / 'results' / '{}'.format(
+                config) / 'l{}_s{}_ds.hdf5'.format(lens_bin, source_bin)) for
+            source_bin in range(n_s)])
+
+        b = boost_factor(table_l, table_r)
+
+        rp = np.sqrt(zebu.RP_BINS[1:] * zebu.RP_BINS[:-1])
+        color = mpl.colormaps['Blues' if lenses == 'bgs' else 'Reds'](
+            (lens_bin + 1.5) / 4.0)
+        plt.plot(rp, b - 1, color=color, label='{}-{}'.format(
+            lenses.upper(), lens_bin + 1))
+
+    plt.xscale('log')
+    plt.legend(loc='best', frameon=False)
+    plt.xlabel(r'Projected radius $r_p \, [h^{-1} \, \mathrm{Mpc}]$')
+    plt.ylabel(r'Angular clustering $w_i$')
+    plt.tight_layout(pad=0.8)
+    plt.savefig('clustering_{}.pdf'.format(sources))
+    plt.savefig('clustering_{}.png'.format(sources), dpi=300)
+    plt.close()
