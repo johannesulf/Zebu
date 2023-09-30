@@ -13,6 +13,7 @@ all:
 	cp ../stacks/plots_relative/lens_magnification_gt_des.pdf ./
 	cp ../stacks/plots_relative/source_magnification_ds_hsc.pdf ./
 	cp ../stacks/plots_relative/reduced_shear_ds_hsc.pdf ./
+	cp ../misc/blending/clustering_des.pdf ./
 	cp ../misc/significance/significance.pdf ./
 	
 	bibm pdflatex ms.tex

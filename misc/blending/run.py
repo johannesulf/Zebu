@@ -49,6 +49,7 @@ for sources in ['des', 'kids']:
         plt.plot(rp, b - 1, color=color, label='{}-{}'.format(
             lenses.upper(), lens_bin + 1))
 
+    plt.axvspan(0, 1, color='lightgrey', zorder=-99)
     plt.xscale('log')
     plt.legend(loc='best', frameon=False)
     plt.xlabel(r'Projected radius $r_p \, [h^{-1} \, \mathrm{Mpc}]$')
