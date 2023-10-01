@@ -6,8 +6,6 @@ import zebu
 from astropy.table import Table
 from astropy import units as u
 
-zebu.SOURCE_Z_BINS['des'] = np.array([0.0, 0.358, 0.631, 0.872, 2.0])
-
 # %%
 
 
@@ -34,7 +32,7 @@ fig, axs = plt.subplots(ncols=3, nrows=3, figsize=(7, 3.5), sharex='row',
                         sharey='row',
                         gridspec_kw={'height_ratios': [0.1, 1, 1]})
 
-z_l = np.array([0.15, 0.25, 0.35, 0.5, 0.7, 0.95])
+z_l = np.concatenate((zebu.LENS_Z['bgs'], zebu.LENS_Z['lrg'], [0.95]))
 
 for i, statistic in enumerate(['gt', 'ds']):
     for j, survey in enumerate(['des', 'hsc', 'kids']):
@@ -81,11 +79,9 @@ for i, statistic in enumerate(['gt', 'ds']):
             for k in range(len(rp_min)):
                 use = (data['lens_bin'] <= 4) & (data['r'] > rp_min[k])
                 if statistic == 'ds':
-                    z_s = 0.5 * (
-                        zebu.SOURCE_Z_BINS[survey][1:] +
-                        zebu.SOURCE_Z_BINS[survey][:-1])
+                    z_s = zebu.SOURCE_Z[survey]
                     use = use & (z_l[data['lens_bin']] <
-                                 z_s[data['source_bin']] - 0.4)
+                                 z_s[data['source_bin']] - 0.2)
 
                 chi_sq.append(significance(bias, cov, use))
             ax.plot(rp_min, chi_sq, label=label)
@@ -105,7 +101,8 @@ for ax in [axs[1][0], axs[2][0]]:
     ax.set_xscale('log')
     ax.set_yscale('log')
     ax.set_ylim(ymin=5e-2)
-    ax.set_ylabel(r'Significance $\chi^2$')
+    ax.set_ylabel(r'Significance $\Delta\chi^2$')
+    ax.set_yticks([0.1, 1, 10, 100], ['0.1', '1', '10', '100'])
 
 for i in range(1, 3):
     plt.setp(axs[1][i].get_yticklabels(), visible=False)

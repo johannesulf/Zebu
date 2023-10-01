@@ -17,9 +17,7 @@ from pathlib import Path
 
 zebu.SOURCE_Z_BINS['des'] = np.array([0.0, 0.358, 0.631, 0.872, 2.0])
 camb_results = zebu.get_camb_results()
-z_l_all = np.concatenate([
-    0.5 * (zebu.LENS_Z_BINS['bgs'][1:] + zebu.LENS_Z_BINS['bgs'][:-1]),
-    0.5 * (zebu.LENS_Z_BINS['lrg'][1:] + zebu.LENS_Z_BINS['lrg'][:-1])])
+z_l_all = np.concatenate((zebu.LENS_Z['bgs'], zebu.LENS_Z['lrg']))
 
 
 def boost_factor(table_l, table_r, **kwargs):
@@ -210,7 +208,7 @@ def plot_results(path, statistic='ds', survey='des', config={},
         for k in range(n_bins_s):
 
             z_l = z_l_all[j]
-            z_s = np.mean(zebu.SOURCE_Z_BINS[survey][[k, k + 1]])
+            z_s = zebu.SOURCE_Z[survey][k]
             if table_l_1[j][k] is None or table_l_2[j][k] is None:
                 continue
 
