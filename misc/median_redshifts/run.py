@@ -1,17 +1,23 @@
 import numpy as np
 import zebu
 
-z_s = dict()
+z_med = dict()
 
-for survey in ['des', 'hsc', 'kids']:
+for survey in ['bgs', 'lrg', 'des', 'hsc', 'kids']:
 
-    table_s = zebu.read_mock_catalog(
+    table = zebu.read_mock_catalog(
         survey,  zebu.MOCK_PATH / 'buzzard-4', zebu.PIXELS)
-    z_s[survey] = []
+    z_med[survey] = []
 
-    for source_bin in range(len(zebu.SOURCE_Z_BINS[survey]) - 1):
-        use = ((zebu.SOURCE_Z_BINS[survey][source_bin] < table_s['z']) &
-               (table_s['z'] <= zebu.SOURCE_Z_BINS[survey][source_bin + 1]))
-        z_s[survey].append(np.median(table_s['z_true'][use]))
+    if survey in ['bgs', 'lrg']:
+        bins = zebu.LENS_Z_BINS[survey]
+        table['z_true'] = table['z']
+    else:
+        bins = zebu.SOURCE_Z_BINS[survey]
 
-print(z_s)
+    for tomographic_bin in range(len(bins) - 1):
+        use = ((bins[tomographic_bin] < table['z']) &
+               (table['z'] <= bins[tomographic_bin + 1]))
+        z_med[survey].append(np.median(table['z_true'][use]))
+
+print(z_med)

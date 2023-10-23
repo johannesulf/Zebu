@@ -251,7 +251,7 @@ def plot_results(path, statistic='ds', survey='des', config={},
                     y = x * y
                     y_err = x * y_err
 
-            if z_l >= z_s - 0.1:
+            if z_l >= z_s - 0.1001:
                 continue
 
             plotline, caps, barlinecols = axes[j].errorbar(
