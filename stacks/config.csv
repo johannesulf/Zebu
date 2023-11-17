@@ -81,3 +81,7 @@ configuration,lenses,sources,photometric redshifts,lens magnification,source mag
 79,lrg-r,des,True,False,False,False,False,False,False,False,False
 80,lrg-r,hsc,True,False,False,False,False,False,False,False,False
 81,lrg-r,kids,True,False,False,False,False,False,False,False,False
+82,bgs,hsc,True,False,False,False,True,False,False,False,False
+83,bgs-r,hsc,True,False,False,False,True,False,False,False,False
+84,lrg,hsc,True,False,False,False,True,False,False,False,False
+85,lrg-r,hsc,True,False,False,False,True,False,False,False,False
