@@ -192,6 +192,7 @@ def plot_results(path, statistic='ds', survey='des', config={},
 
     table_w = zebu.covariance(statistic.split('-')[0], survey)[1]
     table_w['value'] = np.repeat(np.nan, len(table_w))
+    table_w['error'] = np.repeat(np.nan, len(table_w))
 
     for j in range(n_bins_l):
         stacking_kwargs = zebu.stacking_kwargs(
@@ -242,8 +243,10 @@ def plot_results(path, statistic='ds', survey='des', config={},
                 table_w['value'][use] = y
                 y_err /= y_norm
                 y_err = np.abs(y_err)
+                table_w['error'][use] = y_err
             else:
                 table_w['value'][use] = y
+                table_w['error'][use] = y_err
                 if statistic == 'gt':
                     y *= 1e3
                     y_err *= 1e3
@@ -371,3 +374,11 @@ for path, relative in zip([Path('plots_absolute'), Path('plots_relative')],
                 path / ('reduced_shear_{}_{}'.format(statistic, survey)),
                 statistic=statistic, survey=survey,
                 config=dict(reduced_shear=(False, True)), relative=relative)
+
+            if survey == 'hsc':
+                plot_results(
+                    path / ('shear_bias_without_reduced_shear_{}_{}'.format(
+                        statistic, survey)),
+                    statistic=statistic, survey=survey,
+                    config=dict(reduced_shear=False, shear_bias=(False, True)),
+                    relative=relative)
