@@ -20,7 +20,7 @@ multiprocessing.process.current_process()._config['tempdir'] = '/dev/shm'
 
 parser = argparse.ArgumentParser()
 parser.add_argument('config', type=int, help='configuration number',
-                    choices=range(86))
+                    choices=range(92))
 args = parser.parse_args()
 
 path = Path('results', '{}'.format(args.config))
@@ -40,6 +40,7 @@ table_l_all, table_s_all, table_c_all = zebu.read_mock_catalog(
     intrinsic_alignment=config['intrinsic alignment'],
     shear_bias=config['shear bias'],
     reduced_shear=config['reduced shear'],
+    one_pass=config['one_pass'],
     shape_noise=config['shape noise'])
 table_l_all['field_jk'] = HEALPix(8, order='nested').lonlat_to_healpix(
     table_l_all['ra'] * u.deg, table_l_all['dec'] * u.deg)

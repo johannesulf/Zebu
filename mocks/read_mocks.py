@@ -50,7 +50,7 @@ def read_mock_catalog(survey, path, pixels, magnification=True,
                       fiber_assignment=False, iip_weights=True,
                       intrinsic_alignment=False, shear_bias=True,
                       shape_noise=False, unlensed_coordinates=False,
-                      reduced_shear=True):
+                      reduced_shear=True, one_pass=False):
     """
     Read in one or multiple mock catalogs.
 
@@ -89,6 +89,9 @@ def read_mock_catalog(survey, path, pixels, magnification=True,
     reduced_shear : bool, optional
         Whether to use the reduced shear or just the shear for the intrinsic
         gravitational signal. Default is True.
+    one_pass: bool, optional
+        Whether to only use one pass for the fiber assignment. Default is
+        False.
 
     Returns
     -------
@@ -272,10 +275,9 @@ def read_mock_catalog(survey, path, pixels, magnification=True,
                     table_all[survey].remove_column(key)
         if survey in ['bgs', 'lrg'] and fiber_assignment:
             table = table_all[survey]
-            if magnification:
-                fname = 'withmag_assigned_{}_mocks.fits'.format(survey)
-            else:
-                fname = 'nomag_assigned_{}_mocks.fits'.format(survey)
+            fname = '{}{}_assigned_{}_mocks.fits'.format(
+                'withmag' if magnification else 'nomag', '_firstpass' if
+                one_pass else '', survey)
             table_f = Table.read(path / fname)
             coord = SkyCoord(table['ra'], table['dec'], unit='deg')
             coord_f = SkyCoord(table_f['ra'], table_f['dec'], unit='deg')
@@ -367,6 +369,8 @@ The tables have the following columns (if applicable).
     parser.add_argument(
         '--shape_noise', help='Include shape noise.', action='store_true')
     parser.add_argument(
+        '--one_pass', help='Use one pass for fibers.', action='store_true')
+    parser.add_argument(
         '--overwrite', help='Overwrite existing files.', action='store_true')
 
     args = parser.parse_args()
@@ -385,9 +389,9 @@ The tables have the following columns (if applicable).
     else:
         filenames = [args.filename, ]
 
-    # path = (Path(os.getenv('CFS')) / 'desicollab' / 'science' / 'c3' /
-    #        'DESI-Lensing' / 'mocks' / 'buzzard-{}'.format(args.buzzard))
-    path = Path('buzzard-4')
+    path = (Path(os.getenv('CFS')) / 'desicollab' / 'science' / 'c3' /
+            'DESI-Lensing' / 'mocks' / 'buzzard-{}'.format(args.buzzard))
+    # path = Path('buzzard-4')
 
     if args.pixels is None:
         pixels = []
@@ -416,7 +420,8 @@ The tables have the following columns (if applicable).
         fiber_assignment=args.fiber_assignment,
         intrinsic_alignment=args.intrinsic_alignment,
         shear_bias=args.shear_bias, shape_noise=args.shape_noise,
-        unlensed_coordinates=args.unlensed_coordinates)
+        unlensed_coordinates=args.unlensed_coordinates,
+        one_pass=args.one_pass)
     tables = [tables] if not isinstance(tables, list) else tables
 
     for table, filename, survey in zip(tables, filenames, args.surveys):

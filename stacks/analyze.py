@@ -28,7 +28,8 @@ def read_precomputed_data(
         lenses, sources, statistic, lens_magnification=False,
         source_magnification=False, fiber_assignment=False, iip_weights=True,
         intrinsic_alignment=False, photometric_redshifts=True,
-        shear_bias=False, shape_noise=False, reduced_shear=True):
+        shear_bias=False, shape_noise=False, reduced_shear=True,
+        one_pass=False):
 
     if sources != 'hsc':
         photometric_redshifts = True
@@ -51,6 +52,7 @@ def read_precomputed_data(
     select &= table['photometric redshifts'] == photometric_redshifts
     select &= table['shear bias'] == shear_bias
     select &= table['reduced shear'] == reduced_shear
+    select &= table['one pass'] == one_pass
     select &= table['shape noise'] == shape_noise
     if np.sum(select) == 0:
         raise ValueError('Configuration with these options not available.')
