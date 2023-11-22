@@ -85,9 +85,9 @@ configuration,lenses,sources,photometric redshifts,lens magnification,source mag
 83,bgs-r,hsc,True,False,False,False,True,False,False,False,False,False
 84,lrg,hsc,True,False,False,False,True,False,False,False,False,False
 85,lrg-r,hsc,True,False,False,False,True,False,False,False,False,False
-86,bgs,des,True,False,False,False,False,True,True,False,True,False
-87,bgs,hsc,True,False,False,False,False,True,True,False,True,False
-88,bgs,kids,True,False,False,False,False,True,True,False,True,False
-89,lrg,des,True,False,False,False,False,True,True,False,True,False
-90,lrg,hsc,True,False,False,False,False,True,True,False,True,False
-91,lrg,kids,True,False,False,False,False,True,True,False,True,False
+86,bgs,des,True,False,False,False,False,True,True,True,True,False
+87,bgs,hsc,True,False,False,False,False,True,True,True,True,False
+88,bgs,kids,True,False,False,False,False,True,True,True,True,False
+89,lrg,des,True,False,False,False,False,True,True,True,True,False
+90,lrg,hsc,True,False,False,False,False,True,True,True,True,False
+91,lrg,kids,True,False,False,False,False,True,True,True,True,False
