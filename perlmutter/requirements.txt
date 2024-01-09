@@ -10,7 +10,7 @@ decorator==5.1.1
 dsigma==0.7.2
 executing==1.2.0
 fitsio==1.1.8
-fonttools==4.38.0
+fonttools==4.43.0
 h5py==3.7.0
 healpy==1.16.2
 importlib-metadata==6.6.0
