@@ -5,7 +5,7 @@ contourpy==1.0.6
 cycler==0.11.0
 Cython==0.29.32
 dsigma @ git+https://github.com/johannesulf/dsigma.git@ea4538b7fdbe33d2d357b8f6902f3ab1865d5a38
-fonttools==4.38.0
+fonttools==4.43.0
 h5py==3.8.0
 healpy==1.16.1
 joblib==1.2.0
