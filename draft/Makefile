@@ -15,7 +15,12 @@ all:
 	cp ../stacks/plots_relative/reduced_shear_ds_hsc.pdf ./
 	cp ../misc/blending/clustering_des.pdf ./
 	cp ../misc/significance/significance.pdf ./
-	
+
+	mkauthlist -f -j mnras -c "" author_list.csv tmp.tex
+	grep '\$$\^{[0-9,]*}\$$$$' tmp.tex > authors.tex
+	grep '^\$$\^{[0-9,]*}\$$' tmp.tex > affiliations.tex
+	rm tmp.tex
+
 	bibm pdflatex ms.tex
 	zip source.zip *.tex ms.bbl bibliography.bib *.pdf
 
