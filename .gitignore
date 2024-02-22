@@ -24,3 +24,6 @@ stacks/plots_relative/*
 !stacks/plots_relative/source_magnification_ds_hsc.pdf
 draft/*
 !draft/Makefile
+misc/resolution/analytic_model/*
+!misc/resolution/analytic_model/kmax2.conf
+!misc/resolution/analytic_model/normal.conf

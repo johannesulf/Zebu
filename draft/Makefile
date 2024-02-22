@@ -21,8 +21,11 @@ all:
 	grep '^\$$\^{[0-9,]*}\$$' tmp.tex > affiliations.tex
 	rm tmp.tex
 
+	latexdiff --disable-citation-markup ms_cwr.tex ms.tex > diff_cwr.tex
+	bibm pdflatex diff_cwr.tex
+
 	bibm pdflatex ms.tex
-	zip source.zip *.tex ms.bbl bibliography.bib *.pdf
+	zip -FS source.zip ms.tex authors.tex affiliations.tex ms.bbl bibliography.bib *.pdf -x diff_*.pdf
 
 clean:
 	rm -f *.log
