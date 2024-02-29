@@ -193,8 +193,8 @@ for lenses in ['bgs', 'lrg']:
     for lens_bin in range(len(zebu.LENS_Z_BINS[lenses]) - 1):
         results = Table.read('{}_{}.csv'.format(lenses, lens_bin))
         rp = np.sqrt(zebu.RP_BINS[1:] * zebu.RP_BINS[:-1])
-        color = mpl.colormaps['viridis' if lenses == 'bgs' else 'plasma'](
-            (lens_bin + 0.5) / 3.0)
+        color = mpl.colormaps['plasma'](
+            (lens_bin + (lenses == 'lrg') * 3 + 0.5) / 5.0)
         plt.plot(rp, rp * results['ds_ptcl'], ls='-', label='{}-{}'.format(
             lenses.upper(), lens_bin + 1), color=color)
         plt.plot(rp, rp * results['ds_shear'], ls='--', color=color)
@@ -216,8 +216,8 @@ for ax, lenses in zip(axarr, ['bgs', 'lrg']):
     for lens_bin in range(len(zebu.LENS_Z_BINS[lenses]) - 1):
         results = Table.read('{}_{}.csv'.format(lenses, lens_bin))[:-3]
         rp = np.sqrt(zebu.RP_BINS[1:] * zebu.RP_BINS[:-1])[:-3]
-        color = mpl.colormaps['viridis' if lenses == 'bgs' else 'plasma'](
-            (lens_bin + 0.5) / 3.0)
+        color = mpl.colormaps['plasma'](
+            (lens_bin + (lenses == 'lrg') * 3) / 5.0)
         x = rp * (1 + lens_bin * 0.03)
         y = results['ds_shear'] / results['ds_ptcl']
         y_err = results['ds_diff_err'] / results['ds_shear']

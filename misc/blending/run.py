@@ -44,8 +44,7 @@ for sources in ['des', 'kids']:
         b = boost_factor(table_l, table_r)
 
         rp = np.sqrt(zebu.RP_BINS[1:] * zebu.RP_BINS[:-1])
-        color = mpl.colormaps['Blues' if lenses == 'bgs' else 'Reds'](
-            (lens_bin + 1.5) / 4.0)
+        color = mpl.colormaps['plasma'](i / 5.0)
         plt.plot(rp, b - 1, color=color, label='{}-{}'.format(
             lenses.upper(), lens_bin + 1))
 
