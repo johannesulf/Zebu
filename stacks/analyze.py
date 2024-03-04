@@ -37,6 +37,7 @@ def read_precomputed_data(
     if lenses in ['bgs-r', 'lrg-r']:
         lens_magnification = False
         fiber_assignment = False
+        one_pass = False
 
     converters = {'*': [convert_numpy(typ) for typ in (int, float, bool, str)]}
     table = Table.read('config.csv', converters=converters)
@@ -358,7 +359,8 @@ for path, relative in zip([Path('plots_absolute'), Path('plots_relative')],
             plot_results(
                 path / ('shear_bias_{}_{}'.format(statistic, survey)),
                 statistic=statistic, survey=survey,
-                config=dict(shear_bias=(False, True)), relative=relative)
+                config=dict(shear_bias=(False, True),
+                            source_magnification=True), relative=relative)
 
             plot_results(
                 path / ('fiber_assignment_no_iip_{}_{}'.format(
@@ -377,10 +379,9 @@ for path, relative in zip([Path('plots_absolute'), Path('plots_relative')],
                 statistic=statistic, survey=survey,
                 config=dict(reduced_shear=(False, True)), relative=relative)
 
-            if survey == 'hsc':
-                plot_results(
-                    path / ('shear_bias_without_reduced_shear_{}_{}'.format(
-                        statistic, survey)),
-                    statistic=statistic, survey=survey,
-                    config=dict(reduced_shear=False, shear_bias=(False, True)),
-                    relative=relative)
+            plot_results(
+                path / ('fiber_assignment_one_pass_{}_{}'.format(
+                    statistic, survey)),
+                statistic=statistic, survey=survey,
+                config=dict(fiber_assignment=(False, True),
+                            one_pass=(False, True)), relative=relative)

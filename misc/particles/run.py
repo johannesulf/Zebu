@@ -15,13 +15,26 @@ from dsigma.jackknife import compress_jackknife_fields
 from dsigma.stacking import excess_surface_density
 from scipy.interpolate import interp1d
 
+
+DOWNSAMPLE = 1
+PARTICLE_MASS = 7.94069e12 * DOWNSAMPLE
+
+
 # %%
 
+def lens_weight(z_l, z_s):
+    # Determine the effective weight assigned to each lens galaxy in the
+    # galaxy-galaxy lensing measurements.
+    return np.mean([
+        zebu.COSMOLOGY.comoving_distance(z_l).value**-2 *
+        critical_surface_density(z_l, z, cosmology=zebu.COSMOLOGY)**-2 *
+        (z_l + 0.2 < z) for z in z_s])
 
-def delta_sigma_from_sigma(rp_bins, sigma, n):
+
+def delta_sigma_from_sigma(rp_bins, sigma, weights, n):
 
     # Let's first estimate DS in each of the fine bins.
-    sigma = np.average(sigma, axis=0)
+    sigma = np.average(sigma, weights=weights, axis=0)
     ds = np.zeros_like(sigma)
     w = np.diff(rp_bins**2)
     for i in range(1, len(ds)):
@@ -47,10 +60,9 @@ args = parser.parse_args()
 if args.compute:
 
     pixels = zebu.PIXELS
-    downsample = 1
     ptcl = vstack([Table.read(os.path.join(
         'files', 'downsampled_particles.{}.fits'.format(i))) for i in
-        range(64)])[::downsample]
+        range(64)])[::DOWNSAMPLE]
     ra, dec = vec2ang(np.vstack([ptcl['PX'], ptcl['PY'], ptcl['PZ']]).T,
                       lonlat=True)
 
@@ -59,10 +71,22 @@ if args.compute:
     ptcl.keep_columns(['ra', 'dec', 'Z_COS'])
     table_s_all = dsigma_table(ptcl, 'source', z='Z_COS', w=1, e_1=0, e_2=0)
 
+    table_s = zebu.read_mock_catalog('hsc', zebu.MOCK_PATH / 'buzzard-4',
+                                     zebu.PIXELS)
+    table_s = table_s[
+        np.digitize(table_s['z'], zebu.SOURCE_Z_BINS['hsc']) == 4]
+    z_s = np.random.choice(table_s['z_true'], 1000)
+
     for lenses in ['bgs', 'lrg']:
         table_l_all, table_r_all = zebu.read_mock_catalog(
             [lenses, lenses + '-r'], zebu.MOCK_PATH / 'buzzard-4', pixels,
             magnification=False, unlensed_coordinates=True)
+        table_l_all = table_l_all[
+            (table_l_all['z'] >= zebu.LENS_Z_BINS[lenses][0]) &
+            (table_l_all['z'] <= zebu.LENS_Z_BINS[lenses][-1])]
+        table_r_all = table_r_all[
+            (table_r_all['z'] >= zebu.LENS_Z_BINS[lenses][0]) &
+            (table_r_all['z'] <= zebu.LENS_Z_BINS[lenses][-1])]
         table_l_all['field_jk'] = ang2pix(
             8, table_l_all['ra'], table_l_all['dec'], nest=True, lonlat=True)
         table_r_all['field_jk'] = ang2pix(
@@ -73,15 +97,13 @@ if args.compute:
 
         # Account for the fact that the GGL estimator weighs lenses differently
         # depending on redshift.
-        z_l = np.linspace(1e-6, 3.0, 100000)
-        z_s = 1.35  # rough redshift of HSC galaxies we'll compare against
+        z_l = np.linspace(zebu.LENS_Z_BINS[lenses][0],
+                          zebu.LENS_Z_BINS[lenses][-1], 1000)
         table_l_all['w_sys'] = interp1d(
-            z_l, zebu.COSMOLOGY.comoving_distance(z_l).value**-2 *
-            critical_surface_density(z_l, z_s, cosmology=zebu.COSMOLOGY)**-2,
+            z_l, [lens_weight(z, z_s) for z in z_l],
             kind='cubic')(table_l_all['z'])
         table_r_all['w_sys'] = interp1d(
-            z_l, zebu.COSMOLOGY.comoving_distance(z_l).value**-2 *
-            critical_surface_density(z_l, z_s, cosmology=zebu.COSMOLOGY)**-2,
+            z_l, [lens_weight(z, z_s) for z in z_l],
             kind='cubic')(table_r_all['z'])
 
         if lenses == 'bgs':
@@ -117,18 +139,18 @@ if args.compute:
                 table_l = table_l_all[select_l]
                 table_r = table_r_all[select_r]
                 table_s = table_s_all[select_s]
+                d_l = zebu.COSMOLOGY.comoving_distance(
+                    0.5 * (z_min + z_max)).to(u.Mpc).value
 
                 kwargs = dict(cosmology=zebu.COSMOLOGY, progress_bar=True,
                               n_jobs=40, lens_source_cut=None, weighting=0)
                 table_l = precompute(table_l, table_s, rp_bins, **kwargs)
                 table_r = precompute(table_r, table_s, rp_bins, **kwargs)
-                d = zebu.COSMOLOGY.comoving_distance(0.5 * (z_min + z_max)).to(
-                    u.Mpc).value
-                area = - 2 * np.pi * d**2 * np.diff(np.cos(rp_bins / d))
+                area = - 2 * np.pi * d_l**2 * np.diff(np.cos(rp_bins / d_l))
                 table_l_all['sigma'][select_l] = (
-                    table_l['sum 1'] * 7.94069e12 * downsample / area)
+                    table_l['sum 1'] * PARTICLE_MASS / area)
                 table_r_all['sigma'][select_r] = (
-                    table_r['sum 1'] * 7.94069e12 * downsample / area)
+                    table_r['sum 1'] * PARTICLE_MASS / area)
 
             z_min = zebu.LENS_Z_BINS[lenses][lens_bin]
             z_max = zebu.LENS_Z_BINS[lenses][lens_bin + 1]
@@ -163,8 +185,10 @@ if args.compute:
             table_l_shear.sort('field_jk')
             table_r_shear.sort('field_jk')
 
-            ds_ptcl = (delta_sigma_from_sigma(rp_bins, table_l['sigma'], n) -
-                       delta_sigma_from_sigma(rp_bins, table_r['sigma'], n))
+            ds_ptcl = (delta_sigma_from_sigma(
+                rp_bins, table_l['sigma'], table_l['w_sys'], n) -
+                delta_sigma_from_sigma(
+                rp_bins, table_r['sigma'], table_r['w_sys'], n))
             ds_shear = excess_surface_density(table_l_shear, table_r=table_r)
 
             ds_ptcl = np.zeros((len(table_l), len(zebu.RP_BINS) - 1))
@@ -173,9 +197,11 @@ if args.compute:
                 select = np.arange(len(table_l)) != i
                 ds_ptcl[i, :] = (
                     delta_sigma_from_sigma(
-                        rp_bins, table_l['sigma'][select], n) -
+                        rp_bins, table_l['sigma'][select],
+                        table_l['w_sys'][select], n) -
                     delta_sigma_from_sigma(
-                        rp_bins, table_r['sigma'][select], n))
+                        rp_bins, table_r['sigma'][select],
+                        table_r['w_sys'][select], n))
                 ds_shear[i, :] = excess_surface_density(
                     table_l_shear[select], table_r_shear[select],
                     random_subtraction=True)
@@ -214,8 +240,8 @@ fig, axarr = plt.subplots(nrows=2, sharex=True, figsize=(3.33, 3.33))
 
 for ax, lenses in zip(axarr, ['bgs', 'lrg']):
     for lens_bin in range(len(zebu.LENS_Z_BINS[lenses]) - 1):
-        results = Table.read('{}_{}.csv'.format(lenses, lens_bin))[:-3]
-        rp = np.sqrt(zebu.RP_BINS[1:] * zebu.RP_BINS[:-1])[:-3]
+        results = Table.read('{}_{}.csv'.format(lenses, lens_bin))[:-2]
+        rp = np.sqrt(zebu.RP_BINS[1:] * zebu.RP_BINS[:-1])[:-2]
         color = mpl.colormaps['plasma'](
             (lens_bin + (lenses == 'lrg') * 3) / 5.0)
         x = rp * (1 + lens_bin * 0.03)
@@ -231,7 +257,11 @@ for ax in axarr:
     ax.axhline(1.0, ls='--', color='black', zorder=-1)
     ax.set_ylabel(r'$\Delta \Sigma_{\rm shear} / \Delta \Sigma_{\rm ptcl}$')
     ax.legend(loc='best', frameon=False)
-    ax.set_ylim(0.75, 1.09)
+
+axarr[0].set_ylim(0.78, 1.12)
+axarr[1].set_ylim(0.96, 1.07)
+axarr[1].set_yticks(np.arange(0.97, 1.07, 0.03))
+
 plt.xscale('log')
 axarr[1].set_xlabel(r'Projected radius $r_p \, [h^{-1} \, \mathrm{Mpc}]$')
 plt.tight_layout(pad=0.3)
