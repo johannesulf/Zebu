@@ -20,7 +20,7 @@ def random_ra_dec(n, pixels):
     Compute random angular coordinates.
 
     The function is hard-coded to only return coordinates from the quarter of
-    the sky covered by the Aemulus mocks.
+    the sky covered by the Buzzard mocks.
 
     Attributes
     ----------
@@ -44,6 +44,36 @@ def random_ra_dec(n, pixels):
     pix = hp.lonlat_to_healpix(ra * u.deg, dec * u.deg)
     mask = np.isin(pix, pixels)
     return ra[mask], dec[mask]
+
+
+def apply_shape_noise(table_s, sigma):
+    """
+    Apply shape noise to the e_1 and e_2 components.
+
+    Attributes
+    ----------
+    table_s : astropy.Table
+        Table of sources.
+    sigma : numpy.ndarray
+        Noise for each source.
+
+    Returns
+    -------
+    table_s : astropy.Table
+        Table of sources.
+
+    """
+    n_1 = np.random.normal(scale=sigma, size=len(table_s))
+    n_2 = np.random.normal(scale=sigma, size=len(table_s))
+
+    a_1 = table_s['e_1'] + n_1
+    a_2 = table_s['e_2'] + n_2
+    a_3 = 1.0 + table_s['e_1'] * n_1 + table_s['e_2'] * n_2
+    a_4 = table_s['e_1'] * n_2 - table_s['e_2'] * n_1
+    table_s['e_1'] = (a_1 * a_3 + a_2 * a_4) / (a_3 * a_3 + a_4 * a_4)
+    table_s['e_2'] = (a_2 * a_3 - a_1 * a_4) / (a_3 * a_3 + a_4 * a_4)
+
+    return table_s
 
 
 def read_mock_catalog(survey, path, pixels, magnification=True,
@@ -112,9 +142,7 @@ def read_mock_catalog(survey, path, pixels, magnification=True,
         * 'abs_mag_r': absolute rest-frame r-band magnitude (for BGS cuts)
 
     """
-    if shape_noise and not shear_bias:
-        raise ValueError('If `shape_noise` is true, `shear_bias` must also ' +
-                         'be true.')
+    np.random.seed(0)
 
     if isinstance(survey, str):
         return_array = False
@@ -217,6 +245,10 @@ def read_mock_catalog(survey, path, pixels, magnification=True,
                 table['R_21'] = 0
             if 'R_12' in table_all[survey].colnames:
                 table['R_12'] = 0
+        elif not magnification:
+            for key in ['m', 'e_rms', 'R_11', 'R_22', 'R_12', 'R_21']:
+                if key in table.colnames and key + '_t' in table.colnames:
+                    table[key] = table[key + '_t']
 
         r = np.ones(len(table))
         if 'm' in table.colnames:
@@ -229,21 +261,31 @@ def read_mock_catalog(survey, path, pixels, magnification=True,
         if survey in ['des-c', 'hsc-c', 'kids-c']:
             table['w_sys'] = r
 
-        if not shape_noise:
-            table['e_1'] = table['g_1'] * r
-            table['e_2'] = table['g_2'] * r
-            if intrinsic_alignment:
-                table['e_1'] += table['ia_1'] * r
-                table['e_2'] += table['ia_2'] * r
-        elif shape_noise and not intrinsic_alignment:
-            table['e_1'] -= table['ia_1'] * r
-            table['e_2'] -= table['ia_2'] * r
+        table['e_1'] = table['g_1'] * r
+        table['e_2'] = table['g_2'] * r
+        if intrinsic_alignment:
+            table['e_1'] += table['ia_1'] * r
+            table['e_2'] += table['ia_2'] * r
 
         if not reduced_shear:
             table['e_1'] -= table['g_1'] * (table['mu'] - 1) / 2.0 * r
             table['e_2'] -= table['g_2'] * (table['mu'] - 1) / 2.0 * r
 
         table['e_2'] = - table['e_2']
+
+        if shape_noise:
+
+            if survey in ['des', 'kids']:
+                if survey == 'des':
+                    sigma = np.array([0.201, 0.204, 0.195, 0.203])
+                else:
+                    sigma = np.array([0.274, 0.271, 0.289, 0.287, 0.301])
+                sigma = sigma[np.digitize(
+                    table['z'], SOURCE_Z_BINS[survey]) - 1]
+            else:
+                sigma = 1.0 / np.sqrt(table['w'])
+
+            table_all[survey] = apply_shape_noise(table, sigma)
 
     for survey in survey_list:
         if survey in ['bgs', 'lrg', 'bgs-r', 'lrg-r']:

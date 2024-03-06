@@ -355,7 +355,7 @@ def lrg_target(table, lensed=True):
     return lrg
 
 
-def apply_observed_shear(table_s, survey=None):
+def add_source_properties(table_s, survey=None):
 
     table_s_ref = TABLE_S[survey]
     n_max = 1000000
@@ -363,56 +363,32 @@ def apply_observed_shear(table_s, survey=None):
         table_s_ref = table_s_ref[
             np.random.choice(len(table_s_ref), n_max, replace=False)]
 
-    mag = table_s['mag'][:, [b in table_s_ref.meta['bands'] for b in
-                             table_s.meta['bands']]]
     mag_ref = table_s_ref['mag']
-
     tree = cKDTree(mag_ref)
-    idx = tree.query(mag, k=3)[1]
-    idx = np.array(idx)
-    idx = idx[np.arange(len(idx)), np.random.randint(3, size=len(idx))]
-    idx = np.where(idx == n_max, np.random.randint(n_max, size=len(idx)), idx)
 
-    for key in table_s_ref.colnames:
-        if key in ['m', 'w', 'R_11', 'R_22', 'R_12', 'R_21',
-                   'e_rms']:
-            table_s[key] = table_s_ref[key][idx]
+    for suffix in ['', '_t']:
+        mag = table_s['mag' + suffix][
+            :, [b in table_s_ref.meta['bands'] for b in table_s.meta['bands']]]
 
-    if survey.lower() in ['des', 'kids']:
-        if survey.lower() == 'des':
-            m = np.array([-0.006, -0.020, -0.024, -0.037])
-        else:
-            m = np.array([-0.009, -0.011, -0.015, 0.002, 0.007])
-        z_dig = np.digitize(
-            table_s['z'], SOURCE_Z_BINS[survey.lower()]) - 1
-        table_s['m'] = m[z_dig]
+        idx = tree.query(mag, k=3)[1]
+        idx = np.array(idx)
+        idx = idx[np.arange(len(idx)), np.random.randint(3, size=len(idx))]
+        idx = np.where(idx == n_max, np.random.randint(n_max, size=len(idx)),
+                       idx)
 
-    if survey.lower() in ['hsc', 'kids']:
-        table_s['g_1'] *= 1 + table_s['m']
-        table_s['g_2'] *= 1 + table_s['m']
+        for key in table_s_ref.colnames:
+            if key in ['m', 'w', 'R_11', 'R_22', 'R_12', 'R_21',
+                       'e_rms']:
+                table_s[key + suffix] = table_s_ref[key][idx]
 
-    if survey.lower() == 'des':
-        table_s['g_1'] *= 0.5 * (table_s['R_11'] + table_s['R_22'])
-        table_s['g_2'] *= 0.5 * (table_s['R_11'] + table_s['R_22'])
-
-    if survey.lower() == 'hsc':
-        table_s['g_1'] *= 2 * (1 - table_s['e_rms']**2)
-        table_s['g_2'] *= 2 * (1 - table_s['e_rms']**2)
-
-    return table_s
-
-
-def apply_shape_noise(table_s, sigma):
-
-    n_1 = np.random.normal(scale=sigma, size=len(table_s))
-    n_2 = np.random.normal(scale=sigma, size=len(table_s))
-
-    a_1 = table_s['g_1'] + n_1
-    a_2 = table_s['g_2'] + n_2
-    a_3 = 1.0 + table_s['g_1'] * n_1 + table_s['g_2'] * n_2
-    a_4 = table_s['g_1'] * n_2 - table_s['g_2'] * n_1
-    table_s['e_1'] = (a_1 * a_3 + a_2 * a_4) / (a_3 * a_3 + a_4 * a_4)
-    table_s['e_2'] = (a_2 * a_3 - a_1 * a_4) / (a_3 * a_3 + a_4 * a_4)
+        if survey.lower() in ['des', 'kids']:
+            if survey.lower() == 'des':
+                m = np.array([-0.006, -0.020, -0.024, -0.037])
+            else:
+                m = np.array([-0.009, -0.011, -0.015, 0.002, 0.007])
+            z_dig = np.digitize(
+                table_s['z'], SOURCE_Z_BINS[survey.lower()]) - 1
+            table_s['m'] = m[z_dig]
 
     return table_s
 
@@ -422,6 +398,10 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('buzzard_mock', choices=[0, 11, 3, 4, 5, 6, 7, 8, 9],
                         help='which Buzzard mock to process', type=int)
+    parser.add_argument('output', help='the output directory')
+    parser.add_argument(
+        '-p', '--pixels', help='Text file Buzzard listing pixels to be used ' +
+        'in the mock. If not provided, all available pixels are used.')
     args = parser.parse_args()
 
     np.random.seed(0)
@@ -440,8 +420,12 @@ def main():
         TABLE_S[survey] = read_real_source_catalog(survey)
         TABLE_C[survey] = read_real_calibration_catalog(survey)
 
-    pixel_all = [int(str(fname.stem).split('.')[-1]) for fname in
-                 (BUZZARD_PATH / 'truth').iterdir() if fname.is_file()]
+    pixel_b = [int(str(fname.stem).split('.')[-1]) for fname in
+               (BUZZARD_PATH / 'truth').iterdir() if fname.is_file()]
+    if args.pixels is not None:
+        pixel_b = np.intersect1d(
+            pixel_b, np.atleast_1d(np.genfromtxt(args.pixels, dtype=int)))
+    pixel_b = np.sort(pixel_b)
 
     global TABLE_IA
     print('Reading in the IA map...')
@@ -459,7 +443,7 @@ def main():
     # neighbours.
     pixel_ia = np.concatenate(
         [hp.pixelfunc.get_all_neighbours(8, p, nest=True) for p in
-         pixel_all])
+         pixel_b])
     pixel_ia = np.unique(pixel_ia)
 
     # Calculate the nside=2048 pixels that correspond to the nside=8 pixels
@@ -488,16 +472,16 @@ def main():
             TABLE_IA['ia_1'][:, i] = np.real(ia)[select] * -0.2
             TABLE_IA['ia_2'][:, i] = np.imag(ia)[select] * -0.2
 
-    Path('buzzard-{}'.format(args.buzzard_mock)).mkdir(exist_ok=True)
+    Path(args.output).mkdir(exist_ok=True)
 
-    for pixel in tqdm.tqdm(pixel_all):
+    for pixel in tqdm.tqdm(pixel_b):
         table_b = read_buzzard_catalog(pixel)
         table_b = add_ia_information(table_b)
 
         for survey in ['des', 'hsc', 'kids']:
             table_b['z_' + survey] = photometric_redshift(table_b['z'], survey)
 
-        path = Path('buzzard-{}'.format(args.buzzard_mock)) / 'f_detect.hdf5'
+        path = Path(args.output) / 'f_detect.hdf5'
 
         if not path.is_file():
             table_p = Table()
@@ -526,8 +510,7 @@ def main():
                 select = select | table_b[survey + suffix]
         table_b = table_b[select]
 
-        fname = 'pixel_{}.hdf5'.format(pixel)
-        path = Path('buzzard-{}'.format(args.buzzard_mock)) / fname
+        path = Path(args.output) / 'pixel_{}.hdf5'.format(pixel)
 
         buzzard_columns = ['z', 'mu', 'g_1', 'g_2', 'ra', 'dec', 'mag', 'ia_1',
                            'ia_2', 'abs_mag_r', 'ra_t', 'dec_t', 'z_cos']
@@ -549,26 +532,11 @@ def main():
 
             if survey not in ['bgs', 'lrg']:
 
-                table_survey['g_1'] = (table_b['g_1'][select] +
-                                       table_b['ia_1'][select])
-                table_survey['g_2'] = (table_b['g_2'][select] +
-                                       table_b['ia_2'][select])
                 table_survey['mag'] = table_b['mag'][select]
+                table_survey['mag_t'] = table_b['mag_t'][select]
                 table_survey['z'] = table_b['z_' + survey][select]
-                table_survey = apply_observed_shear(
-                    table_survey, survey=survey)
-
-                if survey in ['des', 'kids']:
-                    if survey == 'des':
-                        sigma = np.array([0.201, 0.204, 0.195, 0.203])
-                    else:
-                        sigma = np.array([0.274, 0.271, 0.289, 0.287, 0.301])
-                    sigma = sigma[np.digitize(
-                        table_survey['z'], SOURCE_Z_BINS[survey]) - 1]
-                else:
-                    sigma = 1.0 / np.sqrt(table_survey['w'])
-                table_survey = apply_shape_noise(table_survey, sigma)
-                table_survey.remove_columns(['mag', 'g_1', 'g_2'])
+                add_source_properties(table_survey, survey=survey)
+                table_survey.remove_columns(['mag', 'mag_t'])
 
             for key in table_survey.colnames:
                 dtype = table_survey[key].dtype
