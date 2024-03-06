@@ -359,8 +359,7 @@ for path, relative in zip([Path('plots_absolute'), Path('plots_relative')],
             plot_results(
                 path / ('shear_bias_{}_{}'.format(statistic, survey)),
                 statistic=statistic, survey=survey,
-                config=dict(shear_bias=(False, True),
-                            source_magnification=True), relative=relative)
+                config=dict(shear_bias=(False, True)), relative=relative)
 
             plot_results(
                 path / ('fiber_assignment_no_iip_{}_{}'.format(

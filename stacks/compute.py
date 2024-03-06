@@ -31,7 +31,7 @@ config = dict(Table.read('config.csv', converters=converters)[args.config])
 
 table_l_all, table_s_all, table_c_all = zebu.read_mock_catalog(
     [config['lenses'], config['sources'], config['sources'] + '-c'],
-    zebu.MOCK_PATH / 'buzzard-4', zebu.PIXELS,
+    zebu.MOCK_PATH / 'mocks', zebu.PIXELS,
     magnification=[
         config['lens magnification'], config['source magnification'],
         config['source magnification']],
