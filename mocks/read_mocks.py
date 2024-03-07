@@ -35,6 +35,7 @@ def random_ra_dec(n, pixels):
         Angular coordinates.
 
     """
+    np.random.seed(0)
     hp = HEALPix(8, order='nested')
     n = int(np.pi * (180.0 / np.pi)**2 * n)
     pos = np.random.normal(size=(n, 3))
