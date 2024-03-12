@@ -93,7 +93,7 @@ if args.compute:
             8, table_r_all['ra'], table_r_all['dec'], nest=True, lonlat=True)
         table_l_all = table_l_all[np.isin(table_l_all['field_jk'], pixels)]
         table_r_all = table_r_all[np.isin(table_r_all['field_jk'], pixels)]
-        table_r_all = table_r_all[::3]
+        table_r_all = table_r_all[::2]
 
         # Account for the fact that the GGL estimator weighs lenses differently
         # depending on redshift.
@@ -109,6 +109,15 @@ if args.compute:
         if lenses == 'bgs':
             table_l_all = table_l_all[table_l_all['bright'] == 1]
             table_r_all = table_r_all[table_r_all['bright'] == 1]
+            for lens_bin in range(len(zebu.LENS_Z_BINS[lenses]) - 1):
+                table_l_all = table_l_all[np.where(
+                    np.digitize(table_l_all['z'], zebu.LENS_Z_BINS['bgs'])
+                    != lens_bin + 1, True, table_l_all['abs_mag_r'] <
+                    zebu.ABS_MAG_R_MAX[lens_bin])]
+                table_r_all = table_r_all[np.where(
+                    np.digitize(table_r_all['z'], zebu.LENS_Z_BINS['bgs'])
+                    != lens_bin + 1, True, table_r_all['abs_mag_r'] <
+                    zebu.ABS_MAG_R_MAX[lens_bin])]
 
         n = 25
         rp_bins = np.geomspace(zebu.RP_BINS[0], zebu.RP_BINS[-1],
@@ -128,11 +137,6 @@ if args.compute:
                             (table_l_all['z'] <= z_max))
                 select_r = ((table_r_all['z'] > z_min) &
                             (table_r_all['z'] <= z_max))
-                if lenses == 'bgs':
-                    select_l = select_l & (table_l_all['abs_mag_r'] <
-                                           zebu.ABS_MAG_R_MAX[lens_bin])
-                    select_r = select_r & (table_r_all['abs_mag_r'] <
-                                           zebu.ABS_MAG_R_MAX[lens_bin])
                 select_s = ((table_s_all['z'] > z_min - 0.15) &
                             (table_s_all['z'] < z_max + 0.15))
 
@@ -158,11 +162,6 @@ if args.compute:
                         (table_l_all['z'] <= z_max))
             select_r = ((table_r_all['z'] > z_min) &
                         (table_r_all['z'] <= z_max))
-            if lenses == 'bgs':
-                select_l = select_l & (table_l_all['abs_mag_r'] <
-                                       zebu.ABS_MAG_R_MAX[lens_bin])
-                select_r = select_r & (table_r_all['abs_mag_r'] <
-                                       zebu.ABS_MAG_R_MAX[lens_bin])
             table_l = table_l_all[select_l]
             table_r = table_r_all[select_r]
             table_l = compress_jackknife_fields(table_l)
@@ -215,9 +214,17 @@ if args.compute:
 
 # %%
 
+# Use the corrections for reduced shear.
+table = Table.read(zebu.BASE_PATH / 'stacks' / 'plots_relative' /
+                   'reduced_shear_ds_hsc.csv')
+table = table[table['source_bin'] == 3]
+c = np.split((table['value'].data / 100) + 1, 6)
+
+
 for lenses in ['bgs', 'lrg']:
     for lens_bin in range(len(zebu.LENS_Z_BINS[lenses]) - 1):
         results = Table.read('{}_{}.csv'.format(lenses, lens_bin))
+        results['ds_shear'] /= c[lens_bin + 3 * (lenses == 'lrg')]
         rp = np.sqrt(zebu.RP_BINS[1:] * zebu.RP_BINS[:-1])
         color = mpl.colormaps['plasma'](
             (lens_bin + (lenses == 'lrg') * 3 + 0.5) / 5.0)
@@ -241,6 +248,7 @@ fig, axarr = plt.subplots(nrows=2, sharex=True, figsize=(3.33, 3.33))
 for ax, lenses in zip(axarr, ['bgs', 'lrg']):
     for lens_bin in range(len(zebu.LENS_Z_BINS[lenses]) - 1):
         results = Table.read('{}_{}.csv'.format(lenses, lens_bin))[:-2]
+        results['ds_shear'] /= c[lens_bin + 3 * (lenses == 'lrg')][:-2]
         rp = np.sqrt(zebu.RP_BINS[1:] * zebu.RP_BINS[:-1])[:-2]
         color = mpl.colormaps['plasma'](
             (lens_bin + (lenses == 'lrg') * 3) / 5.0)
@@ -259,7 +267,7 @@ for ax in axarr:
     ax.legend(loc='best', frameon=False)
 
 axarr[0].set_ylim(0.78, 1.12)
-axarr[1].set_ylim(0.96, 1.07)
+axarr[1].set_ylim(0.955, 1.065)
 axarr[1].set_yticks(np.arange(0.97, 1.07, 0.03))
 
 plt.xscale('log')
