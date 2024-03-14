@@ -19,7 +19,6 @@ from scipy.interpolate import interp1d
 DOWNSAMPLE = 1
 PARTICLE_MASS = 7.94069e12 * DOWNSAMPLE
 
-
 # %%
 
 def lens_weight(z_l, z_s):
@@ -31,23 +30,24 @@ def lens_weight(z_l, z_s):
         (z_l + 0.2 < z) for z in z_s])
 
 
-def delta_sigma_from_sigma(rp_bins, sigma, weights, n):
+def delta_sigma(rp_bins, m, weights):
 
-    # Let's first estimate DS in each of the fine bins.
-    sigma = np.average(sigma, weights=weights, axis=0)
-    ds = np.zeros_like(sigma)
-    w = np.diff(rp_bins**2)
-    for i in range(1, len(ds)):
-        ds[i] = 0.5 * (np.average(sigma[:i], weights=w[:i]) +
-                       np.average(sigma[:i+1], weights=w[:i+1])) - sigma[i]
+    m = np.average(m, weights=weights, axis=0)
+    # Calculate the mean radius as if particles have a surface density going
+    # as r_p^-1.
+    rp = (rp_bins[1:] - rp_bins[:-1]) / np.log(rp_bins[1:] / rp_bins[:-1])
 
-    # Now, let's average the results.
-    ds_mean = np.zeros((len(rp_bins) - 2) // n)
-    for i in range(len(ds_mean)):
-        ds_mean[i] = np.average(ds[1+n*i:1+n*(i+1)],
-                                weights=w[1+n*i:1+n*(i+1)])
+    ds = []
+    for i in range(len(zebu.RP_BINS) - 1):
+        rp_min = zebu.RP_BINS[i]
+        rp_max = zebu.RP_BINS[i + 1]
+        area = np.pi * (rp_max**2 - rp_min**2)
+        ds.append(np.sum(
+            np.where(rp < rp_max, 2 * m * np.log(rp_max / np.maximum(rp_min, rp)),
+                     0) -
+            np.where((rp_min < rp) & (rp < rp_max), m, 0)) / area)
 
-    return ds_mean / 1e12
+    return np.array(ds) / 1e12
 
 # %%
 
@@ -72,7 +72,7 @@ if args.compute:
     table_s_all = dsigma_table(ptcl, 'source', z='Z_COS', w=1, e_1=0, e_2=0)
 
     table_s = zebu.read_mock_catalog('hsc', zebu.MOCK_PATH / 'buzzard-4',
-                                     zebu.PIXELS)
+                                     zebu.PIXELS[:5])
     table_s = table_s[
         np.digitize(table_s['z'], zebu.SOURCE_Z_BINS['hsc']) == 4]
     z_s = np.random.choice(table_s['z_true'], 1000)
@@ -123,8 +123,8 @@ if args.compute:
         rp_bins = np.geomspace(zebu.RP_BINS[0], zebu.RP_BINS[-1],
                                (len(zebu.RP_BINS) - 1) * n + 1)
         rp_bins = np.append(rp_bins[::-1], 1e-6)[::-1]
-        table_l_all['sigma'] = np.zeros((len(table_l_all), len(rp_bins) - 1))
-        table_r_all['sigma'] = np.zeros((len(table_r_all), len(rp_bins) - 1))
+        table_l_all['sum m'] = np.zeros((len(table_l_all), len(rp_bins) - 1))
+        table_r_all['sum m'] = np.zeros((len(table_r_all), len(rp_bins) - 1))
 
         for lens_bin in range(len(zebu.LENS_Z_BINS[lenses]) - 1):
             for i in range(10):
@@ -143,18 +143,15 @@ if args.compute:
                 table_l = table_l_all[select_l]
                 table_r = table_r_all[select_r]
                 table_s = table_s_all[select_s]
-                d_l = zebu.COSMOLOGY.comoving_distance(
-                    0.5 * (z_min + z_max)).to(u.Mpc).value
 
                 kwargs = dict(cosmology=zebu.COSMOLOGY, progress_bar=True,
                               n_jobs=40, lens_source_cut=None, weighting=0)
                 table_l = precompute(table_l, table_s, rp_bins, **kwargs)
                 table_r = precompute(table_r, table_s, rp_bins, **kwargs)
-                area = - 2 * np.pi * d_l**2 * np.diff(np.cos(rp_bins / d_l))
-                table_l_all['sigma'][select_l] = (
-                    table_l['sum 1'] * PARTICLE_MASS / area)
-                table_r_all['sigma'][select_r] = (
-                    table_r['sum 1'] * PARTICLE_MASS / area)
+                table_l_all['sum m'][select_l] = (
+                    table_l['sum 1'] * PARTICLE_MASS)
+                table_r_all['sum m'][select_r] = (
+                    table_r['sum 1'] * PARTICLE_MASS)
 
             z_min = zebu.LENS_Z_BINS[lenses][lens_bin]
             z_max = zebu.LENS_Z_BINS[lenses][lens_bin + 1]
@@ -184,10 +181,8 @@ if args.compute:
             table_l_shear.sort('field_jk')
             table_r_shear.sort('field_jk')
 
-            ds_ptcl = (delta_sigma_from_sigma(
-                rp_bins, table_l['sigma'], table_l['w_sys'], n) -
-                delta_sigma_from_sigma(
-                rp_bins, table_r['sigma'], table_r['w_sys'], n))
+            ds_ptcl = delta_sigma(rp_bins, table_l['sum m'], table_l['w_sys'])
+            ds_ptcl -= delta_sigma(rp_bins, table_r['sum m'], table_r['w_sys'])
             ds_shear = excess_surface_density(table_l_shear, table_r=table_r)
 
             ds_ptcl = np.zeros((len(table_l), len(zebu.RP_BINS) - 1))
@@ -195,12 +190,12 @@ if args.compute:
             for i in range(len(table_l)):
                 select = np.arange(len(table_l)) != i
                 ds_ptcl[i, :] = (
-                    delta_sigma_from_sigma(
-                        rp_bins, table_l['sigma'][select],
-                        table_l['w_sys'][select], n) -
-                    delta_sigma_from_sigma(
-                        rp_bins, table_r['sigma'][select],
-                        table_r['w_sys'][select], n))
+                    delta_sigma(
+                        rp_bins, table_l['sum m'][select],
+                        table_l['w_sys'][select]) -
+                    delta_sigma(
+                        rp_bins, table_r['sum m'][select],
+                        table_r['w_sys'][select]))
                 ds_shear[i, :] = excess_surface_density(
                     table_l_shear[select], table_r_shear[select],
                     random_subtraction=True)
