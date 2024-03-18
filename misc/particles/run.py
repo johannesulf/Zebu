@@ -21,6 +21,7 @@ PARTICLE_MASS = 7.94069e12 * DOWNSAMPLE
 
 # %%
 
+
 def lens_weight(z_l, z_s):
     # Determine the effective weight assigned to each lens galaxy in the
     # galaxy-galaxy lensing measurements.
@@ -239,6 +240,7 @@ plt.close()
 # %%
 
 fig, axarr = plt.subplots(nrows=2, sharex=True, figsize=(3.33, 3.33))
+table = Table()
 
 for ax, lenses in zip(axarr, ['bgs', 'lrg']):
     for lens_bin in range(len(zebu.LENS_Z_BINS[lenses]) - 1):
@@ -252,6 +254,9 @@ for ax, lenses in zip(axarr, ['bgs', 'lrg']):
         y_err = results['ds_diff_err'] / results['ds_shear']
         ax.plot(x, y, label='{}-{}'.format(lenses.upper(), lens_bin + 1),
                 zorder=lens_bin, color=color)
+        table['rp'] = x
+        table['{}-{}'.format(lenses, lens_bin + 1)] = y
+        table['{}-{} error'.format(lenses, lens_bin + 1)] = y_err
         plotline, caps, barlinecols = ax.errorbar(
             x, y, yerr=y_err, fmt='o', zorder=lens_bin, color=color)
         plt.setp(barlinecols[0], capstyle='round')
@@ -271,4 +276,5 @@ plt.tight_layout(pad=0.3)
 plt.subplots_adjust(hspace=0)
 plt.savefig('ptcl_shear_ratio.pdf')
 plt.savefig('ptcl_shear_ratio.png', dpi=300)
+table.write('ptcl_shear_ratio.csv', overwrite=True)
 plt.close()

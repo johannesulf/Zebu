@@ -194,6 +194,7 @@ def plot_results(path, statistic='ds', survey='des', config={},
     cb.ax.tick_params(size=0)
 
     table_w = zebu.covariance(statistic.split('-')[0], survey)[1]
+    table_w.remove_column('fiducial')
     table_w['value'] = np.repeat(np.nan, len(table_w))
     table_w['error'] = np.repeat(np.nan, len(table_w))
 

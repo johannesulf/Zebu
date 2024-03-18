@@ -22,6 +22,17 @@ stacks/plots_relative/*
 !stacks/plots_relative/fiber_assignment_ds_hsc.pdf
 !stacks/plots_relative/lens_magnification_ds_*.pdf
 !stacks/plots_relative/source_magnification_ds_hsc.pdf
+!stacks/plots_absolute/gravitational_gt_des.csv
+!stacks/plots_absolute/gravitational_ds_des.csv
+!stacks/plots_relative/shear_bias_ds_des.csv
+!stacks/plots_relative/shear_bias_ds_hsc.csv
+!stacks/plots_relative/boost_gt_des.csv
+!stacks/plots_relative/boost_gt_hsc.csv
+!stacks/plots_relative/intrinsic_alignment_ds_*.csv
+!stacks/plots_relative/fiber_assignment_no_iip_ds_hsc.csv
+!stacks/plots_relative/fiber_assignment_ds_hsc.csv
+!stacks/plots_relative/lens_magnification_ds_*.csv
+!stacks/plots_relative/source_magnification_ds_hsc.csv
 draft/*
 !draft/Makefile
 misc/resolution/analytic_model/*

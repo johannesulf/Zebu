@@ -1,7 +1,6 @@
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
-import os
 import zebu
 
 from astropy.io.ascii import convert_numpy
@@ -17,6 +16,9 @@ table_c = Table.read(zebu.BASE_PATH / 'stacks' / 'config.csv',
 # %%
 
 for sources in ['des', 'kids']:
+
+    table_data = Table()
+
     for i in range(5):
         lens_bin = i % 3
         lenses = 'bgs' if i < 3 else 'lrg'
@@ -44,9 +46,11 @@ for sources in ['des', 'kids']:
         b = boost_factor(table_l, table_r)
 
         rp = np.sqrt(zebu.RP_BINS[1:] * zebu.RP_BINS[:-1])
+        table_data['rp'] = rp
         color = mpl.colormaps['plasma'](i / 5.0)
         plt.plot(rp, b - 1, color=color, label='{}-{}'.format(
             lenses.upper(), lens_bin + 1))
+        table_data['{}-{}'.format(lenses.upper(), lens_bin + 1)] = b - 1
 
     plt.axvspan(0, 1, color='lightgrey', zorder=-99)
     plt.xscale('log')
@@ -56,4 +60,5 @@ for sources in ['des', 'kids']:
     plt.tight_layout(pad=0.8)
     plt.savefig('clustering_{}.pdf'.format(sources))
     plt.savefig('clustering_{}.png'.format(sources), dpi=300)
+    table_data.write('clustering_{}.csv'.format(sources), overwrite=True)
     plt.close()

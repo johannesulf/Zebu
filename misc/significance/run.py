@@ -87,13 +87,12 @@ for i, statistic in enumerate(['gt', 'ds']):
                     z_s = zebu.SOURCE_Z[survey]
                     use = use & (z_l[data['lens_bin']] <
                                  z_s[data['source_bin']] - 0.2)
-                    if k == 0 and name == 'boost':
-                        print(np.sum(use), survey)
-                        print(z_s)
-                        print(data[use & (data['r'] == np.amin(data['r']))])
 
                 chi_sq.append(significance(bias, cov, use))
             ax.plot(rp_min, chi_sq, label=label)
+            table = Table()
+            table['rp_min'] = rp_min
+            table['delta chi_sq'] = chi_sq
 
             text = '{}: '.format(survey.upper() if survey != 'kids' else
                                  'KiDS')
@@ -105,6 +104,8 @@ for i, statistic in enumerate(['gt', 'ds']):
 
             ax.text(0.95, 0.95, text, transform=ax.transAxes, ha='right',
                     va='top')
+            table.write('significance_{}_{}_{}.csv'.format(
+                statistic, survey, name), overwrite=True)
 
 for ax in [axs[1][0], axs[2][0]]:
     ax.set_xscale('log')
