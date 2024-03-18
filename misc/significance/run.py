@@ -1,10 +1,15 @@
-import matplotlib.gridspec as gridspec
+import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import zebu
 
 from astropy.table import Table
 from astropy import units as u
+from cycler import cycler
+
+plt.rc('axes', prop_cycle=(
+       cycler(color=matplotlib.colormaps['plasma'](np.linspace(0.0, 1.0, 5))) +
+       cycler(linestyle=['-', '--', ':', '-.', (0, (5, 1))])))
 
 # %%
 
@@ -82,6 +87,10 @@ for i, statistic in enumerate(['gt', 'ds']):
                     z_s = zebu.SOURCE_Z[survey]
                     use = use & (z_l[data['lens_bin']] <
                                  z_s[data['source_bin']] - 0.2)
+                    if k == 0 and name == 'boost':
+                        print(np.sum(use), survey)
+                        print(z_s)
+                        print(data[use & (data['r'] == np.amin(data['r']))])
 
                 chi_sq.append(significance(bias, cov, use))
             ax.plot(rp_min, chi_sq, label=label)
