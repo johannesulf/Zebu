@@ -44,7 +44,8 @@ for i, statistic in enumerate(['gt', 'ds']):
         ax = axs[i + 1][j]
         ax.axhline(0.1, color='black', ls='--')
         ax.axvspan(0, 1.0, color='lightgrey', zorder=-99)
-        ax.set_xlabel(r'Minimum Scale $r_p \, [h^{-1} \, \mathrm{Mpc}]$')
+        ax.set_xlabel(
+            r'Minimum Scale $r_{\mathrm{p}} \, [h^{-1} \, \mathrm{Mpc}]$')
         for name, label in zip([
                 'fiber_assignment_no_iip', 'lens_magnification',
                 'intrinsic_alignment', 'boost', 'reduced_shear'],
@@ -98,7 +99,7 @@ for i, statistic in enumerate(['gt', 'ds']):
                                  'KiDS')
 
             if statistic == 'gt':
-                text += r'$\gamma_t$, no redshift cuts'
+                text += r'$\gamma_{\mathrm{t}}$, no redshift cuts'
             else:
                 text += r'$\Delta\Sigma$, redshift cuts'
 

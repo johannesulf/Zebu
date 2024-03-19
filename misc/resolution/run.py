@@ -38,8 +38,8 @@ for resolution, label in zip(
     plt.plot(r, r * esd, label=label)
 
 plt.xscale('log')
-plt.xlabel(r'$r_p \, [h^{-1} \, \mathrm{Mpc}]$')
-plt.ylabel(r'$r_p \Delta\Sigma(r_p) \, [10^6 M_\odot / \mathrm{pc}]$')
+plt.xlabel(r'$r_{\mathrm{p}} \, [h^{-1} \, \mathrm{Mpc}]$')
+plt.ylabel(r'$r_{\mathrm{p}} \Delta\Sigma \, [10^6 M_\odot / \mathrm{pc}]$')
 plt.legend(loc='best', frameon=False)
 plt.tight_layout(pad=0.3)
 plt.savefig('kmax.pdf')

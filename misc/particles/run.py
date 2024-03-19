@@ -229,8 +229,9 @@ for lenses in ['bgs', 'lrg']:
         plt.plot(rp, rp * results['ds_shear'], ls='--', color=color)
 
 plt.xscale('log')
-plt.xlabel(r'Projected radius $r_p \, [h^{-1} \, \mathrm{Mpc}]$')
-plt.ylabel(r'$r_p \Delta \Sigma \, [10^6 M_\odot / \mathrm{pc}]$')
+plt.xlabel(
+    r'Projected radius $r_{\mathrm{p}} \, [h^{-1} \, \mathrm{Mpc}]$')
+plt.ylabel(r'$r_{\mathrm{p}} \Delta \Sigma \, [10^6 M_\odot / \mathrm{pc}]$')
 plt.legend(loc='best', frameon=False)
 plt.tight_layout(pad=0.3)
 plt.savefig('ptcl_shear.pdf')
@@ -271,7 +272,8 @@ axarr[1].set_ylim(0.955, 1.065)
 axarr[1].set_yticks(np.arange(0.97, 1.07, 0.03))
 
 plt.xscale('log')
-axarr[1].set_xlabel(r'Projected radius $r_p \, [h^{-1} \, \mathrm{Mpc}]$')
+axarr[1].set_xlabel(
+    r'Projected radius $r_{\mathrm{p}} \, [h^{-1} \, \mathrm{Mpc}]$')
 plt.tight_layout(pad=0.3)
 plt.subplots_adjust(hspace=0)
 plt.savefig('ptcl_shear_ratio.pdf')

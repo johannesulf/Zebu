@@ -147,7 +147,7 @@ def plot_results(path, statistic='ds', survey='des', config={},
         ax.text(0.08, 0.92, text, ha='left', va='top',
                 transform=ax.transAxes, zorder=200)
         if statistic.split('-')[0] == 'ds':
-            ax.set_xlabel(r'$r_p \, [h^{-1} \, \mathrm{Mpc}]$')
+            ax.set_xlabel(r'$r_{\mathrm{p}} \, [h^{-1} \, \mathrm{Mpc}]$')
         else:
             ax.set_xlabel(r'$\theta \, [\mathrm{arcmin}]$')
 
@@ -168,14 +168,14 @@ def plot_results(path, statistic='ds', survey='des', config={},
         if relative:
             axes[0].set_ylabel(r'$\delta \Delta\Sigma$')
         else:
-            axes[0].set_ylabel(
-                r'$r_p \Delta\Sigma \, [10^6 \, M_\odot / \mathrm{pc}]$')
+            axes[0].set_ylabel(r'$r_{\mathrm{p}} \Delta\Sigma \, [10^6 \, ' +
+                               r'M_\odot / \mathrm{pc}]$')
     elif statistic == 'gt':
         if relative:
-            axes[0].set_ylabel(r'$\delta \gamma_t$')
+            axes[0].set_ylabel(r'$\delta \gamma_{\mathrm{t}}$')
         else:
             axes[0].set_ylabel(
-                r'$\theta \gamma_t \, [10^3 \, \mathrm{arcmin}]$')
+                r'$\theta \gamma_{\mathrm{t}} \, [10^3 \, \mathrm{arcmin}]$')
     else:
         axes[0].set_ylabel(r'Boost Factor $b - 1$')
 

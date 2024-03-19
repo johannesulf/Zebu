@@ -55,8 +55,9 @@ for sources in ['des', 'kids']:
     plt.axvspan(0, 1, color='lightgrey', zorder=-99)
     plt.xscale('log')
     plt.legend(loc='best', frameon=False)
-    plt.xlabel(r'Projected radius $r_p \, [h^{-1} \, \mathrm{Mpc}]$')
-    plt.ylabel(r'Angular clustering $w_i$')
+    plt.xlabel(
+        r'Projected radius $r_{\mathrm{p}} \, [h^{-1} \, \mathrm{Mpc}]$')
+    plt.ylabel(r'Angular clustering $w$')
     plt.tight_layout(pad=0.8)
     plt.savefig('clustering_{}.pdf'.format(sources))
     plt.savefig('clustering_{}.png'.format(sources), dpi=300)
