@@ -30,11 +30,10 @@ all: $(FILES)
 	bibm pdflatex diff_cwr.tex
 
 	bibm pdflatex ms.tex
-	zip -FS source.zip ms.tex authors.tex affiliations.tex ms.bbl bibliography.bib *.pdf -x diff_*.pdf
+	zip -FS source.zip ms.tex authors.tex affiliations.tex ms.bbl bibliography.bib plots/*
 
 $(FILES):
 	mkdir -p plots
-	mkdir -p data
 	cp ../$@.pdf plots
 	cp ../$@*.csv data
 
@@ -48,3 +47,8 @@ clean:
 	rm -f *.out
 	rm -f *.pdf
 	rm -f *.zip
+	rm -f *Notes.bib
+	rm -f authors.tex
+	rm -f affiliations.tex
+	rm -f data/*.csv
+	rm -rf plots

@@ -35,6 +35,9 @@ stacks/plots_relative/*
 !stacks/plots_relative/source_magnification_ds_hsc.csv
 draft/*
 !draft/Makefile
+!draft/data
+draft/data/*
+!draft/data/README.md
 misc/resolution/analytic_model/*
 !misc/resolution/analytic_model/kmax2.conf
 !misc/resolution/analytic_model/normal.conf
