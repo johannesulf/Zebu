@@ -26,9 +26,6 @@ all: $(FILES)
 	grep '^\$$\^{[0-9,]*}\$$' tmp.tex > affiliations.tex
 	rm tmp.tex
 
-	latexdiff --disable-citation-markup ms_cwr.tex ms.tex > diff_cwr.tex
-	bibm pdflatex diff_cwr.tex
-
 	bibm pdflatex ms.tex
 	zip -FS source.zip ms.tex authors.tex affiliations.tex ms.bbl bibliography.bib plots/*
 
