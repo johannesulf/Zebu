@@ -197,6 +197,8 @@ def plot_results(path, statistic='ds', survey='des', config={},
     table_w.remove_column('fiducial')
     table_w['value'] = np.repeat(np.nan, len(table_w))
     table_w['error'] = np.repeat(np.nan, len(table_w))
+    if plot_lens_magnification:
+        table_w['prediction'] = np.repeat(np.nan, len(table_w))
 
     for j in range(n_bins_l):
         stacking_kwargs = zebu.stacking_kwargs(
@@ -268,8 +270,9 @@ def plot_results(path, statistic='ds', survey='des', config={},
 
             if plot_lens_magnification:
                 y = lens_magnification_bias(
-                    table_l_1[j][k], zebu.ALPHA_L[j], camb_results,
-                    shear=(statistic.split('-')[0] == 'gt'))
+                    table_l_2[j][k], zebu.ALPHA_L[j], camb_results,
+                    shear=(statistic.split('-')[0] == 'gt'),
+                    photo_z_dilution_correction=survey == 'hsc')
                 if relative:
                     y /= y_norm
                 else:
@@ -277,6 +280,7 @@ def plot_results(path, statistic='ds', survey='des', config={},
                         y *= 1e3
                     if statistic in ['ds', 'gt']:
                         y = x * y
+                table_w['prediction'][use] = y
                 axes[j].plot(x, y, ls='--', color=colors[k])
 
     ymin, ymax = axes[0].get_ylim()
